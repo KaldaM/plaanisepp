@@ -93,9 +93,9 @@ Praegune `PowerConnection` seob ühe allika terve tarbiva objektiga, sisaldab sa
 
 1. Kirjeldada uued domeenitüübid ja migratsioonireeglid automaattestidega.
 2. Lisada seadmetele püsivad ID-d ning vaiketoite ja erandi lahendamine.
-3. Lisada alajaotuskilp ja tsüklivaba üles-/allavoolu koormusarvutus. Domeenimudel, rekursiivne arvutus ja `.pplan` v3 salvestamine on teostatud. Alajaotuskilbi saab kasutajaliidesest kaardile lisada, selle väljundeid hallata ja olemasolevate vooluvalikutega ülesvoolu ühendada. Kasutajaliides eristab puuduvat allikat või tarbijat, iseühendust, tsüklit ja sobiva väljundi puudumist; seadmepõhiste erandite kasutajaliides on järgmine samm.
+3. Lisada alajaotuskilp ja tsüklivaba üles-/allavoolu koormusarvutus. Domeenimudel, rekursiivne arvutus ja `.pplan` v3 salvestamine on teostatud. Alajaotuskilbi saab kasutajaliidesest kaardile lisada, selle väljundeid hallata ja olemasolevate vooluvalikutega ülesvoolu ühendada. Kasutajaliides eristab puuduvat allikat või tarbijat, iseühendust, tsüklit ja sobiva väljundi puudumist.
 4. Laiendada `.pplan` lugemist ja kirjutamist koos versioon 1/2 migratsioonitestidega.
-5. Lisada kasutajaliideses objekti vaiketoide ning seadmereal valitav erand.
+5. Lisada kasutajaliideses objekti vaiketoide ning seadmereal valitav erand. Teostatud: seadmete loend näitab kasutatavat toidet, valitud seadme saab suunata objekti alternatiivühendusele ning alternatiivühendusi saab lisada ja eemaldada.
 6. Uuendada kaablite joonistamine, kokkuvõtted, TXT/PDF-eksport ja külgpaneel.
 
 Teise etapi eeldustest on teostatud seadme ja vooluühenduse püsivad ID-d. `Equipment` saab domeenimudelis kasutada objekti vaiketoidet või viidata erandina kindlale `PowerConnection` ID-le. Ühel tarbival objektil võib olla üks vaiketoide ja mitu alternatiivset füüsilist ühendust. `EventPlan` lubab määrata ainult samale tarbivale objektile kuuluva ühenduse, jagab seadmete koormuse tegelike ühenduste vahel ning lähtestab eemaldatud või vigased ühenduseviited vaiketoitele. `.pplan` versioon 3 salvestab mitme ühenduse rollid ja seadmepõhised valikud; versioon 1 ja 2 plaanid migreeritakse laadimisel senise nähtava jaotusega vaiketoitele.

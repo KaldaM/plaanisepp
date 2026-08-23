@@ -7,6 +7,7 @@ import ee.matteus.plaanisepp.core.model.CustomObjectShape;
 import ee.matteus.plaanisepp.core.model.DistributionPanel;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EquipmentContainer;
+import ee.matteus.plaanisepp.core.model.EquipmentPowerAssignmentResult;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
@@ -218,6 +219,10 @@ public class PlaaniseppApp extends Application {
     private TextField equipmentWattsField;
     private Button addEquipmentButton;
     private Button removeEquipmentButton;
+    private ComboBox<EquipmentPowerChoice> equipmentPowerComboBox;
+    private Button applyEquipmentPowerButton;
+    private Button addAlternativePowerConnectionButton;
+    private Button removeAlternativePowerConnectionButton;
     private ListView<String> outletList;
     private TextField outletNameField;
     private ComboBox<ConnectorType> outletTypeComboBox;
@@ -1092,6 +1097,8 @@ public class PlaaniseppApp extends Application {
         });
         equipmentList = new ListView<>();
         equipmentList.setPrefHeight(120);
+        equipmentList.getSelectionModel().selectedIndexProperty()
+                .addListener((observable, oldValue, newValue) -> refreshEquipmentPowerChoices());
         equipmentNameField = new TextField();
         equipmentNameField.setPromptText("Seadme nimi");
         equipmentWattsField = new TextField();
@@ -1100,6 +1107,18 @@ public class PlaaniseppApp extends Application {
         addEquipmentButton.setOnAction(event -> addEquipmentToSelectedContainer());
         removeEquipmentButton = new Button("Eemalda valitud");
         removeEquipmentButton.setOnAction(event -> removeSelectedEquipment());
+        equipmentPowerComboBox = new ComboBox<>();
+        equipmentPowerComboBox.setMaxWidth(Double.MAX_VALUE);
+        equipmentPowerComboBox.setOnAction(event -> refreshEquipmentPowerActionButtons());
+        applyEquipmentPowerButton = new Button("Rakenda seadme toide");
+        applyEquipmentPowerButton.setOnAction(event -> applySelectedEquipmentPower());
+        addAlternativePowerConnectionButton = new Button("Lisa alternatiivne ühendus");
+        addAlternativePowerConnectionButton.setTooltip(new Tooltip(
+                "Lisa Vool jaotises valitud ühendus seadmete erandtoiteks"
+        ));
+        addAlternativePowerConnectionButton.setOnAction(event -> addAlternativePowerConnection());
+        removeAlternativePowerConnectionButton = new Button("Eemalda alternatiivühendus");
+        removeAlternativePowerConnectionButton.setOnAction(event -> removeSelectedAlternativePowerConnection());
         outletList = new ListView<>();
         outletList.setPrefHeight(100);
         outletList.getSelectionModel().selectedIndexProperty()
@@ -1190,7 +1209,12 @@ public class PlaaniseppApp extends Application {
         powerConnectionForm.addRow(3, new Label("Kaabli tükid"), cableLengthNotesField);
         powerConnectionForm.addRow(4, new Label("Kaabli märkmed"), cableNotesField);
         powerConnectionForm.addRow(5, new Label("Sildi asukoht"), resetCableLabelButton);
-        powerConnectionPanel = new VBox(8, sectionLabel("Vool"), powerConnectionForm);
+        powerConnectionPanel = new VBox(
+                8,
+                sectionLabel("Vool"),
+                powerConnectionForm,
+                addAlternativePowerConnectionButton
+        );
 
         GridPane notesForm = detailGrid();
         notesForm.addRow(0, new Label("Märkmed"), notesArea);
@@ -1210,7 +1234,12 @@ public class PlaaniseppApp extends Application {
                 equipmentNameField,
                 equipmentWattsField,
                 addEquipmentButton,
-                removeEquipmentButton
+                removeEquipmentButton,
+                new Separator(),
+                new Label("Valitud seadme toide"),
+                equipmentPowerComboBox,
+                applyEquipmentPowerButton,
+                removeAlternativePowerConnectionButton
         );
         equipmentSection = collapsibleSection(EQUIPMENT_SECTION, "Seadmed", equipmentPanel, false);
         outletPanel = new VBox(
@@ -3412,6 +3441,8 @@ public class PlaaniseppApp extends Application {
         equipmentWattsField.setDisable(!equipmentContainerSelected);
         addEquipmentButton.setDisable(!equipmentContainerSelected);
         removeEquipmentButton.setDisable(!equipmentContainerSelected);
+        addAlternativePowerConnectionButton.setDisable(!equipmentContainerSelected || !consumerHasPowerConnection);
+        refreshEquipmentPowerActionButtons();
         outletList.setDisable(!powerSourceSelected);
         outletNameField.setDisable(!powerSourceSelected);
         outletTypeComboBox.setDisable(!powerSourceSelected);
@@ -4739,6 +4770,101 @@ public class PlaaniseppApp extends Application {
         markDirty();
     }
 
+    private void addAlternativePowerConnection() {
+        if (!(selectedObject instanceof EquipmentContainer) || !(selectedObject instanceof PowerConsumer)) {
+            return;
+        }
+        PowerSourceChoice selectedSource = powerSourceComboBox.getSelectionModel().getSelectedItem();
+        if (selectedSource == null || selectedSource.isNone()) {
+            showError("Alternatiivühendust ei lisatud", "Vali vooluallikas.");
+            return;
+        }
+
+        ConnectorType connectorType = selectedConnectionType();
+        String outletId = selectedConnectionOutletId();
+        PowerConnection existingConnection = plan.findPowerConnectionsForConsumer(selectedObject.id()).stream()
+                .filter(connection -> connection.sourceId().equals(selectedSource.sourceId()))
+                .filter(connection -> connection.connectorType() == connectorType)
+                .filter(connection -> connection.outletId().equals(outletId))
+                .findFirst()
+                .orElse(null);
+        if (existingConnection != null) {
+            showError("Alternatiivühendust ei lisatud", "See ühendus on objektil juba olemas.");
+            return;
+        }
+
+        PowerConnectionValidationResult validationResult = plan.validatePowerConnection(
+                selectedSource.sourceId(), selectedObject.id(), connectorType, outletId
+        );
+        if (validationResult != PowerConnectionValidationResult.VALID) {
+            showError("Alternatiivühendust ei lisatud", powerConnectionValidationMessage(validationResult));
+            return;
+        }
+        if (plan.addAlternativePowerConnection(
+                selectedSource.sourceId(), selectedObject.id(), connectorType, outletId
+        ).isEmpty()) {
+            showError("Alternatiivühendust ei lisatud", "Objektil peab enne olema vaiketoide.");
+            return;
+        }
+
+        refreshPowerSourceChoices();
+        refreshEquipmentPowerChoices();
+        redrawMap();
+        refreshSummary();
+        markDirty();
+    }
+
+    private void applySelectedEquipmentPower() {
+        EquipmentContainer container = selectedEquipmentContainer();
+        Equipment equipment = selectedEquipment();
+        EquipmentPowerChoice selectedPower = equipmentPowerComboBox.getSelectionModel().getSelectedItem();
+        if (container == null || equipment == null || selectedPower == null) {
+            return;
+        }
+
+        EquipmentPowerAssignmentResult result = selectedPower.isDefault()
+                ? plan.useDefaultPowerForEquipment(selectedObject.id(), equipment.id())
+                : plan.assignEquipmentToPowerConnection(
+                        selectedObject.id(), equipment.id(), selectedPower.connectionId()
+                );
+        if (result != EquipmentPowerAssignmentResult.SUCCESS) {
+            showError("Seadme toidet ei rakendatud", equipmentPowerAssignmentError(result));
+            return;
+        }
+
+        refreshEquipmentList();
+        redrawMap();
+        refreshSummary();
+        markDirty();
+    }
+
+    private void removeSelectedAlternativePowerConnection() {
+        EquipmentPowerChoice selectedPower = equipmentPowerComboBox.getSelectionModel().getSelectedItem();
+        if (selectedPower == null || selectedPower.isDefault()) {
+            return;
+        }
+        if (!plan.disconnectPowerConnection(selectedPower.connectionId())) {
+            showError("Alternatiivühendust ei eemaldatud", "Valitud ühendust ei leitud.");
+            return;
+        }
+
+        refreshEquipmentList();
+        redrawMap();
+        refreshSummary();
+        markDirty();
+    }
+
+    private String equipmentPowerAssignmentError(EquipmentPowerAssignmentResult result) {
+        return switch (result) {
+            case CONTAINER_NOT_FOUND -> "Valitud objekti ei leitud.";
+            case EQUIPMENT_NOT_FOUND -> "Valitud seadet ei leitud.";
+            case CONNECTION_NOT_FOUND -> "Valitud vooluühendust ei leitud.";
+            case CONNECTION_BELONGS_TO_ANOTHER_CONSUMER ->
+                    "Valitud vooluühendus ei kuulu sellele objektile.";
+            case SUCCESS -> "";
+        };
+    }
+
     private void addOutletToSelectedPowerSource() {
         if (!(selectedObject instanceof PowerSource source)) {
             return;
@@ -4992,15 +5118,106 @@ public class PlaaniseppApp extends Application {
     }
 
     private void refreshEquipmentList() {
+        int selectedIndex = equipmentList.getSelectionModel().getSelectedIndex();
         equipmentList.getItems().clear();
         EquipmentContainer container = selectedEquipmentContainer();
         if (container == null) {
+            refreshEquipmentPowerChoices();
             return;
         }
 
         for (Equipment item : container.equipment()) {
-            equipmentList.getItems().add("%s - %d W".formatted(item.name(), item.requiredWatts()));
+            equipmentList.getItems().add("%s - %d W · %s".formatted(
+                    item.name(),
+                    item.requiredWatts(),
+                    equipmentPowerDisplayName(item)
+            ));
         }
+        if (!container.equipment().isEmpty() && selectedIndex >= 0) {
+            equipmentList.getSelectionModel().select(Math.min(selectedIndex, container.equipment().size() - 1));
+        } else {
+            refreshEquipmentPowerChoices();
+        }
+    }
+
+    private void refreshEquipmentPowerChoices() {
+        equipmentPowerComboBox.getItems().clear();
+        Equipment equipment = selectedEquipment();
+        if (equipment == null || selectedObject == null) {
+            refreshEquipmentPowerActionButtons();
+            return;
+        }
+
+        PowerConnection defaultConnection = plan.findPowerConnectionForConsumer(selectedObject.id()).orElse(null);
+        EquipmentPowerChoice defaultChoice = EquipmentPowerChoice.defaultPower(
+                defaultConnection == null
+                        ? "Objekti vaiketoide (määramata)"
+                        : "Objekti vaiketoide — " + powerConnectionDisplayName(defaultConnection)
+        );
+        equipmentPowerComboBox.getItems().add(defaultChoice);
+        for (PowerConnection connection : plan.findPowerConnectionsForConsumer(selectedObject.id())) {
+            if (!connection.defaultForConsumer()) {
+                equipmentPowerComboBox.getItems().add(new EquipmentPowerChoice(
+                        connection.id(), "Erand — " + powerConnectionDisplayName(connection)
+                ));
+            }
+        }
+
+        equipmentPowerComboBox.getItems().stream()
+                .filter(choice -> equipment.usesDefaultPower()
+                        ? choice.isDefault()
+                        : choice.connectionId().equals(equipment.powerConnectionId()))
+                .findFirst()
+                .ifPresentOrElse(
+                        choice -> equipmentPowerComboBox.getSelectionModel().select(choice),
+                        () -> equipmentPowerComboBox.getSelectionModel().select(defaultChoice)
+                );
+        refreshEquipmentPowerActionButtons();
+    }
+
+    private String powerConnectionDisplayName(PowerConnection connection) {
+        PowerSource source = plan.findObject(connection.sourceId())
+                .filter(PowerSource.class::isInstance)
+                .map(PowerSource.class::cast)
+                .orElse(null);
+        String sourceName = source == null ? "Puuduv vooluallikas" : source.name();
+        String outletName = source == null
+                ? connection.connectorType().displayName()
+                : source.outlets().stream()
+                .filter(outlet -> outlet.id().equals(connection.outletId()))
+                .findFirst()
+                .map(outlet -> outlet.name().isBlank() ? outlet.type().displayName() : outlet.name())
+                .orElse(connection.connectorType().displayName());
+        return "%s / %s".formatted(sourceName, outletName);
+    }
+
+    private String equipmentPowerDisplayName(Equipment equipment) {
+        if (equipment.usesDefaultPower()) {
+            return "vaiketoide";
+        }
+        return plan.powerConnections().stream()
+                .filter(connection -> connection.id().equals(equipment.powerConnectionId()))
+                .findFirst()
+                .map(this::powerConnectionDisplayName)
+                .orElse("puuduv toide");
+    }
+
+    private void refreshEquipmentPowerActionButtons() {
+        Equipment equipment = selectedEquipment();
+        EquipmentPowerChoice selectedPower = equipmentPowerComboBox.getSelectionModel().getSelectedItem();
+        applyEquipmentPowerButton.setDisable(equipment == null || selectedPower == null);
+        removeAlternativePowerConnectionButton.setDisable(
+                equipment == null || selectedPower == null || selectedPower.isDefault()
+        );
+    }
+
+    private Equipment selectedEquipment() {
+        EquipmentContainer container = selectedEquipmentContainer();
+        int selectedIndex = equipmentList.getSelectionModel().getSelectedIndex();
+        if (container == null || selectedIndex < 0 || selectedIndex >= container.equipment().size()) {
+            return null;
+        }
+        return container.equipment().get(selectedIndex);
     }
 
     private EquipmentContainer selectedEquipmentContainer() {
@@ -5597,6 +5814,21 @@ public class PlaaniseppApp extends Application {
     }
 
     private record OutletChoice(String outletId, String name) {
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    private record EquipmentPowerChoice(String connectionId, String name) {
+        private static EquipmentPowerChoice defaultPower(String name) {
+            return new EquipmentPowerChoice("", name);
+        }
+
+        private boolean isDefault() {
+            return connectionId.isBlank();
+        }
+
         @Override
         public String toString() {
             return name;
