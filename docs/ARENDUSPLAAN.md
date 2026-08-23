@@ -11,10 +11,11 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 
 1. lisada enne sügist alajaotuskilbid ning seadmete vaiketoide ja seadmepõhised toitevalikud;
 2. kujundada elektri kokkuvõte uue mudeli põhjal interaktiivseks ning lisada väljundite koormusribad;
-3. lisada objektide kiirotsing kahekordse Shift-klahviga;
-4. asendada suumi `+` ja `-` nupud liuguriga ning lisada `Alt + hiirerull`;
-5. lisada rakenduse käivitamisel hiljutiste plaanide ja uue plaani loomise avavaade;
-6. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+3. lisada külgpaneeli ja objektide kontekstimenüüd, üksikobjektide nähtavus ning külgpaneeli jaotiste järjestamine;
+4. lisada objektide kiirotsing kahekordse Shift-klahviga;
+5. asendada suumi `+` ja `-` nupud liuguriga ning lisada `Alt + hiirerull`;
+6. lisada rakenduse käivitamisel hiljutiste plaanide ja uue plaani loomise avavaade;
+7. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -223,7 +224,44 @@ Rakenduse tavalisel käivitamisel kuvatakse avavaade, kus saab avada hiljuti kas
 - Faili topeltklõps ja `.pplan` käsureaargument avavad plaani otse.
 - Versioonita ning versioon 1–3 plaanide avamine jääb muutmata.
 
-## 7. Arenduspõhimõtted
+## 7. Külgpaneeli kohandamine ja kontekstimenüüd
+
+### Külgpaneeli järjestus
+
+Kasutaja saab muuta külgpaneeli põhijaotiste järjestust. Näiteks saab tõsta „Voolu kokkuvõtte” või „Kaardi kihid” enda töövoo järgi üles- või allapoole. Valitud järjestus säilitatakse rakenduse eelistustes, mitte `.pplan` failis, sest see on kasutaja töökeskkonna, mitte konkreetse plaani omadus. Järjestuse taastamiseks peab olema vaikejärjestuse taastamise võimalus.
+
+### Kaardi kontekstimenüü
+
+Kaardi tühjal kohal tehtud paremklõps avab menüü „Lisa”, mille alammenüüst saab valida lisatava objektitüübi. Valitud objekt luuakse kohe paremklõpsu asukohta. Lisamine peab kasutama samu vaikeväärtusi, valideerimist ja objektiandmete dialoogi nagu olemasolev tööriistariba kaudu lisamine.
+
+Kaardil oleva objekti paremklõps avab objektimenüü järgmiste põhitegevustega:
+
+- „Muuda” valib objekti ja avab külgpaneelil jaotise „Valitud objekt”;
+- „Peida” või „Kuva” muudab ainult selle objekti nähtavust;
+- „Kustuta” kasutab sama kinnitust ja seoste puhastamist nagu olemasolev kustutamistegevus.
+
+Objektil tehtud paremklõps ei tohi samal ajal avada kaardi tühja ala „Lisa” menüüd ega alustada objekti lohistamist.
+
+### Objektide nimekirja tegevused ja nähtavus
+
+„Objektid” külgpaneelil lisatakse iga objekti juurde eraldi nähtavuse valik. Objekti tegelik nähtavus sõltub nii grupi kui ka objekti valikust: peidetud grupp peidab kõik oma objektid, kuid grupi uuesti kuvamisel jäävad üksikult peidetud objektid peidetuks.
+
+Objektide nimekirja objekti paremklõps pakub vähemalt tegevusi „Muuda”, „Peida” või „Kuva” ja „Kustuta”. Need peavad kasutama täpselt sama rakendusloogikat nagu kaardil oleva objekti kontekstimenüü, et eri menüüdes ei tekiks erinevat käitumist.
+
+Üksikobjekti nähtavus on plaani osa ja peab säilima `.pplan` salvestamisel. Vormingu muutmisel tuleb säilitada versioonita ning versioon 1–3 failide avatavus; vanadest failidest laaditud objektid on vaikimisi nähtavad.
+
+### Vastuvõtukriteeriumid
+
+- Külgpaneeli jaotised saab ümber järjestada ning järjestus säilib rakenduse taaskäivitamisel.
+- Vaikejärjestuse taastamine töötab sõltumata kasutaja varasemast järjestusest.
+- Kaardi tühjal kohal saab paremklõpsuga lisada iga toetatud objektitüübi täpsesse valitud asukohta.
+- Kaardil ja objektide nimekirjas olevad „Muuda”, „Peida/Kuva” ja „Kustuta” tegevused annavad sama tulemuse.
+- Ühe objekti peitmine ei muuda sama grupi teiste objektide nähtavust.
+- Grupi peitmine ja uuesti kuvamine ei kaota objektide individuaalseid nähtavusvalikuid.
+- Peidetud objekti nähtavus säilib pärast plaani salvestamist ja uuesti avamist.
+- Objekti kustutamisel puhastatakse selle elektri-, kaabli- ja muud seosed olemasolevate reeglite järgi.
+
+## 8. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.
 - Domeeniarvutused jäävad `planner-core` moodulisse ja JavaFX-i esitlus `planner-gui` moodulisse.
