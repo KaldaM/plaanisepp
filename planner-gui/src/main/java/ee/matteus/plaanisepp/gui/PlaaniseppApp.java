@@ -114,7 +114,6 @@ public class PlaaniseppApp extends Application {
     private static final String SUMMARY_SECTION = "summary";
     private static final String EQUIPMENT_SECTION = "equipment";
     private static final String OUTLET_SECTION = "outlet";
-    private static final String GROUP_FILTER_SECTION = "groupFilter";
     private static final Pattern CABLE_LENGTH_PATTERN = Pattern.compile("\\d+(?:[,.]\\d+)?");
     private static final Comparator<CableSummaryRow> CABLE_SUMMARY_ROW_COMPARATOR = Comparator
             .comparing((CableSummaryRow row) -> row.connection().connectorType())
@@ -159,6 +158,7 @@ public class PlaaniseppApp extends Application {
     private final List<Position> pendingShapePoints = new ArrayList<>();
     private final Set<String> visibleGroups = new HashSet<>();
     private final Set<String> collapsedPowerSummaryKeys = new HashSet<>();
+    private final Set<String> collapsedObjectGroups = new HashSet<>();
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private Set<String> knownGroups = new HashSet<>();
     private ListView<SummaryListItem> summaryList;
@@ -169,12 +169,12 @@ public class PlaaniseppApp extends Application {
     private Label planTitleLabel;
     private Label saveStatusLabel;
     private TextField objectSearchField;
-    private ListView<ObjectListItem> objectList;
+    private ListView<ObjectListEntry> objectList;
     private Button revealObjectButton;
-    private VBox groupFilterPanel;
+    private TitledPane objectListSection;
+    private TitledPane powerSummarySection;
     private TitledPane equipmentSection;
     private TitledPane outletSection;
-    private TitledPane groupFilterSection;
     private TextField planNameField;
     private TextField pixelsPerMeterField;
     private Label selectedTypeLabel;
@@ -616,7 +616,8 @@ public class PlaaniseppApp extends Application {
 
         VBox sidebar = new VBox(10);
         sidebar.setPadding(new Insets(12));
-        sidebar.getChildren().add(collapsibleSection(OBJECT_LIST_SECTION, "Objektid", createObjectListPanel(), false));
+        objectListSection = collapsibleSection(OBJECT_LIST_SECTION, "Objektid", createObjectListPanel(), false);
+        sidebar.getChildren().add(objectListSection);
         sidebar.getChildren().add(collapsibleSection(SELECTED_OBJECT_SECTION, "Valitud objekt", createDetailPanel(), true));
         sidebar.getChildren().add(collapsibleSection(MAP_LAYERS_SECTION, "Kaardi kihid", createMapLayersPanel(), false));
 
@@ -718,12 +719,13 @@ public class PlaaniseppApp extends Application {
             });
             event.consume();
         });
-        sidebar.getChildren().add(collapsibleSection(SUMMARY_SECTION, "Voolu kokkuvõte", new VBox(8, summaryFilters, cableLegend, summaryList), true));
-        groupFilterPanel = new VBox(6);
-        groupFilterPanel.setPadding(new Insets(12, 0, 0, 0));
-        groupFilterSection = collapsibleSection(GROUP_FILTER_SECTION, "Grupi filtrid", groupFilterPanel, false);
-        sidebar.getChildren().add(groupFilterSection);
-
+        powerSummarySection = collapsibleSection(
+                SUMMARY_SECTION,
+                "Voolu kokkuvõte",
+                new VBox(8, summaryFilters, cableLegend, summaryList),
+                true
+        );
+        sidebar.getChildren().add(powerSummarySection);
         ScrollPane sidebarScrollPane = new ScrollPane(sidebar);
         sidebarScrollPane.setFitToWidth(true);
 
@@ -741,14 +743,42 @@ public class PlaaniseppApp extends Application {
         objectList.setTooltip(new Tooltip("Topeltklõps viib kaardil objektini"));
         objectList.setCellFactory(list -> new ListCell<>() {
             @Override
-            protected void updateItem(ObjectListItem item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
+            protected void updateItem(ObjectListEntry entry, boolean empty) {
+                super.updateItem(entry, empty);
+                if (empty || entry == null) {
                     setText(null);
                     setGraphic(null);
                     setStyle("");
                     return;
                 }
+                if (entry.isGroup()) {
+                    Button toggleButton = new Button(entry.expanded() ? "▾" : "▸");
+                    toggleButton.setFocusTraversable(false);
+                    toggleButton.setMinWidth(28);
+                    toggleButton.setStyle("-fx-background-color: transparent; -fx-padding: 2 5 2 5;");
+                    boolean searchActive = objectSearchField != null && !objectSearchField.getText().isBlank();
+                    toggleButton.setDisable(searchActive);
+                    toggleButton.setTooltip(new Tooltip(searchActive
+                            ? "Otsingu ajal kuvatakse kõik sobivad objektid"
+                            : entry.expanded() ? "Peida grupi objektid" : "Näita grupi objekte"));
+                    toggleButton.setOnAction(event -> toggleObjectGroup(entry.groupName()));
+                    CheckBox visibilityCheckBox = new CheckBox();
+                    visibilityCheckBox.setSelected(visibleGroups.contains(entry.groupName()));
+                    visibilityCheckBox.setTooltip(new Tooltip("Kuva grupp kaardil"));
+                    visibilityCheckBox.setOnAction(event -> setGroupVisible(
+                            entry.groupName(), visibilityCheckBox.isSelected()
+                    ));
+                    Label groupLabel = new Label("%s (%d)".formatted(entry.groupName(), entry.objectCount()));
+                    groupLabel.setStyle("-fx-font-weight: bold;");
+                    HBox groupRow = new HBox(6, toggleButton, visibilityCheckBox, groupLabel);
+                    groupRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                    setText(null);
+                    setGraphic(groupRow);
+                    setStyle("-fx-background-color: rgba(148,163,184,0.12);");
+                    return;
+                }
+
+                ObjectListItem item = entry.objectItem();
                 Label nameLabel = new Label(item.object().name());
                 nameLabel.setStyle(item.visible()
                         ? "-fx-font-weight: bold;"
@@ -767,6 +797,7 @@ public class PlaaniseppApp extends Application {
                 VBox textBox = new VBox(2, nameLabel, detailLabel);
                 HBox row = new HBox(8, colorSwatch, textBox);
                 row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                row.setPadding(new Insets(0, 0, 0, 34));
                 setText(null);
                 setGraphic(row);
                 setStyle(item.visible()
@@ -779,16 +810,23 @@ public class PlaaniseppApp extends Application {
                 updateRevealObjectButton();
                 return;
             }
-            if (selectedObject != null && selectedObject.id().equals(newValue.object().id())) {
+            if (newValue.isGroup()) {
+                return;
+            }
+            PlannerObject object = newValue.objectItem().object();
+            if (selectedObject != null && selectedObject.id().equals(object.id())) {
                 updateRevealObjectButton();
                 return;
             }
-            selectObject(newValue.object());
+            selectObject(object);
         });
         objectList.setOnMouseClicked(event -> {
-            ObjectListItem selectedItem = objectList.getSelectionModel().getSelectedItem();
-            if (selectedItem != null && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                centerMapOnObject(selectedItem.object());
+            ObjectListEntry selectedEntry = objectList.getSelectionModel().getSelectedItem();
+            if (selectedEntry != null
+                    && !selectedEntry.isGroup()
+                    && event.getButton() == MouseButton.PRIMARY
+                    && event.getClickCount() == 2) {
+                centerMapOnObject(selectedEntry.objectItem().object());
                 event.consume();
             }
         });
@@ -911,7 +949,7 @@ public class PlaaniseppApp extends Application {
         }
         String selectedId = selectedObject == null ? "" : selectedObject.id();
         String query = objectSearchField == null ? "" : objectSearchField.getText().trim().toLowerCase();
-        List<ObjectListItem> items = plan.objects().stream()
+        List<ObjectListItem> objectItems = plan.objects().stream()
                 .map(object -> new ObjectListItem(
                         object,
                         objectTypeName(object),
@@ -922,16 +960,58 @@ public class PlaaniseppApp extends Application {
                 .filter(item -> objectListItemMatches(item, query))
                 .sorted(Comparator
                         .comparing(ObjectListItem::visible).reversed()
-                        .thenComparing(ObjectListItem::groupName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(ObjectListItem::type, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(item -> item.object().name(), String.CASE_INSENSITIVE_ORDER))
                 .toList();
-        objectList.getItems().setAll(items);
-        items.stream()
-                .filter(item -> item.object().id().equals(selectedId))
+
+        Map<String, List<ObjectListItem>> itemsByGroup = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (ObjectListItem item : objectItems) {
+            itemsByGroup.computeIfAbsent(item.groupName(), ignored -> new ArrayList<>()).add(item);
+        }
+        List<ObjectListEntry> entries = new ArrayList<>();
+        for (Map.Entry<String, List<ObjectListItem>> groupEntry : itemsByGroup.entrySet()) {
+            String groupName = groupEntry.getKey();
+            boolean expanded = !query.isBlank()
+                    || !collapsedObjectGroups.contains(groupName);
+            entries.add(ObjectListEntry.group(groupName, groupEntry.getValue().size(), expanded));
+            if (expanded) {
+                groupEntry.getValue().stream()
+                        .map(ObjectListEntry::object)
+                        .forEach(entries::add);
+            }
+        }
+
+        objectList.getItems().setAll(entries);
+        entries.stream()
+                .filter(entry -> !entry.isGroup())
+                .filter(entry -> entry.objectItem().object().id().equals(selectedId))
                 .findFirst()
-                .ifPresent(item -> objectList.getSelectionModel().select(item));
+                .ifPresent(entry -> {
+                    objectList.getSelectionModel().select(entry);
+                    Platform.runLater(() -> objectList.scrollTo(entry));
+                });
         updateRevealObjectButton();
+    }
+
+    private void toggleObjectGroup(String groupName) {
+        if (!collapsedObjectGroups.add(groupName)) {
+            collapsedObjectGroups.remove(groupName);
+        }
+        refreshObjectList();
+    }
+
+    private void setGroupVisible(String groupName, boolean visible) {
+        if (visible) {
+            visibleGroups.add(groupName);
+            plan.setGroupHidden(groupName, false);
+        } else {
+            visibleGroups.remove(groupName);
+            plan.setGroupHidden(groupName, true);
+        }
+        redrawMap();
+        refreshObjectList();
+        refreshSummary();
+        markDirty();
     }
 
     private boolean objectListItemMatches(ObjectListItem item, String query) {
@@ -1960,6 +2040,8 @@ public class PlaaniseppApp extends Application {
         measurements.clear();
         visibleGroups.clear();
         knownGroups.clear();
+        collapsedObjectGroups.clear();
+        collapsedPowerSummaryKeys.clear();
         if (planNameField != null) {
             planNameField.setText(plan.name());
         }
@@ -3338,9 +3420,66 @@ public class PlaaniseppApp extends Application {
 
     private void selectObject(PlannerObject object) {
         selectedObject = object;
+        clearObjectSearchIfItHides(object);
+        collapsedObjectGroups.remove(groupNameForFilter(object));
+        if (objectListSection != null) {
+            objectListSection.setExpanded(true);
+        }
         refreshDetails();
         refreshObjectList();
+        revealObjectInPowerSummary(object);
         redrawMap();
+    }
+
+    private void clearObjectSearchIfItHides(PlannerObject object) {
+        if (objectSearchField == null) {
+            return;
+        }
+        String query = objectSearchField.getText().trim().toLowerCase();
+        if (query.isBlank()) {
+            return;
+        }
+        if (!object.name().toLowerCase().contains(query)
+                && !objectTypeName(object).toLowerCase().contains(query)
+                && !groupNameForFilter(object).toLowerCase().contains(query)) {
+            objectSearchField.clear();
+        }
+    }
+
+    private void revealObjectInPowerSummary(PlannerObject object) {
+        if (summaryList == null || object == null) {
+            return;
+        }
+        boolean hasPowerSummaryRow = false;
+        if (object instanceof PowerSource source) {
+            collapsedPowerSummaryKeys.remove(powerSourceSummaryKey(source.id()));
+            hasPowerSummaryRow = true;
+        }
+        PowerConnection connection = plan.findPowerConnectionForConsumer(object.id()).orElse(null);
+        if (connection != null) {
+            collapsedPowerSummaryKeys.remove(powerSourceSummaryKey(connection.sourceId()));
+            if (!connection.outletId().isBlank()) {
+                collapsedPowerSummaryKeys.remove(powerOutletSummaryKey(connection.outletId()));
+            }
+            hasPowerSummaryRow = true;
+        }
+        if (!hasPowerSummaryRow) {
+            return;
+        }
+        if (showPowerSummaryCheckBox != null) {
+            showPowerSummaryCheckBox.setSelected(true);
+        }
+        if (powerSummarySection != null) {
+            powerSummarySection.setExpanded(true);
+        }
+        refreshSummary();
+        summaryList.getItems().stream()
+                .filter(item -> object.id().equals(item.targetObjectId()))
+                .findFirst()
+                .ifPresent(item -> {
+                    summaryList.getSelectionModel().select(item);
+                    Platform.runLater(() -> summaryList.scrollTo(item));
+                });
     }
 
     private boolean isSelected(PlannerObject object) {
@@ -3363,7 +3502,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void refreshGroupFilters() {
-        if (groupFilterPanel == null || plan == null) {
+        if (plan == null) {
             return;
         }
 
@@ -3371,10 +3510,6 @@ public class PlaaniseppApp extends Application {
         for (PlannerObject object : plan.objects()) {
             currentGroups.add(groupNameForFilter(object));
         }
-        if (groupFilterSection != null) {
-            setSectionVisible(groupFilterSection, !currentGroups.isEmpty());
-        }
-
         Set<String> hiddenGroups = new HashSet<>(plan.hiddenGroups());
         hiddenGroups.retainAll(currentGroups);
         plan.clearHiddenGroups();
@@ -3391,29 +3526,7 @@ public class PlaaniseppApp extends Application {
             }
         }
         knownGroups = currentGroups;
-
-        groupFilterPanel.getChildren().clear();
-        Map<String, String> sortedGroups = new TreeMap<>();
-        for (String currentGroup : currentGroups) {
-            sortedGroups.put(currentGroup, currentGroup);
-        }
-        for (String groupName : sortedGroups.values()) {
-            CheckBox groupCheckBox = new CheckBox(groupName);
-            groupCheckBox.setSelected(visibleGroups.contains(groupName));
-            groupCheckBox.setOnAction(event -> {
-                if (groupCheckBox.isSelected()) {
-                    visibleGroups.add(groupName);
-                    plan.setGroupHidden(groupName, false);
-                } else {
-                    visibleGroups.remove(groupName);
-                    plan.setGroupHidden(groupName, true);
-                }
-                redrawMap();
-                refreshObjectList();
-                markDirty();
-            });
-            groupFilterPanel.getChildren().add(groupCheckBox);
-        }
+        refreshObjectList();
     }
 
     private void applyLockedStroke(javafx.scene.shape.Shape shape, PlannerObject object) {
@@ -5936,7 +6049,7 @@ public class PlaaniseppApp extends Application {
         private String detailText() {
             String measurement = measurementText.isBlank() ? "" : " · " + measurementText;
             String visibilityText = visible ? "" : " · peidetud";
-            return "%s · %s%s%s".formatted(type, groupName, measurement, visibilityText);
+            return "%s%s%s".formatted(type, measurement, visibilityText);
         }
 
         @Override
@@ -5944,6 +6057,25 @@ public class PlaaniseppApp extends Application {
             String measurement = measurementText.isBlank() ? "" : ", " + measurementText;
             String visibilityText = visible ? "" : ", peidetud";
             return "%s (%s, %s%s%s)".formatted(object.name(), type, groupName, measurement, visibilityText);
+        }
+    }
+
+    private record ObjectListEntry(
+            String groupName,
+            ObjectListItem objectItem,
+            int objectCount,
+            boolean expanded
+    ) {
+        private static ObjectListEntry group(String groupName, int objectCount, boolean expanded) {
+            return new ObjectListEntry(groupName, null, objectCount, expanded);
+        }
+
+        private static ObjectListEntry object(ObjectListItem objectItem) {
+            return new ObjectListEntry(objectItem.groupName(), objectItem, 0, false);
+        }
+
+        private boolean isGroup() {
+            return objectItem == null;
         }
     }
 
