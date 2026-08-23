@@ -149,6 +149,7 @@ public class PlaaniseppApp extends Application {
     private boolean measuringActive;
     private boolean addingCablePoint;
     private boolean mapDraggedSincePress;
+    private boolean synchronizingSidebarSelection;
     private double mapPressSceneX;
     private double mapPressSceneY;
     private Position measurementStart;
@@ -693,7 +694,7 @@ public class PlaaniseppApp extends Application {
         });
         summaryList.setTooltip(new Tooltip("Klõps valib objekti, topeltklõps viib selle juurde kaardil"));
         summaryList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue == null || !newValue.hasTarget()) {
+            if (synchronizingSidebarSelection || newValue == null || !newValue.hasTarget()) {
                 return;
             }
             plan.findObject(newValue.targetObjectId()).ifPresent(object -> {
@@ -806,6 +807,9 @@ public class PlaaniseppApp extends Application {
             }
         });
         objectList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+            if (synchronizingSidebarSelection) {
+                return;
+            }
             if (newValue == null) {
                 updateRevealObjectButton();
                 return;
@@ -947,7 +951,6 @@ public class PlaaniseppApp extends Application {
         if (objectList == null || plan == null) {
             return;
         }
-        String selectedId = selectedObject == null ? "" : selectedObject.id();
         String query = objectSearchField == null ? "" : objectSearchField.getText().trim().toLowerCase();
         List<ObjectListItem> objectItems = plan.objects().stream()
                 .map(object -> new ObjectListItem(
@@ -982,14 +985,7 @@ public class PlaaniseppApp extends Application {
         }
 
         objectList.getItems().setAll(entries);
-        entries.stream()
-                .filter(entry -> !entry.isGroup())
-                .filter(entry -> entry.objectItem().object().id().equals(selectedId))
-                .findFirst()
-                .ifPresent(entry -> {
-                    objectList.getSelectionModel().select(entry);
-                    Platform.runLater(() -> objectList.scrollTo(entry));
-                });
+        revealObjectInObjectList(selectedObject);
         updateRevealObjectButton();
     }
 
@@ -3421,12 +3417,8 @@ public class PlaaniseppApp extends Application {
     private void selectObject(PlannerObject object) {
         selectedObject = object;
         clearObjectSearchIfItHides(object);
-        collapsedObjectGroups.remove(groupNameForFilter(object));
-        if (objectListSection != null) {
-            objectListSection.setExpanded(true);
-        }
         refreshDetails();
-        refreshObjectList();
+        revealObjectInObjectList(object);
         revealObjectInPowerSummary(object);
         redrawMap();
     }
@@ -3450,36 +3442,101 @@ public class PlaaniseppApp extends Application {
         if (summaryList == null || object == null) {
             return;
         }
-        boolean hasPowerSummaryRow = false;
+        SummaryListItem target = null;
         if (object instanceof PowerSource source) {
-            collapsedPowerSummaryKeys.remove(powerSourceSummaryKey(source.id()));
-            hasPowerSummaryRow = true;
+            target = findPowerSummaryItem(powerSourceSummaryKey(source.id())).orElse(null);
         }
-        PowerConnection connection = plan.findPowerConnectionForConsumer(object.id()).orElse(null);
-        if (connection != null) {
-            collapsedPowerSummaryKeys.remove(powerSourceSummaryKey(connection.sourceId()));
-            if (!connection.outletId().isBlank()) {
-                collapsedPowerSummaryKeys.remove(powerOutletSummaryKey(connection.outletId()));
+        if (target == null) {
+            PowerConnection connection = plan.findPowerConnectionForConsumer(object.id()).orElse(null);
+            if (connection != null) {
+                SummaryListItem sourceItem = findPowerSummaryItem(
+                        powerSourceSummaryKey(connection.sourceId())
+                ).orElse(null);
+                if (sourceItem == null) {
+                    return;
+                }
+                target = sourceItem;
+                if (!collapsedPowerSummaryKeys.contains(sourceItem.hierarchyKey())) {
+                    if (connection.outletId().isBlank()) {
+                        target = findSummaryTarget(object.id()).orElse(sourceItem);
+                    } else {
+                        SummaryListItem outletItem = findPowerSummaryItem(
+                                powerOutletSummaryKey(connection.outletId())
+                        ).orElse(null);
+                        if (outletItem != null) {
+                            target = outletItem;
+                            if (!collapsedPowerSummaryKeys.contains(outletItem.hierarchyKey())) {
+                                target = findSummaryTarget(object.id()).orElse(outletItem);
+                            }
+                        }
+                    }
+                }
             }
-            hasPowerSummaryRow = true;
         }
-        if (!hasPowerSummaryRow) {
+        if (target == null) {
             return;
         }
-        if (showPowerSummaryCheckBox != null) {
-            showPowerSummaryCheckBox.setSelected(true);
+        selectSidebarItem(summaryList, target, powerSummarySection);
+    }
+
+    private void revealObjectInObjectList(PlannerObject object) {
+        if (objectList == null || object == null) {
+            return;
         }
-        if (powerSummarySection != null) {
-            powerSummarySection.setExpanded(true);
-        }
-        refreshSummary();
-        summaryList.getItems().stream()
-                .filter(item -> object.id().equals(item.targetObjectId()))
+        ObjectListEntry target = objectList.getItems().stream()
+                .filter(entry -> !entry.isGroup())
+                .filter(entry -> entry.objectItem().object().id().equals(object.id()))
                 .findFirst()
-                .ifPresent(item -> {
-                    summaryList.getSelectionModel().select(item);
-                    Platform.runLater(() -> summaryList.scrollTo(item));
-                });
+                .orElseGet(() -> objectList.getItems().stream()
+                        .filter(ObjectListEntry::isGroup)
+                        .filter(entry -> entry.groupName().equals(groupNameForFilter(object)))
+                        .findFirst()
+                        .orElse(null));
+        if (target != null) {
+            selectSidebarItem(objectList, target, objectListSection);
+            updateRevealObjectButton();
+        }
+    }
+
+    private Optional<SummaryListItem> findPowerSummaryItem(String hierarchyKey) {
+        return summaryList.getItems().stream()
+                .filter(item -> hierarchyKey.equals(item.hierarchyKey()))
+                .findFirst();
+    }
+
+    private Optional<SummaryListItem> findSummaryTarget(String objectId) {
+        return summaryList.getItems().stream()
+                .filter(item -> objectId.equals(item.targetObjectId()))
+                .findFirst();
+    }
+
+    private <T> void selectSidebarItem(ListView<T> listView, T item, TitledPane section) {
+        synchronizingSidebarSelection = true;
+        try {
+            listView.getSelectionModel().select(item);
+        } finally {
+            synchronizingSidebarSelection = false;
+        }
+        Platform.runLater(() -> {
+            if ((section == null || section.isExpanded()) && !isListItemVisible(listView, item)) {
+                listView.scrollTo(item);
+            }
+        });
+    }
+
+    private <T> boolean isListItemVisible(ListView<T> listView, T item) {
+        Bounds listBounds = listView.localToScene(listView.getBoundsInLocal());
+        for (Node node : listView.lookupAll(".list-cell")) {
+            if (!(node instanceof ListCell<?> cell)
+                    || !item.equals(cell.getItem())
+                    || !cell.isVisible()) {
+                continue;
+            }
+            Bounds cellBounds = cell.localToScene(cell.getBoundsInLocal());
+            return cellBounds.getMaxY() >= listBounds.getMinY()
+                    && cellBounds.getMinY() <= listBounds.getMaxY();
+        }
+        return false;
     }
 
     private boolean isSelected(PlannerObject object) {

@@ -155,7 +155,7 @@ Piirid tuleb enne teostamist kinnitada ning hoida ühes taaskasutatavas arvutus-
 
 Elektri külgpaneeli põhivaade on teostatud: iga kapi ja väljundi real kuvatakse protsent ning täituvuse järgi roheline, kollane, oranž või punane riba. Kapi, väljundi või tarbija real klõpsamine valib vastava kaardiobjekti ning topeltklõps viib selle juurde kaardil. Kapi ja väljundi alamread saab eraldi kokku pakkida ning nende avatud või suletud olek säilib kokkuvõtte värskendamisel.
 
-Objektide külgpaneel kasutab samuti kokkupakitavat hierarhiat: objektid on rühmitatud gruppide alla ning grupipäises saab sama linnukesega muuta kogu grupi nähtavust kaardil. Eraldi grupifiltrite jaotist enam ei ole. Objekti valimisel avatakse selle grupp ja vajalik vooluhierarhia automaatselt ning mõlemad loendid keritakse valitud objektini.
+Objektide külgpaneel kasutab samuti kokkupakitavat hierarhiat: objektid on rühmitatud gruppide alla ning grupipäises saab sama linnukesega muuta kogu grupi nähtavust kaardil. Eraldi grupifiltrite jaotist enam ei ole. Objekti valimisel märgitakse mõlemas loendis objekt või kokkupakitud harus selle lähim nähtav vanem. Kokkupakitud paneele ega harusid automaatselt ei avata ning loendit keritakse ainult siis, kui märgitav rida pole juba nähtaval.
 
 ## 4. Objekti kiirotsing
 
