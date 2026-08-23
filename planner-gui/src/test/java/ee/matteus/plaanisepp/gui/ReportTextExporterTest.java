@@ -7,14 +7,53 @@ import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.Position;
+import ee.matteus.plaanisepp.core.model.PowerConnection;
 import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
+import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReportTextExporterTest {
+    @Test
+    void includesEquipmentPowerExceptionInPowerAndCableReports() {
+        EventPlan plan = new EventPlan("Test");
+        PowerSource defaultSource = new PowerSource("source-1", "Põhikapp", new Position(0, 0));
+        defaultSource.addOutlet(new PowerOutlet("outlet-1", ConnectorType.SCHUKO_230V, 11000));
+        PowerSource alternativeSource = new PowerSource("source-2", "Teine kapp", new Position(100, 0));
+        alternativeSource.addOutlet(new PowerOutlet("outlet-2", ConnectorType.SCHUKO_230V, 11000));
+        Tent tent = new Tent("tent", "Kohvikutelk", new Position(50, 100));
+        Equipment coffeeMachine = new Equipment("equipment-1", "Kohvimasin", 1800);
+        Equipment refrigerator = new Equipment("equipment-2", "Külmik", 500);
+        tent.addEquipment(coffeeMachine);
+        tent.addEquipment(refrigerator);
+        plan.addObject(defaultSource);
+        plan.addObject(alternativeSource);
+        plan.addObject(tent);
+        plan.connectToPower(defaultSource.id(), tent.id(), ConnectorType.SCHUKO_230V, "outlet-1");
+        PowerConnection alternativeConnection = plan.addAlternativePowerConnection(
+                alternativeSource.id(), tent.id(), ConnectorType.SCHUKO_230V, "outlet-2"
+        ).orElseThrow();
+        plan.assignEquipmentToPowerConnection(tent.id(), refrigerator.id(), alternativeConnection.id());
+
+        String report = new ReportTextExporter(new PowerSummaryService()).export(
+                plan,
+                ReportExportScope.FULL,
+                true,
+                true,
+                false
+        );
+
+        assertTrue(report.contains("Kohvikutelk: 1800 W"));
+        assertTrue(report.contains("* Kohvimasin: 1800 W"));
+        assertTrue(report.contains("Kohvikutelk: 500 W (seadme erand)"));
+        assertTrue(report.contains("* Külmik: 500 W"));
+        assertTrue(report.contains("Kohvikutelk -> Põhikapp (230V tavapesa)"));
+        assertTrue(report.contains("Kohvikutelk -> Teine kapp (230V tavapesa, seadme erand)"));
+    }
+
     @Test
     void includesConnectedAreaAndLineInPowerAndCableReports() {
         EventPlan plan = new EventPlan("Test");

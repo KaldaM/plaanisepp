@@ -142,6 +142,9 @@ final class ReportTextExporter {
                     .append(": ")
                     .append(plan.powerDemandWatts(connection))
                     .append(" W");
+            if (!connection.defaultForConsumer()) {
+                builder.append(" (seadme erand)");
+            }
             if (!consumerObject.groupName().isBlank()) {
                 builder.append(" (").append(consumerObject.groupName()).append(")");
             }
@@ -203,12 +206,9 @@ final class ReportTextExporter {
         boolean hasNotedLength = false;
         List<CableSummaryRow> cableRows = new ArrayList<>();
         Map<ConnectorType, CableTypeSummary> summariesByType = new EnumMap<>(ConnectorType.class);
-        for (PlannerObject consumer : plan.objects()) {
+        for (PowerConnection connection : plan.powerConnections()) {
+            PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
             if (!(consumer instanceof PowerConsumer)) {
-                continue;
-            }
-            PowerConnection connection = plan.findPowerConnectionForConsumer(consumer.id()).orElse(null);
-            if (connection == null) {
                 continue;
             }
             PowerSource source = plan.findObject(connection.sourceId())
@@ -296,10 +296,12 @@ final class ReportTextExporter {
         String lengthText = row.notedLengthMeters().isPresent()
                 ? "%.1f m kaardil, %.1f m märgitud".formatted(row.mapLengthMeters(), row.notedLengthMeters().getAsDouble())
                 : "%.1f m".formatted(row.mapLengthMeters());
-        return "  - %s -> %s (%s): %s%s".formatted(
+        String connectionRole = row.connection().defaultForConsumer() ? "" : ", seadme erand";
+        return "  - %s -> %s (%s%s): %s%s".formatted(
                 row.consumer().name(),
                 row.source().name(),
                 row.connection().connectorType().displayName(),
+                connectionRole,
                 lengthText,
                 cableNotesText(row.connection()) + cableNoteWarningText(row.connection())
         );
