@@ -646,8 +646,12 @@ public class PlaaniseppApp extends Application {
                 setText(null);
                 setGraphic(null);
                 setStyle("");
+                setCursor(Cursor.DEFAULT);
                 if (empty || item == null) {
                     return;
+                }
+                if (item.hasTarget()) {
+                    setCursor(Cursor.HAND);
                 }
                 if (!item.hasLoad()) {
                     setText(item.text());
@@ -667,6 +671,34 @@ public class PlaaniseppApp extends Application {
                 loadBar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
                 setGraphic(new VBox(3, loadLabel, loadBar));
             }
+        });
+        summaryList.setTooltip(new Tooltip("Klõps valib objekti, topeltklõps viib selle juurde kaardil"));
+        summaryList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue == null || !newValue.hasTarget()) {
+                return;
+            }
+            plan.findObject(newValue.targetObjectId()).ifPresent(object -> {
+                if (!isSelected(object)) {
+                    selectObject(object);
+                }
+            });
+        });
+        summaryList.setOnMouseClicked(event -> {
+            SummaryListItem selectedItem = summaryList.getSelectionModel().getSelectedItem();
+            if (selectedItem == null
+                    || !selectedItem.hasTarget()
+                    || event.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            plan.findObject(selectedItem.targetObjectId()).ifPresent(object -> {
+                if (!isSelected(object)) {
+                    selectObject(object);
+                }
+                if (event.getClickCount() == 2) {
+                    centerMapOnObject(object);
+                }
+            });
+            event.consume();
         });
         sidebar.getChildren().add(collapsibleSection(SUMMARY_SECTION, "Voolu kokkuvõte", new VBox(8, summaryFilters, cableLegend, summaryList), true));
         groupFilterPanel = new VBox(6);
@@ -5270,7 +5302,7 @@ public class PlaaniseppApp extends Application {
                         summary.sourceName(),
                         summary.usedWatts(),
                         remainingWattsText(summary.remainingWatts())
-                ), summary.usedWatts(), summary.capacityWatts()));
+                ), summary.usedWatts(), summary.capacityWatts(), summary.sourceId()));
                 addConnectedConsumers(summary.sourceId());
             }
         }
@@ -5310,7 +5342,7 @@ public class PlaaniseppApp extends Application {
                     outletDisplayName(outlet, outletTypeIndex(source, outlet, index)),
                     usedWatts,
                     remainingWattsText(outlet.capacityWatts() - usedWatts)
-            ), usedWatts, outlet.capacityWatts()));
+            ), usedWatts, outlet.capacityWatts(), source.id()));
             addConnectedConsumers(sourceId, outlet.id(), "    ");
         }
         addConnectedConsumers(sourceId, "", "  ");
@@ -5327,12 +5359,12 @@ public class PlaaniseppApp extends Application {
             plan.findObject(connection.consumerId())
                     .filter(PowerConsumer.class::isInstance)
                     .map(PowerConsumer.class::cast)
-                    .ifPresent(consumer -> summaryList.getItems().add(SummaryListItem.text("%s- %s: %d W (%s)".formatted(
+                    .ifPresent(consumer -> summaryList.getItems().add(SummaryListItem.target("%s- %s: %d W (%s)".formatted(
                             rowPrefix,
                             consumer.name(),
                             plan.powerDemandWatts(connection),
                             connection.connectorType().displayName()
-                    ))));
+                    ), consumer.id())));
         }
     }
 
@@ -5634,17 +5666,30 @@ public class PlaaniseppApp extends Application {
     ) {
     }
 
-    private record SummaryListItem(String text, Integer usedWatts, Integer capacityWatts) {
+    private record SummaryListItem(String text, Integer usedWatts, Integer capacityWatts, String targetObjectId) {
         private static SummaryListItem text(String text) {
-            return new SummaryListItem(text, null, null);
+            return new SummaryListItem(text, null, null, "");
         }
 
-        private static SummaryListItem load(String text, int usedWatts, int capacityWatts) {
-            return new SummaryListItem(text, usedWatts, capacityWatts);
+        private static SummaryListItem target(String text, String targetObjectId) {
+            return new SummaryListItem(text, null, null, targetObjectId);
+        }
+
+        private static SummaryListItem load(
+                String text,
+                int usedWatts,
+                int capacityWatts,
+                String targetObjectId
+        ) {
+            return new SummaryListItem(text, usedWatts, capacityWatts, targetObjectId);
         }
 
         private boolean hasLoad() {
             return usedWatts != null && capacityWatts != null;
+        }
+
+        private boolean hasTarget() {
+            return targetObjectId != null && !targetObjectId.isBlank();
         }
 
         private double progress() {
