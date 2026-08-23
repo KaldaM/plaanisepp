@@ -13,7 +13,8 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 2. kujundada elektri kokkuvõte uue mudeli põhjal interaktiivseks ning lisada väljundite koormusribad;
 3. lisada objektide kiirotsing kahekordse Shift-klahviga;
 4. asendada suumi `+` ja `-` nupud liuguriga ning lisada `Alt + hiirerull`;
-5. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+5. lisada rakenduse käivitamisel hiljutiste plaanide ja uue plaani loomise avavaade;
+6. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -152,6 +153,8 @@ Piirid tuleb enne teostamist kinnitada ning hoida ühes taaskasutatavas arvutus-
 - Tarbija valimine töötab telgi, ala ja joone puhul.
 - Vana tekstiraport, PDF-eksport ja `.pplan` vorming ei muutu.
 
+Koormusribade esimene etapp on teostatud: iga kapi ja väljundi real kuvatakse protsent ning täituvuse järgi roheline, kollane, oranž või punane riba. Hierarhiline interaktsioon ja kaardile liikumine on järgmised sammud.
+
 ## 4. Objekti kiirotsing
 
 ### Kasutusloogika
@@ -194,7 +197,31 @@ Rakenduse praegune suumivahemik 25–400% säilib. Liugur peab kasutama sama `se
 - Tavaline kerimine ja kaardi lohistamine säilitavad praeguse käitumise.
 - Windowsi ja Linuxi klaviatuuri- ning hiirekäitumist kontrollitakse eraldi.
 
-## 6. Arenduspõhimõtted
+## 6. Käivitusekraan ja uue plaani loomine
+
+### Kasutusloogika
+
+Rakenduse tavalisel käivitamisel kuvatakse avavaade, kus saab avada hiljuti kasutatud plaane, valida kettalt muu `.pplan` faili või alustada uut plaani. Käsureaargumendina või failil topeltklõpsates avatud plaan peab jätkuvalt avanema otse, ilma avavaate vaheetapita.
+
+„Uus plaan” avab lühikese loomise vaate, kus saab kohe:
+
+- sisestada plaani nime ja muud plaaniandmed;
+- valida kasutatava kaardipildi;
+- määrata vajaduse korral mõõtkava;
+- kinnitada plaani loomise ja liikuda redaktorisse.
+
+Ükski väli ei pea olema kohustuslik. Puuduva nime korral kasutatakse selget vaikenime, näiteks „Uus plaan”. Valimata kaardi korral luuakse tühi kaardiala ning mõõtkava ja muud tehnilised väärtused kasutavad rakenduse olemasolevaid vaikeväärtusi. Hiljutiste plaanide loendis puuduv või teisaldatud fail ei tohi käivitamist katkestada ning selle saab loendist eemaldada.
+
+### Vastuvõtukriteeriumid
+
+- Hiljutine olemasolev plaan avaneb ühe valikuga.
+- Kettalt saab avada plaani, mida hiljutiste loendis pole.
+- Uue plaani saab luua nii täielikult täidetud andmetega kui ka ainult vaikeväärtustega.
+- Kaardipilt lisatakse uue plaani loomisel sama turvalise laadimisloogikaga nagu praeguses plaaniandmete dialoogis.
+- Faili topeltklõps ja `.pplan` käsureaargument avavad plaani otse.
+- Versioonita ning versioon 1–3 plaanide avamine jääb muutmata.
+
+## 7. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.
 - Domeeniarvutused jäävad `planner-core` moodulisse ja JavaFX-i esitlus `planner-gui` moodulisse.

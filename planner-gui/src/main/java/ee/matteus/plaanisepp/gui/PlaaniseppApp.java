@@ -46,6 +46,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Slider;
@@ -158,7 +159,7 @@ public class PlaaniseppApp extends Application {
     private final Set<String> visibleGroups = new HashSet<>();
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private Set<String> knownGroups = new HashSet<>();
-    private ListView<String> summaryList;
+    private ListView<SummaryListItem> summaryList;
     private CheckBox showPowerSummaryCheckBox;
     private CheckBox showCableSummaryCheckBox;
     private CheckBox showGroupSummaryCheckBox;
@@ -640,12 +641,31 @@ public class PlaaniseppApp extends Application {
         summaryList.setPrefHeight(260);
         summaryList.setCellFactory(list -> new ListCell<>() {
             @Override
-            protected void updateItem(String item, boolean empty) {
+            protected void updateItem(SummaryListItem item, boolean empty) {
                 super.updateItem(item, empty);
-                setText(empty ? null : item);
-                setStyle(!empty && item != null && item.contains("ÜLEKOORMUS")
-                        ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
-                        : "");
+                setText(null);
+                setGraphic(null);
+                setStyle("");
+                if (empty || item == null) {
+                    return;
+                }
+                if (!item.hasLoad()) {
+                    setText(item.text());
+                    setStyle(item.text().contains("ÜLEKOORMUS")
+                            ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
+                            : "");
+                    return;
+                }
+
+                PowerLoadLevel loadLevel = PowerLoadLevel.from(item.usedWatts(), item.capacityWatts());
+                Label loadLabel = new Label(item.displayText());
+                if (loadLevel == PowerLoadLevel.OVERLOADED) {
+                    loadLabel.setStyle("-fx-text-fill: #b91c1c; -fx-font-weight: bold;");
+                }
+                ProgressBar loadBar = new ProgressBar(item.progress());
+                loadBar.setMaxWidth(Double.MAX_VALUE);
+                loadBar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
+                setGraphic(new VBox(3, loadLabel, loadBar));
             }
         });
         sidebar.getChildren().add(collapsibleSection(SUMMARY_SECTION, "Voolu kokkuvõte", new VBox(8, summaryFilters, cableLegend, summaryList), true));
@@ -5246,11 +5266,11 @@ public class PlaaniseppApp extends Application {
         summaryList.getItems().clear();
         if (showPowerSummary()) {
             for (PowerSummary summary : powerSummaryService.summaries(plan)) {
-                summaryList.getItems().add("%s: %d W kasutusel, %s".formatted(
+                summaryList.getItems().add(SummaryListItem.load("%s: %d W kasutusel, %s".formatted(
                         summary.sourceName(),
                         summary.usedWatts(),
                         remainingWattsText(summary.remainingWatts())
-                ));
+                ), summary.usedWatts(), summary.capacityWatts()));
                 addConnectedConsumers(summary.sourceId());
             }
         }
@@ -5286,11 +5306,11 @@ public class PlaaniseppApp extends Application {
         for (int index = 0; index < source.outlets().size(); index++) {
             PowerOutlet outlet = source.outlets().get(index);
             int usedWatts = usedWatts(outlet.id());
-            summaryList.getItems().add("  %s: %d W kasutusel, %s".formatted(
+            summaryList.getItems().add(SummaryListItem.load("  %s: %d W kasutusel, %s".formatted(
                     outletDisplayName(outlet, outletTypeIndex(source, outlet, index)),
                     usedWatts,
                     remainingWattsText(outlet.capacityWatts() - usedWatts)
-            ));
+            ), usedWatts, outlet.capacityWatts()));
             addConnectedConsumers(sourceId, outlet.id(), "    ");
         }
         addConnectedConsumers(sourceId, "", "  ");
@@ -5307,12 +5327,12 @@ public class PlaaniseppApp extends Application {
             plan.findObject(connection.consumerId())
                     .filter(PowerConsumer.class::isInstance)
                     .map(PowerConsumer.class::cast)
-                    .ifPresent(consumer -> summaryList.getItems().add("%s- %s: %d W (%s)".formatted(
+                    .ifPresent(consumer -> summaryList.getItems().add(SummaryListItem.text("%s- %s: %d W (%s)".formatted(
                             rowPrefix,
                             consumer.name(),
                             plan.powerDemandWatts(connection),
                             connection.connectorType().displayName()
-                    )));
+                    ))));
         }
     }
 
@@ -5367,17 +5387,20 @@ public class PlaaniseppApp extends Application {
         }
 
         addSummarySpacerIfNeeded();
-        summaryList.getItems().add("Kaablid");
+        summaryList.getItems().add(SummaryListItem.text("Kaablid"));
         summaryList.getItems().addAll(cableRows.stream()
                 .sorted(CABLE_SUMMARY_ROW_COMPARATOR)
                 .map(this::cableSummaryRow)
+                .map(SummaryListItem::text)
                 .toList());
         if (hasNotedLength) {
-            summaryList.getItems().add("Kokku: %.1f m märgitud, %.1f m kaardil".formatted(totalNotedLengthMeters, totalLengthMeters));
+            summaryList.getItems().add(SummaryListItem.text("Kokku: %.1f m märgitud, %.1f m kaardil".formatted(totalNotedLengthMeters, totalLengthMeters)));
         } else {
-            summaryList.getItems().add("Kokku: %.1f m".formatted(totalLengthMeters));
+            summaryList.getItems().add(SummaryListItem.text("Kokku: %.1f m".formatted(totalLengthMeters)));
         }
-        addCableTypeSummaryRows(summaryList.getItems(), summariesByType);
+        for (String row : cableTypeSummaryRows(summariesByType)) {
+            summaryList.getItems().add(SummaryListItem.text(row));
+        }
     }
 
     private void addGroupSummary() {
@@ -5386,18 +5409,18 @@ public class PlaaniseppApp extends Application {
         }
 
         addSummarySpacerIfNeeded();
-        summaryList.getItems().add("Grupid");
+        summaryList.getItems().add(SummaryListItem.text("Grupid"));
         for (Map.Entry<String, List<PlannerObject>> entry : objectsByGroup().entrySet()) {
-            summaryList.getItems().add(entry.getKey());
+            summaryList.getItems().add(SummaryListItem.text(entry.getKey()));
             for (PlannerObject object : entry.getValue()) {
-                summaryList.getItems().add("  - %s (%s)".formatted(object.name(), objectTypeName(object)));
+                summaryList.getItems().add(SummaryListItem.text("  - %s (%s)".formatted(object.name(), objectTypeName(object))));
             }
         }
     }
 
     private void addSummarySpacerIfNeeded() {
         if (!summaryList.getItems().isEmpty()) {
-            summaryList.getItems().add("");
+            summaryList.getItems().add(SummaryListItem.text(""));
         }
     }
 
@@ -5558,10 +5581,6 @@ public class PlaaniseppApp extends Application {
         return connection.cableNotes().isBlank() ? "" : " [%s]".formatted(connection.cableNotes());
     }
 
-    private void addCableTypeSummaryRows(List<String> targetRows, Map<ConnectorType, CableTypeSummary> summariesByType) {
-        targetRows.addAll(cableTypeSummaryRows(summariesByType));
-    }
-
     private List<String> cableTypeSummaryRows(Map<ConnectorType, CableTypeSummary> summariesByType) {
         List<String> rows = new ArrayList<>();
         if (!summariesByType.isEmpty()) {
@@ -5613,6 +5632,34 @@ public class PlaaniseppApp extends Application {
             double mapLengthMeters,
             OptionalDouble notedLengthMeters
     ) {
+    }
+
+    private record SummaryListItem(String text, Integer usedWatts, Integer capacityWatts) {
+        private static SummaryListItem text(String text) {
+            return new SummaryListItem(text, null, null);
+        }
+
+        private static SummaryListItem load(String text, int usedWatts, int capacityWatts) {
+            return new SummaryListItem(text, usedWatts, capacityWatts);
+        }
+
+        private boolean hasLoad() {
+            return usedWatts != null && capacityWatts != null;
+        }
+
+        private double progress() {
+            if (capacityWatts <= 0) {
+                return usedWatts > 0 ? 1.0 : 0.0;
+            }
+            return Math.clamp((double) usedWatts / capacityWatts, 0.0, 1.0);
+        }
+
+        private String displayText() {
+            if (capacityWatts <= 0) {
+                return text + " · —";
+            }
+            return "%s · %.0f%%".formatted(text, (double) usedWatts * 100 / capacityWatts);
+        }
     }
 
     private record MeasurementView(Position start, Position end, Label distanceLabel) {
