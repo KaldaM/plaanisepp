@@ -14,6 +14,7 @@ import ee.matteus.plaanisepp.core.model.MarkerType;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.Position;
 import ee.matteus.plaanisepp.core.model.PowerConnection;
+import ee.matteus.plaanisepp.core.model.PowerConnectionValidationResult;
 import ee.matteus.plaanisepp.core.model.PowerConnectable;
 import ee.matteus.plaanisepp.core.model.PowerConsumer;
 import ee.matteus.plaanisepp.core.model.PowerOutlet;
@@ -3703,8 +3704,15 @@ public class PlaaniseppApp extends Application {
         if (!(consumer instanceof PowerConsumer)) {
             return;
         }
+        PowerConnectionValidationResult validationResult = plan.validatePowerConnection(
+                source.id(), consumer.id(), selectedConnectionType(), ""
+        );
+        if (validationResult != PowerConnectionValidationResult.VALID) {
+            showError("Vooluallikat ei valitud", powerConnectionValidationMessage(validationResult));
+            return;
+        }
         if (plan.connectToPower(source.id(), consumer.id(), selectedConnectionType()).isEmpty()) {
-            showError("Vooluallikat ei valitud", "Valitud kapis ei ole selle ühenduse jaoks sobivat väljundit.");
+            showError("Vooluallikat ei valitud", "Vooluühendust ei õnnestunud luua.");
             return;
         }
         pendingPowerSourceConsumer = null;
@@ -4634,6 +4642,17 @@ public class PlaaniseppApp extends Application {
             return true;
         }
 
+        PowerConnectionValidationResult validationResult = plan.validatePowerConnection(
+                selectedSource.sourceId(),
+                consumer.id(),
+                selectedConnectionType(),
+                selectedConnectionOutletId()
+        );
+        if (validationResult != PowerConnectionValidationResult.VALID) {
+            showError("Vooluallikat ei rakendatud", powerConnectionValidationMessage(validationResult));
+            return false;
+        }
+
         if (plan.connectToPower(
                 selectedSource.sourceId(),
                 consumer.id(),
@@ -4642,10 +4661,21 @@ public class PlaaniseppApp extends Application {
                 cableNotesField.getText(),
                 cableLengthNotesField.getText()
         ).isEmpty()) {
-            showError("Vooluallikat ei rakendatud", "Valitud kapis ei ole selle ühenduse jaoks sobivat väljundit.");
+            showError("Vooluallikat ei rakendatud", "Vooluühendust ei õnnestunud luua.");
             return false;
         }
         return true;
+    }
+
+    private String powerConnectionValidationMessage(PowerConnectionValidationResult validationResult) {
+        return switch (validationResult) {
+            case SOURCE_NOT_FOUND -> "Valitud vooluallikat ei leitud.";
+            case CONSUMER_NOT_FOUND -> "Valitud elektritarbijat ei leitud.";
+            case SELF_CONNECTION -> "Alajaotuskilpi ei saa ühendada iseendaga.";
+            case CYCLE_DETECTED -> "Seda ühendust ei saa luua, sest see tekitaks elektrikilpide vahel tsükli.";
+            case NO_COMPATIBLE_OUTLET -> "Valitud kapis ei ole selle ühenduse jaoks sobivat väljundit.";
+            case VALID -> "";
+        };
     }
 
     private ConnectorType selectedConnectionType() {

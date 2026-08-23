@@ -47,12 +47,18 @@ class DistributionPanelTest {
         plan.addObject(first);
         plan.addObject(second);
 
+        assertEquals(PowerConnectionValidationResult.SELF_CONNECTION, plan.validatePowerConnection(
+                first.id(), first.id(), ConnectorType.SCHUKO_230V, "outlet-1"
+        ));
         assertTrue(plan.connectToPower(
                 first.id(), first.id(), ConnectorType.SCHUKO_230V, "outlet-1"
         ).isEmpty());
         assertTrue(plan.connectToPower(
                 first.id(), second.id(), ConnectorType.SCHUKO_230V, "outlet-1"
         ).isPresent());
+        assertEquals(PowerConnectionValidationResult.CYCLE_DETECTED, plan.validatePowerConnection(
+                second.id(), first.id(), ConnectorType.SCHUKO_230V, "outlet-2"
+        ));
         assertTrue(plan.connectToPower(
                 second.id(), first.id(), ConnectorType.SCHUKO_230V, "outlet-2"
         ).isEmpty());

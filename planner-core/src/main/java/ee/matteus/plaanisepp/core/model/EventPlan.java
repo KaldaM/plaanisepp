@@ -278,6 +278,36 @@ public class EventPlan {
         return connectToPower(sourceId, consumerId, connectorType, "");
     }
 
+    public PowerConnectionValidationResult validatePowerConnection(
+            String sourceId,
+            String consumerId,
+            ConnectorType connectorType,
+            String outletId
+    ) {
+        PowerSource source = findObject(sourceId)
+                .filter(PowerSource.class::isInstance)
+                .map(PowerSource.class::cast)
+                .orElse(null);
+        if (source == null) {
+            return PowerConnectionValidationResult.SOURCE_NOT_FOUND;
+        }
+        if (findObject(consumerId).filter(PowerConsumer.class::isInstance).isEmpty()) {
+            return PowerConnectionValidationResult.CONSUMER_NOT_FOUND;
+        }
+        if (sourceId.equals(consumerId)) {
+            return PowerConnectionValidationResult.SELF_CONNECTION;
+        }
+        if (wouldCreatePowerCycle(sourceId, consumerId)) {
+            return PowerConnectionValidationResult.CYCLE_DETECTED;
+        }
+
+        ConnectorType selectedType = connectorType == null ? ConnectorType.SCHUKO_230V : connectorType;
+        if (selectOutlet(source, consumerId, selectedType, outletId).isEmpty()) {
+            return PowerConnectionValidationResult.NO_COMPATIBLE_OUTLET;
+        }
+        return PowerConnectionValidationResult.VALID;
+    }
+
     public Optional<PowerConnection> connectToPower(String sourceId, String consumerId, ConnectorType connectorType, String outletId) {
         return connectToPower(sourceId, consumerId, connectorType, outletId, existingCableNotes(consumerId));
     }
@@ -347,30 +377,18 @@ public class EventPlan {
             String connectionId,
             boolean defaultForConsumer
     ) {
+        if (validatePowerConnection(sourceId, consumerId, connectorType, outletId)
+                != PowerConnectionValidationResult.VALID) {
+            return Optional.empty();
+        }
+
         PowerSource source = findObject(sourceId)
                 .filter(PowerSource.class::isInstance)
                 .map(PowerSource.class::cast)
-                .orElse(null);
-        if (source == null) {
-            return Optional.empty();
-        }
-
-        PowerConsumer consumer = findObject(consumerId)
-                .filter(PowerConsumer.class::isInstance)
-                .map(PowerConsumer.class::cast)
-                .orElse(null);
-        if (consumer == null) {
-            return Optional.empty();
-        }
-        if (wouldCreatePowerCycle(sourceId, consumerId)) {
-            return Optional.empty();
-        }
+                .orElseThrow();
 
         ConnectorType selectedType = connectorType == null ? ConnectorType.SCHUKO_230V : connectorType;
-        Optional<PowerOutlet> selectedOutlet = selectOutlet(source, consumerId, selectedType, outletId);
-        if (selectedOutlet.isEmpty()) {
-            return Optional.empty();
-        }
+        PowerOutlet selectedOutlet = selectOutlet(source, consumerId, selectedType, outletId).orElseThrow();
 
         List<Position> existingRoutePoints = defaultForConsumer ? existingCableRoutePoints(consumerId) : List.of();
         PowerConnection existingConnection = defaultForConsumer
@@ -388,7 +406,7 @@ public class EventPlan {
                 sourceId,
                 consumerId,
                 selectedType,
-                selectedOutlet.get().id(),
+                selectedOutlet.id(),
                 cableNotes,
                 cableLengthNotes,
                 existingRoutePoints,

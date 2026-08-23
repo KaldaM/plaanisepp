@@ -10,6 +10,28 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EventPlanPowerConnectionTest {
     @Test
+    void reportsWhyPowerConnectionCannotBeCreated() {
+        EventPlan plan = new EventPlan("Test");
+        PowerSource source = powerSource();
+        Tent tent = new Tent("tent", "Telk", new Position(0, 0));
+        plan.addObject(source);
+        plan.addObject(tent);
+
+        assertEquals(PowerConnectionValidationResult.SOURCE_NOT_FOUND, plan.validatePowerConnection(
+                "missing-source", tent.id(), ConnectorType.SCHUKO_230V, "outlet"
+        ));
+        assertEquals(PowerConnectionValidationResult.CONSUMER_NOT_FOUND, plan.validatePowerConnection(
+                source.id(), "missing-consumer", ConnectorType.SCHUKO_230V, "outlet"
+        ));
+        assertEquals(PowerConnectionValidationResult.NO_COMPATIBLE_OUTLET, plan.validatePowerConnection(
+                source.id(), tent.id(), ConnectorType.INDUSTRIAL_16A, ""
+        ));
+        assertEquals(PowerConnectionValidationResult.VALID, plan.validatePowerConnection(
+                source.id(), tent.id(), ConnectorType.SCHUKO_230V, "outlet"
+        ));
+    }
+
+    @Test
     void connectsTentAreaAndLineAndIncludesTheirEquipmentInSummary() {
         EventPlan plan = new EventPlan("Test");
         PowerSource source = powerSource();
