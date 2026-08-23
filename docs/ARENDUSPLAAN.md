@@ -153,7 +153,7 @@ Piirid tuleb enne teostamist kinnitada ning hoida ühes taaskasutatavas arvutus-
 - Tarbija valimine töötab telgi, ala ja joone puhul.
 - Vana tekstiraport, PDF-eksport ja `.pplan` vorming ei muutu.
 
-Koormusribade esimene etapp on teostatud: iga kapi ja väljundi real kuvatakse protsent ning täituvuse järgi roheline, kollane, oranž või punane riba. Kapi, väljundi või tarbija real klõpsamine valib vastava kaardiobjekti ning topeltklõps viib selle juurde kaardil. Hierarhilise vaate edasine kujundamine on järgmine samm.
+Elektri külgpaneeli põhivaade on teostatud: iga kapi ja väljundi real kuvatakse protsent ning täituvuse järgi roheline, kollane, oranž või punane riba. Kapi, väljundi või tarbija real klõpsamine valib vastava kaardiobjekti ning topeltklõps viib selle juurde kaardil. Kapi ja väljundi alamread saab eraldi kokku pakkida ning nende avatud või suletud olek säilib kokkuvõtte värskendamisel.
 
 ## 4. Objekti kiirotsing
 

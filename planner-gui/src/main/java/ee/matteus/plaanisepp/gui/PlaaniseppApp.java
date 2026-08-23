@@ -63,6 +63,7 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -157,6 +158,7 @@ public class PlaaniseppApp extends Application {
     private final List<MeasurementView> measurements = new ArrayList<>();
     private final List<Position> pendingShapePoints = new ArrayList<>();
     private final Set<String> visibleGroups = new HashSet<>();
+    private final Set<String> collapsedPowerSummaryKeys = new HashSet<>();
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private Set<String> knownGroups = new HashSet<>();
     private ListView<SummaryListItem> summaryList;
@@ -669,7 +671,23 @@ public class PlaaniseppApp extends Application {
                 ProgressBar loadBar = new ProgressBar(item.progress());
                 loadBar.setMaxWidth(Double.MAX_VALUE);
                 loadBar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
-                setGraphic(new VBox(3, loadLabel, loadBar));
+                VBox loadContent = new VBox(3, loadLabel, loadBar);
+                if (!item.isExpandable()) {
+                    setGraphic(loadContent);
+                    return;
+                }
+
+                Button toggleButton = new Button(item.expanded() ? "▾" : "▸");
+                toggleButton.setFocusTraversable(false);
+                toggleButton.setMinWidth(28);
+                toggleButton.setStyle("-fx-background-color: transparent; -fx-padding: 2 5 2 5;");
+                toggleButton.setTooltip(new Tooltip(item.expanded() ? "Peida alamread" : "Näita alamridu"));
+                toggleButton.setOnAction(event -> togglePowerSummaryItem(item.hierarchyKey()));
+                HBox row = new HBox(4, toggleButton, loadContent);
+                row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                row.setPadding(new Insets(0, 0, 0, item.depth() * 16.0));
+                HBox.setHgrow(loadContent, Priority.ALWAYS);
+                setGraphic(row);
             }
         });
         summaryList.setTooltip(new Tooltip("Klõps valib objekti, topeltklõps viib selle juurde kaardil"));
@@ -5298,12 +5316,16 @@ public class PlaaniseppApp extends Application {
         summaryList.getItems().clear();
         if (showPowerSummary()) {
             for (PowerSummary summary : powerSummaryService.summaries(plan)) {
-                summaryList.getItems().add(SummaryListItem.load("%s: %d W kasutusel, %s".formatted(
+                String hierarchyKey = powerSourceSummaryKey(summary.sourceId());
+                boolean expanded = isPowerSummaryItemExpanded(hierarchyKey);
+                summaryList.getItems().add(SummaryListItem.expandableLoad("%s: %d W kasutusel, %s".formatted(
                         summary.sourceName(),
                         summary.usedWatts(),
                         remainingWattsText(summary.remainingWatts())
-                ), summary.usedWatts(), summary.capacityWatts(), summary.sourceId()));
-                addConnectedConsumers(summary.sourceId());
+                ), summary.usedWatts(), summary.capacityWatts(), summary.sourceId(), hierarchyKey, expanded, 0));
+                if (expanded) {
+                    addConnectedConsumers(summary.sourceId());
+                }
             }
         }
         if (showCableSummary()) {
@@ -5338,14 +5360,37 @@ public class PlaaniseppApp extends Application {
         for (int index = 0; index < source.outlets().size(); index++) {
             PowerOutlet outlet = source.outlets().get(index);
             int usedWatts = usedWatts(outlet.id());
-            summaryList.getItems().add(SummaryListItem.load("  %s: %d W kasutusel, %s".formatted(
+            String hierarchyKey = powerOutletSummaryKey(outlet.id());
+            boolean expanded = isPowerSummaryItemExpanded(hierarchyKey);
+            summaryList.getItems().add(SummaryListItem.expandableLoad("  %s: %d W kasutusel, %s".formatted(
                     outletDisplayName(outlet, outletTypeIndex(source, outlet, index)),
                     usedWatts,
                     remainingWattsText(outlet.capacityWatts() - usedWatts)
-            ), usedWatts, outlet.capacityWatts(), source.id()));
-            addConnectedConsumers(sourceId, outlet.id(), "    ");
+            ), usedWatts, outlet.capacityWatts(), source.id(), hierarchyKey, expanded, 1));
+            if (expanded) {
+                addConnectedConsumers(sourceId, outlet.id(), "    ");
+            }
         }
         addConnectedConsumers(sourceId, "", "  ");
+    }
+
+    private String powerSourceSummaryKey(String sourceId) {
+        return "source:" + sourceId;
+    }
+
+    private String powerOutletSummaryKey(String outletId) {
+        return "outlet:" + outletId;
+    }
+
+    private boolean isPowerSummaryItemExpanded(String hierarchyKey) {
+        return !collapsedPowerSummaryKeys.contains(hierarchyKey);
+    }
+
+    private void togglePowerSummaryItem(String hierarchyKey) {
+        if (!collapsedPowerSummaryKeys.add(hierarchyKey)) {
+            collapsedPowerSummaryKeys.remove(hierarchyKey);
+        }
+        refreshSummary();
     }
 
     private void addConnectedConsumers(String sourceId, String outletId, String rowPrefix) {
@@ -5666,22 +5711,35 @@ public class PlaaniseppApp extends Application {
     ) {
     }
 
-    private record SummaryListItem(String text, Integer usedWatts, Integer capacityWatts, String targetObjectId) {
+    private record SummaryListItem(
+            String text,
+            Integer usedWatts,
+            Integer capacityWatts,
+            String targetObjectId,
+            String hierarchyKey,
+            boolean expanded,
+            int depth
+    ) {
         private static SummaryListItem text(String text) {
-            return new SummaryListItem(text, null, null, "");
+            return new SummaryListItem(text, null, null, "", "", false, 0);
         }
 
         private static SummaryListItem target(String text, String targetObjectId) {
-            return new SummaryListItem(text, null, null, targetObjectId);
+            return new SummaryListItem(text, null, null, targetObjectId, "", false, 0);
         }
 
-        private static SummaryListItem load(
+        private static SummaryListItem expandableLoad(
                 String text,
                 int usedWatts,
                 int capacityWatts,
-                String targetObjectId
+                String targetObjectId,
+                String hierarchyKey,
+                boolean expanded,
+                int depth
         ) {
-            return new SummaryListItem(text, usedWatts, capacityWatts, targetObjectId);
+            return new SummaryListItem(
+                    text, usedWatts, capacityWatts, targetObjectId, hierarchyKey, expanded, depth
+            );
         }
 
         private boolean hasLoad() {
@@ -5690,6 +5748,10 @@ public class PlaaniseppApp extends Application {
 
         private boolean hasTarget() {
             return targetObjectId != null && !targetObjectId.isBlank();
+        }
+
+        private boolean isExpandable() {
+            return hierarchyKey != null && !hierarchyKey.isBlank();
         }
 
         private double progress() {
