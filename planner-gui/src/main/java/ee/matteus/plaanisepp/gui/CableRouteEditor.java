@@ -28,27 +28,55 @@ final class CableRouteEditor {
         return true;
     }
 
-    static Optional<List<Position>> replacePoint(EventPlan plan, String consumerId, int routePointIndex, Position point) {
-        return plan.findPowerConnectionForConsumer(consumerId)
+    static Optional<List<Position>> replacePoint(EventPlan plan, String connectionId, int routePointIndex, Position point) {
+        return plan.powerConnections().stream()
+                .filter(connection -> connection.id().equals(connectionId))
+                .findFirst()
                 .filter(connection -> routePointIndex >= 0 && routePointIndex < connection.routePoints().size())
                 .map(connection -> {
                     List<Position> routePoints = new ArrayList<>(connection.routePoints());
                     routePoints.set(routePointIndex, point);
-                    plan.updateCableRoutePoints(consumerId, routePoints);
+                    plan.updateCableRoutePointsForConnection(connectionId, routePoints);
                     return routePoints;
                 });
     }
 
-    static boolean removePoint(EventPlan plan, String consumerId, int routePointIndex) {
-        return plan.findPowerConnectionForConsumer(consumerId)
+    static boolean removePoint(EventPlan plan, String connectionId, int routePointIndex) {
+        return plan.powerConnections().stream()
+                .filter(connection -> connection.id().equals(connectionId))
+                .findFirst()
                 .filter(connection -> routePointIndex >= 0 && routePointIndex < connection.routePoints().size())
                 .map(connection -> {
                     List<Position> routePoints = new ArrayList<>(connection.routePoints());
                     routePoints.remove(routePointIndex);
-                    plan.updateCableRoutePoints(consumerId, routePoints);
+                    plan.updateCableRoutePointsForConnection(connectionId, routePoints);
                     return true;
                 })
                 .orElse(false);
+    }
+
+    static boolean insertPointForConnection(
+            EventPlan plan,
+            String connectionId,
+            List<Position> path,
+            Position point
+    ) {
+        List<Position> routePoints = plan.powerConnections().stream()
+                .filter(connection -> connection.id().equals(connectionId))
+                .findFirst()
+                .map(connection -> new ArrayList<>(connection.routePoints()))
+                .orElse(null);
+        if (routePoints == null) {
+            return false;
+        }
+        int insertionIndex = CableRouteGeometry.closestSegmentIndex(path, point);
+        if (insertionIndex < 0 || insertionIndex > routePoints.size()) {
+            routePoints.add(point);
+        } else {
+            routePoints.add(insertionIndex, point);
+        }
+        plan.updateCableRoutePointsForConnection(connectionId, routePoints);
+        return true;
     }
 
     static boolean clearRoute(EventPlan plan, String consumerId) {

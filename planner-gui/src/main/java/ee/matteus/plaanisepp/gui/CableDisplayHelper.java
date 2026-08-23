@@ -40,9 +40,10 @@ final class CableDisplayHelper {
 
     static String mapLabel(PowerConnection connection, double lengthMeters) {
         String baseLabel = "%s · %.1f m".formatted(shortTypeName(connection.connectorType()), lengthMeters);
-        return connection.cableLengthNotes().isBlank()
+        String label = connection.cableLengthNotes().isBlank()
                 ? baseLabel
                 : "%s · %s".formatted(baseLabel, connection.cableLengthNotes());
+        return connection.defaultForConsumer() ? label : "Erand · " + label;
     }
 
     static double lengthMeters(List<Position> path, double pixelsPerMeter) {

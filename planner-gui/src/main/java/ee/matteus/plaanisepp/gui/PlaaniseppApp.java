@@ -2158,15 +2158,16 @@ public class PlaaniseppApp extends Application {
                     || !isObjectTypeVisible(consumer)) {
                 continue;
             }
-            plan.findPowerConnectionForConsumer(consumer.id())
+            plan.findPowerConnectionsForConsumer(consumer.id()).stream()
                     .filter(connection -> showCableType(connection.connectorType()))
-                    .flatMap(connection -> plan.findObject(connection.sourceId())
+                    .map(connection -> plan.findObject(connection.sourceId())
                             .filter(PowerSource.class::isInstance)
                             .map(PowerSource.class::cast)
                             .filter(this::isGroupVisible)
                             .filter(this::isObjectTypeVisible)
                             .map(source -> new PowerCableView(consumer, source, connection)))
-                    .ifPresent(this::drawPowerConnection);
+                    .flatMap(Optional::stream)
+                    .forEach(this::drawPowerConnection);
         }
     }
 
@@ -2363,7 +2364,7 @@ public class PlaaniseppApp extends Application {
             label.setLayoutX(labelX);
             label.setLayoutY(labelY);
             Position defaultPosition = CableDisplayHelper.defaultLabelPosition(cablePath(cable));
-            plan.updateCableLabelOffset(cable.consumer().id(), new Position(
+            plan.updateCableLabelOffsetForConnection(cable.connection().id(), new Position(
                     labelX - defaultPosition.x(),
                     labelY - defaultPosition.y()
             ));
@@ -2407,7 +2408,7 @@ public class PlaaniseppApp extends Application {
             Position updatedPoint = new Position(mapPoint.getX(), mapPoint.getY());
             List<Position> routePoints = CableRouteEditor.replacePoint(
                     plan,
-                    cable.consumer().id(),
+                    cable.connection().id(),
                     routePointIndex,
                     updatedPoint
             ).orElse(null);
@@ -2544,7 +2545,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void removeCableRoutePoint(PowerCableView cable, int routePointIndex) {
-        if (!CableRouteEditor.removePoint(plan, cable.consumer().id(), routePointIndex)) {
+        if (!CableRouteEditor.removePoint(plan, cable.connection().id(), routePointIndex)) {
             return;
         }
         redrawMap();
@@ -4168,15 +4169,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private void insertCableRoutePoint(PowerCableView cable, Position point) {
-        PowerConnection connection = plan.findPowerConnectionForConsumer(cable.consumer().id()).orElse(null);
-        if (connection == null) {
-            return;
-        }
-
-        if (!CableRouteEditor.insertPoint(
+        if (!CableRouteEditor.insertPointForConnection(
                 plan,
-                cable.consumer().id(),
-                cablePath(cable.consumer(), cable.source(), connection),
+                cable.connection().id(),
+                cablePath(cable),
                 point
         )) {
             return;
@@ -5335,12 +5331,9 @@ public class PlaaniseppApp extends Application {
         boolean hasNotedLength = false;
         Map<ConnectorType, CableTypeSummary> summariesByType = new EnumMap<>(ConnectorType.class);
 
-        for (PlannerObject consumer : plan.objects()) {
+        for (PowerConnection connection : plan.powerConnections()) {
+            PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
             if (!(consumer instanceof PowerConsumer)) {
-                continue;
-            }
-            PowerConnection connection = plan.findPowerConnectionForConsumer(consumer.id()).orElse(null);
-            if (connection == null) {
                 continue;
             }
 
@@ -5602,10 +5595,12 @@ public class PlaaniseppApp extends Application {
         String lengthText = row.notedLengthMeters().isPresent()
                 ? "%.1f m kaardil, %.1f m märgitud".formatted(row.mapLengthMeters(), row.notedLengthMeters().getAsDouble())
                 : "%.1f m".formatted(row.mapLengthMeters());
-        return "  - %s -> %s (%s): %s%s".formatted(
+        String connectionRole = row.connection().defaultForConsumer() ? "" : ", seadme erand";
+        return "  - %s -> %s (%s%s): %s%s".formatted(
                 row.consumer().name(),
                 row.source().name(),
                 row.connection().connectorType().displayName(),
+                connectionRole,
                 lengthText,
                 cableNotesText(row.connection()) + cableNoteWarningText(row.connection())
         );
