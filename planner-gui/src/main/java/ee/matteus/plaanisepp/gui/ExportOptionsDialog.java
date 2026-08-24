@@ -7,6 +7,7 @@ import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.layout.GridPane;
+import javafx.stage.Stage;
 
 import java.util.Optional;
 
@@ -14,31 +15,33 @@ final class ExportOptionsDialog {
     private ExportOptionsDialog() {
     }
 
-    static Optional<MapImageExportScope> chooseMapImageExportScope() {
+    static Optional<MapImageExportScope> chooseMapImageExportScope(Stage owner) {
         ChoiceDialog<MapImageExportScope> dialog = new ChoiceDialog<>(
                 MapImageExportScope.FULL_MAP,
                 MapImageExportScope.FULL_MAP,
                 MapImageExportScope.CURRENT_VIEW
         );
+        dialog.initOwner(owner);
         dialog.setTitle("Ekspordi kaart pildina");
         dialog.setHeaderText("Vali eksporditav ala");
         dialog.setContentText("Ala");
         return dialog.showAndWait();
     }
 
-    static Optional<ReportExportScope> chooseReportExportScope() {
+    static Optional<ReportExportScope> chooseReportExportScope(Stage owner) {
         ChoiceDialog<ReportExportScope> dialog = new ChoiceDialog<>(
                 ReportExportScope.COMPACT,
                 ReportExportScope.COMPACT,
                 ReportExportScope.FULL
         );
+        dialog.initOwner(owner);
         dialog.setTitle("Ekspordi raport");
         dialog.setHeaderText("Vali raporti detailsus");
         dialog.setContentText("Raport");
         return dialog.showAndWait();
     }
 
-    static Optional<PdfExportOptions> choosePdfExportOptions() {
+    static Optional<PdfExportOptions> choosePdfExportOptions(Stage owner) {
         ComboBox<MapImageExportScope> mapScopeComboBox = new ComboBox<>();
         mapScopeComboBox.getItems().addAll(MapImageExportScope.values());
         mapScopeComboBox.getSelectionModel().select(MapImageExportScope.FULL_MAP);
@@ -52,6 +55,7 @@ final class ExportOptionsDialog {
         form.addRow(1, new Label("Raport"), reportScopeComboBox);
 
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        dialog.initOwner(owner);
         dialog.setTitle("Ekspordi PDF");
         dialog.setHeaderText("Vali PDF ekspordi seaded");
         dialog.getDialogPane().setContent(form);

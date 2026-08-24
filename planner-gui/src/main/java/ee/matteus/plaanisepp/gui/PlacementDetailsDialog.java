@@ -16,6 +16,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
+import javafx.stage.Stage;
 import javafx.util.StringConverter;
 
 import java.util.List;
@@ -26,6 +27,7 @@ final class PlacementDetailsDialog {
     }
 
     static Optional<PlacementDetails> show(
+            Stage owner,
             PlacementType placementType,
             List<String> existingGroupNames,
             double minimumFontSize,
@@ -89,6 +91,7 @@ final class PlacementDetailsDialog {
                 markerTypeComboBox
         );
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        dialog.initOwner(owner);
         dialog.setTitle("Lisa objekt");
         dialog.setHeaderText("Sisesta lisatava objekti andmed");
         dialog.getDialogPane().setContent(form);
@@ -97,6 +100,7 @@ final class PlacementDetailsDialog {
         }
 
         return createPlacementDetails(
+                owner,
                 placementType,
                 nameField,
                 groupComboBox,
@@ -227,6 +231,7 @@ final class PlacementDetailsDialog {
     }
 
     private static Optional<PlacementDetails> createPlacementDetails(
+            Stage owner,
             PlacementType placementType,
             TextField nameField,
             ComboBox<String> groupComboBox,
@@ -246,6 +251,7 @@ final class PlacementDetailsDialog {
             groupName = "Määramata";
         }
         Dimensions dimensions = readDimensions(
+                owner,
                 placementType,
                 tentWidthField,
                 tentHeightField,
@@ -283,6 +289,7 @@ final class PlacementDetailsDialog {
     }
 
     private static Dimensions readDimensions(
+            Stage owner,
             PlacementType placementType,
             TextField tentWidthField,
             TextField tentHeightField,
@@ -291,15 +298,15 @@ final class PlacementDetailsDialog {
             TextField objectHeightField
     ) {
         if (placementType == PlacementType.TENT) {
-            return readTentDimensions(tentWidthField, tentHeightField);
+            return readTentDimensions(owner, tentWidthField, tentHeightField);
         }
         if (placementType == PlacementType.CUSTOM_OBJECT) {
-            return readCustomObjectDimensions(shapeComboBox, objectWidthField, objectHeightField);
+            return readCustomObjectDimensions(owner, shapeComboBox, objectWidthField, objectHeightField);
         }
         return new Dimensions(1.0, 1.0, CustomObjectShape.SQUARE);
     }
 
-    private static Dimensions readTentDimensions(TextField widthField, TextField heightField) {
+    private static Dimensions readTentDimensions(Stage owner, TextField widthField, TextField heightField) {
         try {
             double widthMeters = parseDouble(widthField.getText());
             double heightMeters = parseDouble(heightField.getText());
@@ -308,14 +315,15 @@ final class PlacementDetailsDialog {
             }
             return new Dimensions(widthMeters, heightMeters, CustomObjectShape.SQUARE);
         } catch (NumberFormatException exception) {
-            showError("Objekti ei lisatud", "Sisesta telgi laius ja pikkus arvuna meetrites.");
+            showError(owner, "Objekti ei lisatud", "Sisesta telgi laius ja pikkus arvuna meetrites.");
         } catch (IllegalArgumentException exception) {
-            showError("Objekti ei lisatud", exception.getMessage());
+            showError(owner, "Objekti ei lisatud", exception.getMessage());
         }
         return null;
     }
 
     private static Dimensions readCustomObjectDimensions(
+            Stage owner,
             ComboBox<CustomObjectShape> shapeComboBox,
             TextField widthField,
             TextField heightField
@@ -337,9 +345,9 @@ final class PlacementDetailsDialog {
             String message = shape == CustomObjectShape.CIRCLE
                     ? "Sisesta objekti läbimõõt arvuna meetrites."
                     : "Sisesta objekti laius ja pikkus arvuna meetrites.";
-            showError("Objekti ei lisatud", message);
+            showError(owner, "Objekti ei lisatud", message);
         } catch (IllegalArgumentException exception) {
-            showError("Objekti ei lisatud", exception.getMessage());
+            showError(owner, "Objekti ei lisatud", exception.getMessage());
         }
         return null;
     }
@@ -474,8 +482,9 @@ final class PlacementDetailsDialog {
         return "#%02x%02x%02x".formatted(red, green, blue);
     }
 
-    private static void showError(String title, String message) {
+    private static void showError(Stage owner, String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.initOwner(owner);
         alert.setTitle(title);
         alert.setHeaderText(title);
         alert.setContentText(message == null || message.isBlank() ? "Tundmatu viga." : message);

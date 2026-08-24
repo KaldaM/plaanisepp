@@ -1585,6 +1585,7 @@ public class PlaaniseppApp extends Application {
 
     private PlacementDetails askPlacementDetails(PlacementType placementType) {
         return PlacementDetailsDialog.show(
+                stage,
                 placementType,
                 existingGroupNames(),
                 MIN_FONT_SIZE_PIXELS,
@@ -2194,7 +2195,7 @@ public class PlaaniseppApp extends Application {
         if (!planDocumentState.hasUnsavedChanges()) {
             return true;
         }
-        return switch (PlanFileDialogs.confirmUnsavedChanges()) {
+        return switch (PlanFileDialogs.confirmUnsavedChanges(stage)) {
             case SAVE -> savePlan();
             case DISCARD -> true;
             case CANCEL -> false;
@@ -4357,6 +4358,7 @@ public class PlaaniseppApp extends Application {
 
     private boolean confirmDeleteSelectedObject() {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(stage);
         alert.setTitle("Kustuta objekt");
         alert.setHeaderText("Kas kustutada \"%s\"?".formatted(selectedObject.name()));
         alert.setContentText(deleteConfirmationText(selectedObject));
@@ -4586,6 +4588,7 @@ public class PlaaniseppApp extends Application {
 
         MeasurementView measurement = measurements.getLast();
         TextInputDialog dialog = new TextInputDialog("%.2f".formatted(distanceMeters(measurement.start(), measurement.end())));
+        dialog.initOwner(stage);
         dialog.setTitle("Määra mõõtkava");
         dialog.setHeaderText("Sisesta viimase mõõdulindi joone tegelik pikkus meetrites");
         dialog.setContentText("Tegelik pikkus m:");
@@ -5276,6 +5279,7 @@ public class PlaaniseppApp extends Application {
 
     private boolean confirmRemoveConnectedOutlet(PowerOutlet outlet, List<PowerConsumer> connectedConsumers) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(stage);
         alert.setTitle("Eemalda väljund");
         alert.setHeaderText("See väljund on kasutusel");
         String consumerRows = connectedConsumers.stream()
@@ -5290,6 +5294,7 @@ public class PlaaniseppApp extends Application {
 
     private boolean confirmOutletTypeChange(PowerOutlet outlet, ConnectorType selectedType, List<PowerConsumer> connectedConsumers) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(stage);
         alert.setTitle("Muuda väljundi tüüpi");
         alert.setHeaderText("See väljund on kasutusel");
         String consumerRows = connectedConsumers.stream()
@@ -5762,7 +5767,7 @@ public class PlaaniseppApp extends Application {
     private void exportSummary() {
         refreshSummary();
 
-        Optional<ReportExportScope> selectedReportScope = ExportOptionsDialog.chooseReportExportScope();
+        Optional<ReportExportScope> selectedReportScope = ExportOptionsDialog.chooseReportExportScope(stage);
         if (selectedReportScope.isEmpty()) {
             return;
         }
@@ -5789,7 +5794,7 @@ public class PlaaniseppApp extends Application {
     private void exportMapImage() {
         redrawMap();
 
-        Optional<MapImageExportScope> selectedScope = ExportOptionsDialog.chooseMapImageExportScope();
+        Optional<MapImageExportScope> selectedScope = ExportOptionsDialog.chooseMapImageExportScope(stage);
         if (selectedScope.isEmpty()) {
             return;
         }
@@ -5819,7 +5824,7 @@ public class PlaaniseppApp extends Application {
     private void exportPdf() {
         redrawMap();
 
-        Optional<PdfExportOptions> selectedOptions = ExportOptionsDialog.choosePdfExportOptions();
+        Optional<PdfExportOptions> selectedOptions = ExportOptionsDialog.choosePdfExportOptions(stage);
         if (selectedOptions.isEmpty()) {
             return;
         }
@@ -6132,6 +6137,7 @@ public class PlaaniseppApp extends Application {
 
     private void showError(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.initOwner(stage);
         alert.setTitle(title);
         alert.setHeaderText(title);
         alert.setContentText(message == null || message.isBlank() ? "Tundmatu viga." : message);

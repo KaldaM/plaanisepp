@@ -80,6 +80,7 @@ final class PlanSettingsDialog {
         form.addRow(5, new Label("Valitud kaart"), mapLabel);
 
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        dialog.initOwner(owner);
         dialog.setTitle("Plaani andmed");
         dialog.setHeaderText("Muuda plaani andmeid");
         dialog.getDialogPane().setContent(form);

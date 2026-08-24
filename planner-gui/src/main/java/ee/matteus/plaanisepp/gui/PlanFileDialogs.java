@@ -26,8 +26,9 @@ final class PlanFileDialogs {
                 .map(PlanFileNames::ensurePlanExtension);
     }
 
-    static UnsavedChangesChoice confirmUnsavedChanges() {
+    static UnsavedChangesChoice confirmUnsavedChanges(Stage owner) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(owner);
         alert.setTitle("Salvestamata muudatused");
         alert.setHeaderText("Plaanis on salvestamata muudatusi");
         alert.setContentText("Kas soovid enne jätkamist plaani salvestada?");
