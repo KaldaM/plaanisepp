@@ -17,7 +17,8 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 6. lisada salvestamise klahvikombinatsioonid `Ctrl + S` ja `Ctrl + Shift + S`;
 7. lisada rakenduse käivitamisel hiljutiste plaanide ja uue plaani loomise avavaade;
 8. lisada plaani muudatuste tagasivõtmine `Ctrl + Z` ja uuestitegemine `Ctrl + Alt + Z` abil;
-9. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+9. uuendada rakenduse visuaalne keel ja vähendada JavaFX-i vaikekomponentide vananenud ilmet;
+10. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -304,7 +305,36 @@ Lisaks on teostatud `Ctrl + N` uue plaani loomiseks, `Ctrl + O` plaani avamiseks
 - Faili avamine ja uue plaani loomine alustavad uut tühja ajalugu; salvestamine ise ei lisa ajalukku uut sammu.
 - Tagasivõtmine ja uuestitegemine peavad uuendama kaarti, külgpaneele, voolukokkuvõtet ja salvestamata muudatuste olekut ühe tervikuna.
 
-## 10. Arenduspõhimõtted
+## 10. Visuaalse kasutajaliidese uuendamine
+
+Rakendusele tuleb kujundada ühtne ja tänapäevane visuaalne keel. Praegused JavaFX-i vaikestiilid asendatakse järk-järgult Plaanisepa enda stiiliga, säilitades seejuures selguse, töökiiruse ja eri ekraanisuuruste toe.
+
+### Kujunduse põhialused
+
+- määrata rakenduse värvipalett, tüpograafia, vahed, nurgaraadiused ja komponentide olekud;
+- kujundada ühtlaselt tööriistariba, nupud, sisestusväljad, külgpaneeli jaotised, nimekirjad, kontekstimenüüd ja dialoogid;
+- eristada selgelt esmased, teisesed, ohtlikud, aktiivsed ja keelatud tegevused;
+- asendada sobivates kohtades tekstirohked tööriistariba tegevused arusaadavate ikoonide, siltide ja kohtspikritega;
+- säilitada hea loetavus Linuxi ja Windowsi erinevate DPI- ning süsteemiskaalade korral;
+- arvestada klaviatuurifookuse, kontrasti ja muude ligipääsetavuse nõuetega;
+- vältida kaardiala vähendamist pelgalt dekoratiivsete elementide arvelt.
+
+### Teostusviis
+
+Esimese sammuna luuakse keskne JavaFX CSS-teema ja väike korduvkasutatavate stiiliklasside kogum. Muudatus tehakse vaadete kaupa, et olemasolevat käitumist oleks võimalik iga sammu järel võrrelda ja testida.
+
+FXML-vaateid saab visuaalselt kujundada Gluon Scene Builderiga ning IntelliJ IDEA saab Scene Builderi välise tööriistana avada. Scene Builderit kasutatakse eelkõige uute või selgelt eraldatud vaadete, näiteks käivitusvaate ja dialoogide puhul. Kogu praegust programmiliselt ehitatud kasutajaliidest ei kirjutata ühe suure muudatusena FXML-i ümber; FXML-i viiakse ainult need osad, mille hooldatavus sellest päriselt paraneb.
+
+### Vastuvõtukriteeriumid
+
+- põhiaken ja dialoogid kasutavad sama värvi-, vahe- ja komponendisüsteemi;
+- kõik tegevused jäävad kasutatavaks nii hiire kui ka klaviatuuriga;
+- fookuse, hõljumise, vajutamise, valiku ja keelatud olekud on selgelt nähtavad;
+- kujundus töötab vähemalt Linuxi ja Windowsi tavapäraste süsteemiskaaladega;
+- visuaalne uuendus ei muuda plaaniandmeid, `.pplan` vormingut ega olemasolevaid töövooge;
+- enne suuremat ümberkujundamist säilitatakse võrdluspildid peamistest vaadetest.
+
+## 11. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.
 - Domeeniarvutused jäävad `planner-core` moodulisse ja JavaFX-i esitlus `planner-gui` moodulisse.
