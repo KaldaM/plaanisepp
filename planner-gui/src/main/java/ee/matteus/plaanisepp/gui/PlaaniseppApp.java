@@ -815,8 +815,14 @@ public class PlaaniseppApp extends Application {
                 colorSwatch.setStroke(Color.web("#111827"));
                 colorSwatch.setStrokeWidth(0.7);
                 colorSwatch.setOpacity(item.visible() ? 1.0 : 0.45);
+                CheckBox visibilityCheckBox = new CheckBox();
+                visibilityCheckBox.setSelected(!item.object().hidden());
+                visibilityCheckBox.setTooltip(new Tooltip("Kuva objekt kaardil"));
+                visibilityCheckBox.setOnAction(event -> setObjectHidden(
+                        item.object(), !visibilityCheckBox.isSelected()
+                ));
                 VBox textBox = new VBox(2, nameLabel, detailLabel);
-                HBox row = new HBox(8, colorSwatch, textBox);
+                HBox row = new HBox(8, visibilityCheckBox, colorSwatch, textBox);
                 row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 row.setPadding(new Insets(0, 0, 0, 34));
                 setText(null);
@@ -984,7 +990,7 @@ public class PlaaniseppApp extends Application {
                         objectTypeName(object),
                         groupNameForFilter(object),
                         objectMeasurementText(object),
-                        isGroupVisible(object) && isObjectTypeVisible(object)
+                        isObjectVisibleOnMap(object)
                 ))
                 .filter(item -> objectListItemMatches(item, query))
                 .sorted(Comparator
@@ -1120,10 +1126,10 @@ public class PlaaniseppApp extends Application {
             return;
         }
         boolean hiddenSelection = selectedObject != null
-                && (!isGroupVisible(selectedObject) || !isObjectTypeVisible(selectedObject));
+                && !isObjectVisibleOnMap(selectedObject);
         revealObjectButton.setDisable(!hiddenSelection);
         revealObjectButton.setTooltip(new Tooltip(hiddenSelection
-                ? "Lülitab valitud objekti grupi ja tüübi kaardil nähtavaks"
+                ? "Lülitab valitud objekti, grupi ja tüübi kaardil nähtavaks"
                 : "Valitud objekt on juba kaardil nähtav"));
     }
 
@@ -1131,6 +1137,7 @@ public class PlaaniseppApp extends Application {
         if (selectedObject == null) {
             return;
         }
+        selectedObject.setHidden(false);
         setObjectTypeVisible(selectedObject, true);
         String groupName = groupNameForFilter(selectedObject);
         visibleGroups.add(groupName);
@@ -2223,12 +2230,12 @@ public class PlaaniseppApp extends Application {
             drawPowerConnections();
         }
         for (PlannerObject object : plan.objects()) {
-            if (object instanceof AreaObject areaObject && isGroupVisible(object) && isObjectTypeVisible(object)) {
+            if (object instanceof AreaObject areaObject && isObjectVisibleOnMap(object)) {
                 drawAreaObject(areaObject);
             }
         }
         for (PlannerObject object : plan.objects()) {
-            if (!isGroupVisible(object) || !isObjectTypeVisible(object)) {
+            if (!isObjectVisibleOnMap(object)) {
                 continue;
             }
             if (object instanceof Tent tent) {
@@ -2362,8 +2369,7 @@ public class PlaaniseppApp extends Application {
     private void drawPowerConnections() {
         for (PlannerObject consumer : plan.objects()) {
             if (!(consumer instanceof PowerConsumer)
-                    || !isGroupVisible(consumer)
-                    || !isObjectTypeVisible(consumer)) {
+                    || !isObjectVisibleOnMap(consumer)) {
                 continue;
             }
             plan.findPowerConnectionsForConsumer(consumer.id()).stream()
@@ -2371,8 +2377,7 @@ public class PlaaniseppApp extends Application {
                     .map(connection -> plan.findObject(connection.sourceId())
                             .filter(PowerSource.class::isInstance)
                             .map(PowerSource.class::cast)
-                            .filter(this::isGroupVisible)
-                            .filter(this::isObjectTypeVisible)
+                            .filter(this::isObjectVisibleOnMap)
                             .map(source -> new PowerCableView(consumer, source, connection)))
                     .flatMap(Optional::stream)
                     .forEach(this::drawPowerConnection);
@@ -3487,9 +3492,16 @@ public class PlaaniseppApp extends Application {
         selectObject(object);
         MenuItem editItem = new MenuItem("Muuda");
         editItem.setOnAction(event -> editObject(object));
+        MenuItem visibilityItem = new MenuItem(object.hidden() ? "Kuva" : "Peida");
+        visibilityItem.setOnAction(event -> setObjectHidden(object, !object.hidden()));
         MenuItem deleteItem = new MenuItem("Kustuta");
         deleteItem.setOnAction(event -> deleteObject(object));
-        showContextMenu(new ContextMenu(editItem, deleteItem), mapPane, screenX, screenY);
+        showContextMenu(
+                new ContextMenu(editItem, visibilityItem, deleteItem),
+                mapPane,
+                screenX,
+                screenY
+        );
     }
 
     private void showContextMenu(
@@ -3520,6 +3532,14 @@ public class PlaaniseppApp extends Application {
     private void deleteObject(PlannerObject object) {
         selectObject(object);
         deleteSelectedObject();
+    }
+
+    private void setObjectHidden(PlannerObject object, boolean hidden) {
+        object.setHidden(hidden);
+        redrawMap();
+        refreshObjectList();
+        updateRevealObjectButton();
+        markDirty();
     }
 
     private void selectObject(PlannerObject object) {
@@ -3660,6 +3680,10 @@ public class PlaaniseppApp extends Application {
 
     private boolean isGroupVisible(PlannerObject object) {
         return knownGroups.isEmpty() || visibleGroups.contains(groupNameForFilter(object));
+    }
+
+    private boolean isObjectVisibleOnMap(PlannerObject object) {
+        return !object.hidden() && isGroupVisible(object) && isObjectTypeVisible(object);
     }
 
     private String groupNameForFilter(PlannerObject object) {

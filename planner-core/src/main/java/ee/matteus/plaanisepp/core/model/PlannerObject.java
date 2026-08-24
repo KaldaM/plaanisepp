@@ -7,6 +7,7 @@ public abstract class PlannerObject {
     private boolean locked;
     private String groupName;
     private String notes;
+    private boolean hidden;
     private boolean showMapLabel;
     private boolean customMapLabelPosition;
     private Position mapLabelOffset;
@@ -17,6 +18,7 @@ public abstract class PlannerObject {
         this.position = position;
         this.groupName = "";
         this.notes = "";
+        this.hidden = false;
         this.showMapLabel = true;
         this.customMapLabelPosition = false;
         this.mapLabelOffset = new Position(0, 0);
@@ -66,6 +68,14 @@ public abstract class PlannerObject {
 
     public void setNotes(String notes) {
         this.notes = notes == null ? "" : notes;
+    }
+
+    public boolean hidden() {
+        return hidden;
+    }
+
+    public void setHidden(boolean hidden) {
+        this.hidden = hidden;
     }
 
     public boolean showMapLabel() {

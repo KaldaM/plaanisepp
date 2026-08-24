@@ -7,6 +7,7 @@ import ee.matteus.plaanisepp.core.model.DistributionPanel;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.LineObject;
+import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.Position;
 import ee.matteus.plaanisepp.core.model.PowerConnection;
 import ee.matteus.plaanisepp.core.model.PowerOutlet;
@@ -131,7 +132,7 @@ class PlanFileServiceTest {
     @Test
     void rejectsPlanFromNewerFormatVersion() throws IOException {
         Path file = tempDirectory.resolve("future-plan.pplan");
-        writePackage(file, 4, null, null);
+        writePackage(file, 5, null, null);
 
         IOException exception = assertThrows(IOException.class, () -> service.load(file));
 
@@ -555,7 +556,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(3, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(4, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()
@@ -608,6 +609,39 @@ class PlanFileServiceTest {
         assertEquals("connection-1", connection.id());
         Tent loadedTent = (Tent) loadedPlan.findObject("tent-1").orElseThrow();
         assertTrue(loadedTent.equipment().getFirst().usesDefaultPower());
+    }
+
+    @Test
+    void savesObjectVisibilityAndDefaultsVersionThreeObjectToVisible() throws IOException {
+        EventPlan plan = new EventPlan("Peidetud objekt");
+        Tent hiddenTent = new Tent("tent-hidden", "Peidetud telk", new Position(10, 20));
+        hiddenTent.setHidden(true);
+        plan.addObject(hiddenTent);
+        Path currentFile = tempDirectory.resolve("hidden-object.pplan");
+
+        service.save(plan, currentFile);
+
+        PlannerObject loadedHiddenObject = service.load(currentFile).findObject(hiddenTent.id()).orElseThrow();
+        assertTrue(loadedHiddenObject.hidden());
+
+        Path versionThreeFile = tempDirectory.resolve("version-three-visible-object.pplan");
+        writePackage(versionThreeFile, 3, """
+                format=pannukas-plan-v3
+                formatVersion=3
+                plan.name=Versioon 3
+                objects.count=1
+                object.0.type=TENT
+                object.0.id=tent-visible
+                object.0.name=Nähtav telk
+                object.0.x=10
+                object.0.y=20
+                connections.count=0
+                """, null);
+
+        PlannerObject loadedLegacyObject = service.load(versionThreeFile)
+                .findObject("tent-visible")
+                .orElseThrow();
+        assertFalse(loadedLegacyObject.hidden());
     }
 
     @Test

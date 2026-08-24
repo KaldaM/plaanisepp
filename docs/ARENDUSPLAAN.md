@@ -254,6 +254,8 @@ Objektide nimekirja objekti paremklõps pakub vähemalt tegevusi „Muuda”, �
 
 Üksikobjekti nähtavus on plaani osa ja peab säilima `.pplan` salvestamisel. Vormingu muutmisel tuleb säilitada versioonita ning versioon 1–3 failide avatavus; vanadest failidest laaditud objektid on vaikimisi nähtavad.
 
+Üksikobjekti nähtavus on teostatud `.pplan` versioonis 4. Objekti saab peita või kuvada nii objektirea linnukese kui ka kontekstimenüü kaudu; grupi ja objektitüübi nähtavus jäävad eraldi kõrgema taseme filtriteks.
+
 ### Vastuvõtukriteeriumid
 
 - Külgpaneeli jaotised saab ümber järjestada ning järjestus säilib rakenduse taaskäivitamisel.

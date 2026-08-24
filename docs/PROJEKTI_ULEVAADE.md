@@ -192,17 +192,17 @@ Plaaniandmetes salvestatakse muu hulgas:
 - grupid, lukud, märkmed ja nimesiltide asukohad;
 - elektriväljundid ja vooluühendused;
 - kaablite trajektoorid, märkmed, jupid ja sildiasukohad;
-- kihtide, kaablitüüpide ja gruppide nähtavus.
+- kihtide, kaablitüüpide, gruppide ja üksikobjektide nähtavus.
 
 Kasutaja laaditud PNG- või JPEG-kaart lisatakse paketti binaarfailina, mitte Base64 tekstina. Projektiga kaasas olev vaikekaart jääb `classpath:` viiteks ja seda paketis ei dubleerita. Pärast edukat salvestamist saab plaani uuesti salvestada ka siis, kui algne kasutaja kaardifail on ümber nimetatud, teisaldatud või kustutatud.
 
-Versioonita ja versioon 1 `.pplan` failid on tavalised Java properties-failid ning versioon 2 on esimene ZIP-paketivorming. Kõik need avanevad endiselt. Vana faili avamine seda ei muuda; järgmine salvestamine kirjutab faili versioon 3 paketina, mis säilitab ka mitu vooluühendust ja seadmete ühendusevalikud. Rakendus keeldub endast uuema vormingu avamisest ja palub kasutajal rakendust uuendada. Vigane või poolik pakett valideeritakse enne plaani kasutuselevõttu ning ebaõnnestunud salvestus ei kirjuta olemasolevat sihtfaili osaliselt üle.
+Versioonita ja versioon 1 `.pplan` failid on tavalised Java properties-failid ning versioon 2 on esimene ZIP-paketivorming. Versioon 3 lisas uue voolujaotuse ning versioon 4 üksikobjektide nähtavuse. Kõik varasemad versioonid avanevad endiselt. Vana faili avamine seda ei muuda; järgmine salvestamine kirjutab faili versioon 4 paketina. Rakendus keeldub endast uuema vormingu avamisest ja palub kasutajal rakendust uuendada. Vigane või poolik pakett valideeritakse enne plaani kasutuselevõttu ning ebaõnnestunud salvestus ei kirjuta olemasolevat sihtfaili osaliselt üle.
 
 ### 5.6 Tähtsamad teenused ja GUI komponendid
 
 | Komponent | Vastutus |
 | --- | --- |
-| `PlanFileService` | Versioon 3 pakettide kirjutamine, versioon 2 ja 3 pakettide valideeritud lugemine ning vanade versioonita ja versioon 1 failide lugemine |
+| `PlanFileService` | Versioon 4 pakettide kirjutamine, versioon 2–4 pakettide valideeritud lugemine ning vanade versioonita ja versioon 1 failide lugemine |
 | `PlanFactory` | Uue plaani algseisu loomine |
 | `PowerSummaryService` | Elektrikappide koormuse ja vaba võimsuse arvutamine |
 | `GeometryCalculator` | Joonte pikkuse ning kujundite pindala ja ümbermõõdu arvutamine |
@@ -458,6 +458,7 @@ Allolev ajajoon koondab 186 commitist tähenduslikud etapid. Täpne muudatuste l
 - Ühel tarbival objektil võib olla üks vaiketoide ja mitu alternatiivset ühendust ning seade võib kasutada vaiketoidet või viidata konkreetsele ühendusele.
 - Koormusarvutus jagab seadmete võimsuse nende tegelike ühenduste ja allikate vahel.
 - `.pplan` versioon 3 lisas ühenduse vaiketoite rolli, seadmepõhiste ühenduseviidete ja alajaotuskilpide säilitamise; v1 ja v2 avanevad tagasiühilduvalt.
+- `.pplan` versioon 4 lisas üksikobjekti nähtavuse; versioonita ning v1–v3 objektid laaditakse vaikimisi nähtavana.
 - Alajaotuskilbi saab objektitüüpide valikust kaardile lisada; sama detailipaneel võimaldab hallata nii kilbi väljundeid kui ka selle ülesvoolu toidet.
 - Automaattestid katavad v2 migratsiooni, v3 ringreisi, mitme ühenduse koormusjaotuse ja vigase ühenduseviite turvalise lähtestamise.
 
@@ -482,7 +483,7 @@ Need tähelepanekud sobivad bakalaureusetöös kasutajakeskse iteratiivse arendu
 
 ### 9.1 Vahetu jätkamiskoht
 
-`.pplan` versioon 3 paketivorming, Windowsi ja Fedora paigaldajad ning esimene `PlaaniseppApp` klassi refaktoreerimisseeria on teostatud. Rakenduse uueks nimeks valiti **Plaanisepp** ning kasutajale nähtav nimi, pakendid ja Java paketid nimetati ümber. Ajalooline Preferences-sõlm ning failivormingu ja paigaldajate ühilduvusidentifikaatorid säilivad. Sügis-eelse väljalaske elektrimudel toetab nüüd ühe objekti vaiketoidet, alternatiivseid füüsilisi ühendusi ja seadmepõhist koormuse jaotamist. Järgmine suurem domeenisamm on alajaotuskilpide lisamine. Elektri külgpaneeli visuaalne ümberkujundamine tehakse pärast uue elektrimudeli valmimist. Täpsem tööjärjekord ja vastuvõtukriteeriumid on failis `docs/ARENDUSPLAAN.md`.
+`.pplan` versioon 4 paketivorming, Windowsi ja Fedora paigaldajad ning esimene `PlaaniseppApp` klassi refaktoreerimisseeria on teostatud. Rakenduse uueks nimeks valiti **Plaanisepp** ning kasutajale nähtav nimi, pakendid ja Java paketid nimetati ümber. Ajalooline Preferences-sõlm ning failivormingu ja paigaldajate ühilduvusidentifikaatorid säilivad. Sügis-eelse väljalaske elektrimudel toetab nüüd ühe objekti vaiketoidet, alternatiivseid füüsilisi ühendusi ja seadmepõhist koormuse jaotamist. Järgmine suurem domeenisamm on alajaotuskilpide lisamine. Elektri külgpaneeli visuaalne ümberkujundamine tehakse pärast uue elektrimudeli valmimist. Täpsem tööjärjekord ja vastuvõtukriteeriumid on failis `docs/ARENDUSPLAAN.md`.
 
 ### 9.2 Kvaliteet ja arhitektuur
 
@@ -524,8 +525,8 @@ Veebivaade ja organisatsioonid tähendavad tõenäoliselt eraldi serverit, andme
 
 - Automaattestid katavad geomeetriat, seadmemudelit, salvestamise tagasiühilduvust, vooluarvutust, kaabli otspunkte ja tekstiaruannet, kuid kasutajaliidese sündmuste testikate on endiselt piiratud.
 - Peamine JavaFX-i rakendusklass on liiga suur ja koondab veel palju erinevaid vastutusi.
-- Versioon 2 paketi lugemine ning versioon 3 lugemine ja kirjutamine on automaattestidega kaetud. Versioon 3 praktiline avamine vajab pärast kasutajaliidese lisamist eraldi kontrolli. Eri kaardipildivormingute ja platvormide kombinatsioone tuleb regressioonide vältimiseks edaspidi siiski korrata.
-- Vanad versioon 1 failid võivad viidata algsele kaardifailile absoluutse või platvormipõhise teega; kaart peab vana faili esmakordsel avamisel veel kättesaadav olema, et järgmine salvestamine saaks selle versioon 3 paketti lisada.
+- Versioon 2 ja 3 paketi lugemine ning versioon 4 lugemine ja kirjutamine on automaattestidega kaetud. Versioon 4 praktiline avamine vajab eraldi kontrolli. Eri kaardipildivormingute ja platvormide kombinatsioone tuleb regressioonide vältimiseks edaspidi siiski korrata.
+- Vanad versioon 1 failid võivad viidata algsele kaardifailile absoluutse või platvormipõhise teega; kaart peab vana faili esmakordsel avamisel veel kättesaadav olema, et järgmine salvestamine saaks selle versioon 4 paketti lisada.
 - Undo/redo puudub, mistõttu sõltub vigade parandamine käsitsi muutmisest või varasemast salvestusest.
 - Fedora RPM-i ja Windowsi EXE-paigaldaja paigaldamine, menüüst käivitamine, `.pplan` failiseos, ikoonid ja eemaldamine on kontrollitud. JavaFX-i Linuxi failidialoog ei kuva kohandatud MIME-ikooni, kuigi Dolphin ja süsteemi failiseos seda teevad.
 - Windowsi kohalik arenduspaigaldaja ei ole digitaalselt allkirjastatud ning võib seetõttu avalikul levitamisel kuvada SmartScreeni hoiatuse.
@@ -549,7 +550,7 @@ Veebivaade ja organisatsioonid tähendavad tõenäoliselt eraldi serverit, andme
 
 Uuele arendajale või tehisintellekti vestlusele tuleks anda vähemalt järgmine info:
 
-> Ava esmalt `README.md` ja `docs/PROJEKTI_ULEVAADE.md`. Kontrolli töökausta ja viimaseid committe ning võrdle dokumenti alati tegeliku koodiga. Projektis tehakse üks kasutaja poolt kontrollitav muudatus korraga, see testitakse ning kasutaja commitib selle eraldi. `planner-gui` sõltub `planner-core` moodulist; ära lisa core'i lähtekoode GUI source set'i. Uued `.pplan` failid on versioon 3 ZIP-paketid ja sisaldavad kasutaja valitud kaardipilti ning uut voolujaotust. Säilita versioonita, versioon 1 ja versioon 2 failide avamine ning ära muuda vana faili enne kasutaja järgmist salvestamist.
+> Ava esmalt `README.md` ja `docs/PROJEKTI_ULEVAADE.md`. Kontrolli töökausta ja viimaseid committe ning võrdle dokumenti alati tegeliku koodiga. Projektis tehakse üks kasutaja poolt kontrollitav muudatus korraga, see testitakse ning kasutaja commitib selle eraldi. `planner-gui` sõltub `planner-core` moodulist; ära lisa core'i lähtekoode GUI source set'i. Uued `.pplan` failid on versioon 4 ZIP-paketid ja sisaldavad kasutaja valitud kaardipilti, uut voolujaotust ning objektide nähtavust. Säilita versioonita ning versioon 1–3 failide avamine ja ära muuda vana faili enne kasutaja järgmist salvestamist.
 
 Tavaline kontroll enne muutmist:
 

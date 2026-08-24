@@ -44,12 +44,13 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 3;
+    public static final int CURRENT_FORMAT_VERSION = 4;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
     private static final String PLAN_FORMAT_V2 = "pannukas-plan-v2";
     private static final String PLAN_FORMAT_V3 = "pannukas-plan-v3";
+    private static final String PLAN_FORMAT_V4 = "pannukas-plan-v4";
     private static final String MANIFEST_ENTRY = "manifest.properties";
     private static final String PLAN_ENTRY = "plan.properties";
     private static final String MAP_ENTRY_PROPERTY = "mapEntry";
@@ -99,7 +100,7 @@ public class PlanFileService {
 
     private Properties createPlanProperties(EventPlan plan, String mapImagePath) {
         Properties properties = new Properties();
-        properties.setProperty("format", PLAN_FORMAT_V3);
+        properties.setProperty("format", PLAN_FORMAT_V4);
         properties.setProperty(FORMAT_VERSION_PROPERTY, Integer.toString(CURRENT_FORMAT_VERSION));
         properties.setProperty("plan.name", plan.name());
         properties.setProperty("plan.mapImagePath", mapImagePath);
@@ -295,7 +296,11 @@ public class PlanFileService {
             }
 
             Properties planProperties = readProperties(zipFile, PLAN_ENTRY, MAX_PLAN_BYTES);
-            String expectedPlanFormat = formatVersion == 2 ? PLAN_FORMAT_V2 : PLAN_FORMAT_V3;
+            String expectedPlanFormat = switch (formatVersion) {
+                case 2 -> PLAN_FORMAT_V2;
+                case 3 -> PLAN_FORMAT_V3;
+                default -> PLAN_FORMAT_V4;
+            };
             if (!expectedPlanFormat.equals(planProperties.getProperty("format"))) {
                 throw new IOException("Plaanipaketi plaaniandmete vorming ei ole korrektne.");
             }
@@ -567,6 +572,7 @@ public class PlanFileService {
         properties.setProperty(prefix + "locked", Boolean.toString(object.locked()));
         properties.setProperty(prefix + "groupName", object.groupName());
         properties.setProperty(prefix + "notes", object.notes());
+        properties.setProperty(prefix + "hidden", Boolean.toString(object.hidden()));
         properties.setProperty(prefix + "showMapLabel", Boolean.toString(object.showMapLabel()));
         properties.setProperty(prefix + "customMapLabelPosition", Boolean.toString(object.customMapLabelPosition()));
         properties.setProperty(prefix + "mapLabelOffsetX", Double.toString(object.mapLabelOffset().x()));
@@ -689,6 +695,7 @@ public class PlanFileService {
         object.setGroupName(properties.getProperty(prefix + "groupName", ""));
         object.setNotes(properties.getProperty(prefix + "notes", ""));
         object.setLocked(Boolean.parseBoolean(properties.getProperty(prefix + "locked", "false")));
+        object.setHidden(Boolean.parseBoolean(properties.getProperty(prefix + "hidden", "false")));
         object.setShowMapLabel(Boolean.parseBoolean(properties.getProperty(prefix + "showMapLabel", "true")));
         if (Boolean.parseBoolean(properties.getProperty(prefix + "customMapLabelPosition", "false"))) {
             object.setMapLabelOffset(new Position(
