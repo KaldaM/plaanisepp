@@ -154,6 +154,7 @@ public class PlaaniseppApp extends Application {
     private final PlanFileSession planFileSession = new PlanFileSession();
     private final PlanDocumentState planDocumentState = new PlanDocumentState();
     private final Preferences preferences = ApplicationPreferences.open();
+    private final RecentPlanFiles recentPlanFiles = new RecentPlanFiles(preferences);
 
     private EventPlan plan;
     private Pane mapPane;
@@ -498,6 +499,7 @@ public class PlaaniseppApp extends Application {
         Path file = startupPlanFile.orElseThrow();
         try {
             plan = planFileSession.load(file.toFile());
+            recentPlanFiles.remember(file.toFile());
             return null;
         } catch (IOException | RuntimeException exception) {
             String message = exception.getMessage();
@@ -6346,6 +6348,7 @@ public class PlaaniseppApp extends Application {
     private boolean savePlanToFile(File file) {
         try {
             planFileSession.save(plan, file);
+            recentPlanFiles.remember(file);
             markClean();
             return true;
         } catch (IOException exception) {
@@ -6712,6 +6715,7 @@ public class PlaaniseppApp extends Application {
 
         try {
             plan = planFileSession.load(selectedFile.get());
+            recentPlanFiles.remember(selectedFile.get());
             resetPlanViewState();
         } catch (IOException | RuntimeException exception) {
             showError("Faili avamine ebaõnnestus", exception.getMessage());

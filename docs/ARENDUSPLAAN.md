@@ -16,7 +16,8 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 5. asendada suumi `+` ja `-` nupud liuguriga ning lisada `Alt + hiirerull`;
 6. lisada salvestamise klahvikombinatsioonid `Ctrl + S` ja `Ctrl + Shift + S`;
 7. lisada rakenduse käivitamisel hiljutiste plaanide ja uue plaani loomise avavaade;
-8. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+8. lisada plaani muudatuste tagasivõtmine `Ctrl + Z` ja uuestitegemine `Ctrl + Alt + Z` abil;
+9. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -229,6 +230,8 @@ Rakenduse tavalisel käivitamisel kuvatakse avavaade, kus saab avada hiljuti kas
 - Faili topeltklõps ja `.pplan` käsureaargument avavad plaani otse.
 - Versioonita ning versioon 1–3 plaanide avamine jääb muutmata.
 
+Hiljutiste plaanide püsiloendi alusloogika on teostatud. Edukalt avatud või salvestatud fail tõstetakse kuni kümmet kirjet sisaldava loendi algusesse, duplikaadid eemaldatakse ning enam mitte olemasolevad failid puhastatakse. Käivitusvaade ja loendi kasutajaliides on veel teostamata.
+
 ## 7. Külgpaneeli kohandamine ja kontekstimenüüd
 
 ### Külgpaneeli järjestus
@@ -293,7 +296,15 @@ Salvestamise klahvikombinatsioonid on teostatud põhiakna kiirklahvidena ning ka
 
 Lisaks on teostatud `Ctrl + N` uue plaani loomiseks, `Ctrl + O` plaani avamiseks ja `Ctrl + Shift + P` plaani andmete muutmiseks. Kõik otseteed kasutavad vastavate tööriistariba nuppudega samu tegevusi.
 
-## 9. Arenduspõhimõtted
+## 9. Muudatuste tagasivõtmine
+
+- `Ctrl + Z` võtab tagasi viimase plaani muutnud tegevuse.
+- `Ctrl + Alt + Z` teeb viimati tagasi võetud tegevuse uuesti.
+- Ajalugu peab hõlmama vähemalt objektide lisamist, kustutamist, liigutamist ja andmete muutmist ning kaabli trajektoori muutmist.
+- Faili avamine ja uue plaani loomine alustavad uut tühja ajalugu; salvestamine ise ei lisa ajalukku uut sammu.
+- Tagasivõtmine ja uuestitegemine peavad uuendama kaarti, külgpaneele, voolukokkuvõtet ja salvestamata muudatuste olekut ühe tervikuna.
+
+## 10. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.
 - Domeeniarvutused jäävad `planner-core` moodulisse ja JavaFX-i esitlus `planner-gui` moodulisse.
