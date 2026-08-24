@@ -156,6 +156,7 @@ public class PlaaniseppApp extends Application {
     private double objectListHeight;
     private boolean measuringActive;
     private boolean addingCablePoint;
+    private String editingCableConnectionId;
     private boolean mapDraggedSincePress;
     private boolean synchronizingSidebarSelection;
     private ContextMenu activeContextMenu;
@@ -322,6 +323,9 @@ public class PlaaniseppApp extends Application {
             } else if (event.getCode() == KeyCode.ESCAPE && isPlacementPending()) {
                 cancelPlacement();
                 event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE && addingCablePoint) {
+                finishEditingCableRoute();
+                event.consume();
             }
         });
         stage.setScene(scene);
@@ -452,7 +456,12 @@ public class PlaaniseppApp extends Application {
 
         addCablePointButton = new ToggleButton("Kaabli punkt");
         addCablePointButton.setTooltip(new Tooltip("Lisa valitud objekti voolukaablile vahepunkt"));
-        addCablePointButton.setOnAction(event -> setAddingCablePoint(addCablePointButton.isSelected()));
+        addCablePointButton.setOnAction(event -> {
+            if (addCablePointButton.isSelected()) {
+                editingCableConnectionId = null;
+            }
+            setAddingCablePoint(addCablePointButton.isSelected());
+        });
 
         clearCableRouteButton = new Button("Puhasta trajektoor");
         clearCableRouteButton.setTooltip(new Tooltip("Eemaldab valitud objekti voolukaabli vahepunktid"));
@@ -2182,6 +2191,7 @@ public class PlaaniseppApp extends Application {
         pendingAreaObjectPlacement = false;
         measuringActive = false;
         addingCablePoint = false;
+        editingCableConnectionId = null;
         if (measureButton != null) {
             measureButton.setSelected(false);
         }
@@ -2291,7 +2301,9 @@ public class PlaaniseppApp extends Application {
             return;
         }
         if (addingCablePoint) {
-            mapToolStatusLabel.setText("Lisa kaabli punkt kaardile");
+            mapToolStatusLabel.setText(editingCableConnectionId == null
+                    ? "Lisa kaabli punkt kaardile"
+                    : "Lisa valitud kaabli punkte kaardile");
             return;
         }
         if (measuringActive) {
@@ -2477,7 +2489,9 @@ public class PlaaniseppApp extends Application {
     private void drawPowerConnection(PowerCableView cable) {
         List<Position> path = cablePath(cable);
         Color cableColor = CableDisplayHelper.color(cable.connection().connectorType());
-        boolean selectedCable = isSelected(cable.consumer());
+        boolean selectedCable = addingCablePoint && editingCableConnectionId != null
+                ? editingCableConnectionId.equals(cable.connection().id())
+                : isSelected(cable.consumer());
         double strokeWidth = CableDisplayHelper.width(cable.connection().connectorType()) + (selectedCable ? 2.0 : 0.0);
 
         Polyline line = CablePolylineHelper.create(path);
@@ -2519,7 +2533,7 @@ public class PlaaniseppApp extends Application {
             ));
             distanceLabel.setLayoutX(labelPosition.x());
             distanceLabel.setLayoutY(labelPosition.y());
-            makeCableSelectable(distanceLabel, cable.consumer());
+            makeCableSelectable(distanceLabel, cable);
             makeCableLabelDraggable(distanceLabel, cable);
             mapPane.getChildren().add(distanceLabel);
         }
@@ -2569,6 +2583,14 @@ public class PlaaniseppApp extends Application {
     }
 
     private void makeCableSelectable(Node node, PowerCableView cable) {
+        if (cable.connection() != null) {
+            node.setOnContextMenuRequested(event -> {
+                if (!isPlacementPending() && !measuringActive) {
+                    showCableContextMenu(cable, event.getScreenX(), event.getScreenY());
+                }
+                event.consume();
+            });
+        }
         node.setOnMouseClicked(event -> {
             PlannerObject consumer = cable.consumer();
             if (pendingTentPlacement) {
@@ -2616,7 +2638,9 @@ public class PlaaniseppApp extends Application {
             if (addingCablePoint) {
                 Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
                 Position point = new Position(mapPoint.getX(), mapPoint.getY());
-                if (cable.source() == null || cable.connection() == null) {
+                if (editingCableConnectionId != null) {
+                    addCableRoutePoint(point);
+                } else if (cable.source() == null || cable.connection() == null) {
                     addCableRoutePoint(point);
                 } else {
                     if (!isSelected(consumer)) {
@@ -2638,6 +2662,40 @@ public class PlaaniseppApp extends Application {
             selectObject(consumer);
             event.consume();
         });
+    }
+
+    private void showCableContextMenu(PowerCableView cable, double screenX, double screenY) {
+        boolean editingThisCable = addingCablePoint
+                && cable.connection().id().equals(editingCableConnectionId);
+        MenuItem routeItem = new MenuItem(editingThisCable
+                ? "Lõpeta trajektoori muutmine"
+                : "Muuda trajektoori");
+        routeItem.setOnAction(event -> {
+            if (editingThisCable) {
+                finishEditingCableRoute();
+            } else {
+                startEditingCableRoute(cable);
+            }
+        });
+        showContextMenu(new ContextMenu(routeItem), mapPane, screenX, screenY);
+    }
+
+    private void startEditingCableRoute(PowerCableView cable) {
+        selectObject(cable.consumer());
+        editingCableConnectionId = cable.connection().id();
+        if (addCablePointButton != null) {
+            addCablePointButton.setSelected(true);
+        }
+        setAddingCablePoint(true);
+        redrawMap();
+    }
+
+    private void finishEditingCableRoute() {
+        setAddingCablePoint(false);
+        if (addCablePointButton != null) {
+            addCablePointButton.setSelected(false);
+        }
+        redrawMap();
     }
 
     private void makeCableLabelDraggable(Label label, PowerCableView cable) {
@@ -2695,7 +2753,7 @@ public class PlaaniseppApp extends Application {
     ) {
         final boolean[] dragged = {false};
         marker.setOnMousePressed(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (measuringActive || !canDragCableRoutePoint(cable)) {
                 event.consume();
                 return;
             }
@@ -2703,7 +2761,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (measuringActive || !canDragCableRoutePoint(cable)) {
                 event.consume();
                 return;
             }
@@ -2747,6 +2805,11 @@ public class PlaaniseppApp extends Application {
             }
             event.consume();
         });
+    }
+
+    private boolean canDragCableRoutePoint(PowerCableView cable) {
+        return !addingCablePoint
+                || cable.connection().id().equals(editingCableConnectionId);
     }
 
     private void makePowerConnectionAnchorDraggable(
@@ -3917,10 +3980,13 @@ public class PlaaniseppApp extends Application {
         choosePowerSourceButton.setDisable(!powerConsumerSelected);
         if (addCablePointButton != null) {
             addCablePointButton.setDisable(!consumerHasPowerConnection);
-            addCablePointButton.setText(addingCablePoint ? "Tähista kaabli punkt" : "Kaabli punkt");
+            addCablePointButton.setText(editingCableConnectionId != null
+                    ? "Lõpeta trajektoor"
+                    : addingCablePoint ? "Lõpeta kaabli punktid" : "Kaabli punkt");
             if (!consumerHasPowerConnection) {
                 addCablePointButton.setSelected(false);
                 addingCablePoint = false;
+                editingCableConnectionId = null;
                 updateMapToolStatus();
             }
         }
@@ -4566,6 +4632,7 @@ public class PlaaniseppApp extends Application {
         this.measuringActive = measuringActive;
         if (measuringActive) {
             addingCablePoint = false;
+            editingCableConnectionId = null;
             if (addCablePointButton != null) {
                 addCablePointButton.setSelected(false);
             }
@@ -4585,6 +4652,9 @@ public class PlaaniseppApp extends Application {
 
     private void setAddingCablePoint(boolean addingCablePoint) {
         this.addingCablePoint = addingCablePoint;
+        if (!addingCablePoint) {
+            editingCableConnectionId = null;
+        }
         if (addingCablePoint) {
             measuringActive = false;
             if (measureButton != null) {
@@ -4623,12 +4693,38 @@ public class PlaaniseppApp extends Application {
             }
             return;
         }
+        PowerCableView editedCable = editingCableConnectionId == null
+                ? null
+                : powerCableView(editingCableConnectionId).orElse(null);
+        if (editingCableConnectionId != null && editedCable == null) {
+            showError("Kaabli punkti ei lisatud", "Valitud vooluühendust ei leitud.");
+            setAddingCablePoint(false);
+            if (addCablePointButton != null) {
+                addCablePointButton.setSelected(false);
+            }
+            return;
+        }
+        if (editedCable != null) {
+            insertCableRoutePoint(editedCable, point);
+            return;
+        }
         if (!CableRouteEditor.addPoint(plan, selectedObject.id(), point)) {
             return;
         }
         redrawMap();
         refreshSummary();
         markDirty();
+    }
+
+    private Optional<PowerCableView> powerCableView(String connectionId) {
+        return plan.powerConnections().stream()
+                .filter(connection -> connection.id().equals(connectionId))
+                .findFirst()
+                .flatMap(connection -> plan.findObject(connection.consumerId())
+                        .flatMap(consumer -> plan.findObject(connection.sourceId())
+                                .filter(PowerSource.class::isInstance)
+                                .map(PowerSource.class::cast)
+                                .map(source -> new PowerCableView(consumer, source, connection))));
     }
 
     private void insertCableRoutePoint(PowerCableView cable, Position point) {

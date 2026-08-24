@@ -254,6 +254,8 @@ Edaspidi peab „Muuda” saama avada objekti andmed eraldi dialoogis, mis sisal
 
 Kaardil oleva kaabli paremklõps peab pakkuma tegevust „Muuda trajektoori”. See valib konkreetse vooluühenduse, tõstab kaabli selgelt esile ning käivitab olemasoleva kaablipunktide lisamise ja eemaldamise töövoo. Lahendus peab eristama sama tarbija vaike- ja alternatiivühendusi, et muudetaks just seda kaablit, millel paremklõps tehti. Nii saab trajektoori muuta ilma tööriistariba „Kaabli punkt” nuppu kasutamata.
 
+Kaabli „Muuda trajektoori” kontekstimenüü on teostatud. Valitud ühendus tõstetakse esile, selle olemasolevaid punkte saab lohistada ning kaardile lisatavad punktid seotakse konkreetse kaabliga ka siis, kui tarbijal on mitu vooluühendust. Muutmise saab lõpetada tööriistaribalt, sama kaabli kontekstimenüüst või `Escape`-klahviga.
+
 ### Objektide nimekirja tegevused ja nähtavus
 
 „Objektid” külgpaneelil lisatakse iga objekti juurde eraldi nähtavuse valik. Objekti tegelik nähtavus sõltub nii grupi kui ka objekti valikust: peidetud grupp peidab kõik oma objektid, kuid grupi uuesti kuvamisel jäävad üksikult peidetud objektid peidetuks.
