@@ -45,6 +45,7 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
@@ -569,6 +570,18 @@ public class PlaaniseppApp extends Application {
             mapPressSceneY = event.getSceneY();
         });
         mapPane.setOnMouseDragged(event -> updateMapDragState(event.getSceneX(), event.getSceneY()));
+        mapPane.setOnContextMenuRequested(event -> {
+            if (event.getTarget() != mapPane && event.getTarget() != mapImageView) {
+                return;
+            }
+            Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+            showMapContextMenu(
+                    new Position(mapPoint.getX(), mapPoint.getY()),
+                    event.getScreenX(),
+                    event.getScreenY()
+            );
+            event.consume();
+        });
         mapPane.setOnMouseClicked(event -> {
             if (pendingTentPlacement && !mapDraggedSincePress) {
                 placeTent(new Position(event.getX(), event.getY()));
@@ -1511,9 +1524,14 @@ public class PlaaniseppApp extends Application {
             selectedType = PlacementType.TENT;
         }
 
+        startPlacement(selectedType);
+    }
+
+    private boolean startPlacement(PlacementType selectedType) {
+
         PlacementDetails placementDetails = askPlacementDetails(selectedType);
         if (placementDetails == null) {
-            return;
+            return false;
         }
         pendingPlacementName = placementDetails.name();
         pendingPlacementGroupName = placementDetails.groupName();
@@ -1534,6 +1552,34 @@ public class PlaaniseppApp extends Application {
             case MARKER_OBJECT -> addMarkerObject();
             case LINE_OBJECT -> addLineObject();
             case AREA_OBJECT -> addAreaObject();
+        }
+        return true;
+    }
+
+    private void showMapContextMenu(Position position, double screenX, double screenY) {
+        if (isPlacementPending() || measuringActive || addingCablePoint) {
+            return;
+        }
+        Menu addMenu = new Menu("Lisa");
+        for (PlacementType placementType : PlacementType.values()) {
+            MenuItem addItem = new MenuItem(placementType.toString());
+            addItem.setOnAction(event -> startPlacementAt(placementType, position));
+            addMenu.getItems().add(addItem);
+        }
+        new ContextMenu(addMenu).show(mapPane, screenX, screenY);
+    }
+
+    private void startPlacementAt(PlacementType placementType, Position position) {
+        if (!startPlacement(placementType)) {
+            return;
+        }
+        switch (placementType) {
+            case TENT -> placeTent(position);
+            case POWER_SOURCE, DISTRIBUTION_PANEL -> placePowerSource(position);
+            case CUSTOM_OBJECT -> placeCustomObject(position);
+            case TEXT_OBJECT -> placeTextObject(position);
+            case MARKER_OBJECT -> placeMarkerObject(position);
+            case LINE_OBJECT, AREA_OBJECT -> addPendingShapePoint(position);
         }
     }
 

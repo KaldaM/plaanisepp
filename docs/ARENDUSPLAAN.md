@@ -234,6 +234,8 @@ Kasutaja saab muuta külgpaneeli põhijaotiste järjestust. Näiteks saab tõsta
 
 Kaardi tühjal kohal tehtud paremklõps avab menüü „Lisa”, mille alammenüüst saab valida lisatava objektitüübi. Valitud objekt luuakse kohe paremklõpsu asukohta. Lisamine peab kasutama samu vaikeväärtusi, valideerimist ja objektiandmete dialoogi nagu olemasolev tööriistariba kaudu lisamine.
 
+Kaardi tühja ala „Lisa” menüü on teostatud. Punktobjekt luuakse pärast andmete kinnitamist kohe paremklõpsu asukohta; joone ja ala puhul saab sellest esimene punkt ning ülejäänud kuju märkimine jätkub olemasoleva töövooga.
+
 Kaardil oleva objekti paremklõps avab objektimenüü järgmiste põhitegevustega:
 
 - „Muuda” valib objekti ja avab külgpaneelil jaotise „Valitud objekt”;
