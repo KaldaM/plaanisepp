@@ -151,6 +151,7 @@ public class PlaaniseppApp extends Application {
     private boolean addingCablePoint;
     private boolean mapDraggedSincePress;
     private boolean synchronizingSidebarSelection;
+    private ContextMenu activeContextMenu;
     private double mapPressSceneX;
     private double mapPressSceneY;
     private Position measurementStart;
@@ -1578,7 +1579,7 @@ public class PlaaniseppApp extends Application {
             addItem.setOnAction(event -> startPlacementAt(placementType, position));
             addMenu.getItems().add(addItem);
         }
-        new ContextMenu(addMenu).show(mapPane, screenX, screenY);
+        showContextMenu(new ContextMenu(addMenu), mapPane, screenX, screenY);
     }
 
     private void startPlacementAt(PlacementType placementType, Position position) {
@@ -2724,7 +2725,7 @@ public class PlaaniseppApp extends Application {
     ) {
         MenuItem resetItem = new MenuItem("Lähtesta ühenduspunkt");
         resetItem.setOnAction(event -> resetPowerConnectionAnchor(cable.consumer()));
-        new ContextMenu(resetItem).show(marker, screenX, screenY);
+        showContextMenu(new ContextMenu(resetItem), marker, screenX, screenY);
     }
 
     private void resetPowerConnectionAnchor(PlannerObject consumer) {
@@ -2748,7 +2749,7 @@ public class PlaaniseppApp extends Application {
         removePointItem.setOnAction(event -> removeCableRoutePoint(cable, routePointIndex));
 
         ContextMenu contextMenu = new ContextMenu(removePointItem);
-        contextMenu.show(marker, screenX, screenY);
+        showContextMenu(contextMenu, marker, screenX, screenY);
     }
 
     private void removeCableRoutePoint(PowerCableView cable, int routePointIndex) {
@@ -3162,7 +3163,7 @@ public class PlaaniseppApp extends Application {
         removePointItem.setDisable(object.locked() || object.points().size() <= 3);
 
         ContextMenu contextMenu = new ContextMenu(removePointItem);
-        contextMenu.show(marker, screenX, screenY);
+        showContextMenu(contextMenu, marker, screenX, screenY);
     }
 
     private void showLinePointContextMenu(
@@ -3177,7 +3178,7 @@ public class PlaaniseppApp extends Application {
         removePointItem.setDisable(object.locked() || object.points().size() <= 2);
 
         ContextMenu contextMenu = new ContextMenu(removePointItem);
-        contextMenu.show(marker, screenX, screenY);
+        showContextMenu(contextMenu, marker, screenX, screenY);
     }
 
     private void removeAreaPoint(AreaObject object, int pointIndex) {
@@ -3488,7 +3489,25 @@ public class PlaaniseppApp extends Application {
         editItem.setOnAction(event -> editObject(object));
         MenuItem deleteItem = new MenuItem("Kustuta");
         deleteItem.setOnAction(event -> deleteObject(object));
-        new ContextMenu(editItem, deleteItem).show(mapPane, screenX, screenY);
+        showContextMenu(new ContextMenu(editItem, deleteItem), mapPane, screenX, screenY);
+    }
+
+    private void showContextMenu(
+            ContextMenu contextMenu,
+            Node owner,
+            double screenX,
+            double screenY
+    ) {
+        if (activeContextMenu != null) {
+            activeContextMenu.hide();
+        }
+        activeContextMenu = contextMenu;
+        contextMenu.setOnHidden(event -> {
+            if (activeContextMenu == contextMenu) {
+                activeContextMenu = null;
+            }
+        });
+        contextMenu.show(owner, screenX, screenY);
     }
 
     private void editObject(PlannerObject object) {
