@@ -244,6 +244,8 @@ Kaardil oleva objekti paremklõps avab objektimenüü järgmiste põhitegevusteg
 
 Objektil tehtud paremklõps ei tohi samal ajal avada kaardi tühja ala „Lisa” menüüd ega alustada objekti lohistamist.
 
+Kaardiobjekti ja objektide nimekirja kontekstimenüü „Muuda” ning „Kustuta” tegevused on teostatud. „Muuda” avab valitud objekti jaotise ning „Kustuta” kasutab olemasolevat lukustuse, kinnituse ja seoste puhastamise töövoogu.
+
 ### Objektide nimekirja tegevused ja nähtavus
 
 „Objektid” külgpaneelil lisatakse iga objekti juurde eraldi nähtavuse valik. Objekti tegelik nähtavus sõltub nii grupi kui ka objekti valikust: peidetud grupp peidab kõik oma objektid, kuid grupi uuesti kuvamisel jäävad üksikult peidetud objektid peidetuks.

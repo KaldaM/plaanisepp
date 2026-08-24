@@ -174,6 +174,7 @@ public class PlaaniseppApp extends Application {
     private ListView<ObjectListEntry> objectList;
     private Button revealObjectButton;
     private TitledPane objectListSection;
+    private TitledPane selectedObjectSection;
     private TitledPane powerSummarySection;
     private TitledPane equipmentSection;
     private TitledPane outletSection;
@@ -632,7 +633,10 @@ public class PlaaniseppApp extends Application {
         sidebar.setPadding(new Insets(12));
         objectListSection = collapsibleSection(OBJECT_LIST_SECTION, "Objektid", createObjectListPanel(), false);
         sidebar.getChildren().add(objectListSection);
-        sidebar.getChildren().add(collapsibleSection(SELECTED_OBJECT_SECTION, "Valitud objekt", createDetailPanel(), true));
+        selectedObjectSection = collapsibleSection(
+                SELECTED_OBJECT_SECTION, "Valitud objekt", createDetailPanel(), true
+        );
+        sidebar.getChildren().add(selectedObjectSection);
         sidebar.getChildren().add(collapsibleSection(MAP_LAYERS_SECTION, "Kaardi kihid", createMapLayersPanel(), false));
 
         showPowerSummaryCheckBox = new CheckBox("Vool");
@@ -763,6 +767,7 @@ public class PlaaniseppApp extends Application {
                     setText(null);
                     setGraphic(null);
                     setStyle("");
+                    setOnContextMenuRequested(null);
                     return;
                 }
                 if (entry.isGroup()) {
@@ -789,6 +794,7 @@ public class PlaaniseppApp extends Application {
                     setText(null);
                     setGraphic(groupRow);
                     setStyle("-fx-background-color: rgba(148,163,184,0.12);");
+                    setOnContextMenuRequested(null);
                     return;
                 }
 
@@ -817,6 +823,12 @@ public class PlaaniseppApp extends Application {
                 setStyle(item.visible()
                         ? ""
                         : "-fx-text-fill: #6b7280; -fx-font-style: italic;");
+                setOnContextMenuRequested(event -> {
+                    showObjectContextMenu(
+                            item.object(), event.getScreenX(), event.getScreenY()
+                    );
+                    event.consume();
+                });
             }
         });
         objectList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
@@ -3335,7 +3347,7 @@ public class PlaaniseppApp extends Application {
     private void makeMapLabelDraggable(Label label, PlannerObject object, double defaultX, double defaultY) {
         final Delta dragDelta = new Delta();
         label.setOnMousePressed(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (event.getButton() != MouseButton.PRIMARY || measuringActive || addingCablePoint) {
                 return;
             }
             selectedObject = object;
@@ -3363,7 +3375,16 @@ public class PlaaniseppApp extends Application {
 
 
     private void makeSelectable(Node node, PlannerObject object) {
+        node.setOnContextMenuRequested(event -> {
+            if (!isPlacementPending() && !measuringActive && !addingCablePoint) {
+                showObjectContextMenu(object, event.getScreenX(), event.getScreenY());
+            }
+            event.consume();
+        });
         node.setOnMouseClicked(event -> {
+            if (event.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
             if (pendingTentPlacement) {
                 Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
                 placeTent(new Position(mapPoint.getX(), mapPoint.getY()));
@@ -3431,7 +3452,7 @@ public class PlaaniseppApp extends Application {
     private void makeDraggable(Node node, PlannerObject object) {
         final Delta dragDelta = new Delta();
         node.setOnMousePressed(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (event.getButton() != MouseButton.PRIMARY || measuringActive || addingCablePoint) {
                 return;
             }
             if (pendingPowerSourceConsumer != null && object instanceof PowerSource source) {
@@ -3459,6 +3480,27 @@ public class PlaaniseppApp extends Application {
             markDirty();
             event.consume();
         });
+    }
+
+    private void showObjectContextMenu(PlannerObject object, double screenX, double screenY) {
+        selectObject(object);
+        MenuItem editItem = new MenuItem("Muuda");
+        editItem.setOnAction(event -> editObject(object));
+        MenuItem deleteItem = new MenuItem("Kustuta");
+        deleteItem.setOnAction(event -> deleteObject(object));
+        new ContextMenu(editItem, deleteItem).show(mapPane, screenX, screenY);
+    }
+
+    private void editObject(PlannerObject object) {
+        selectObject(object);
+        if (selectedObjectSection != null) {
+            selectedObjectSection.setExpanded(true);
+        }
+    }
+
+    private void deleteObject(PlannerObject object) {
+        selectObject(object);
+        deleteSelectedObject();
     }
 
     private void selectObject(PlannerObject object) {
