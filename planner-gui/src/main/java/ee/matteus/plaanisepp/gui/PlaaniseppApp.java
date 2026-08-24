@@ -769,7 +769,11 @@ public class PlaaniseppApp extends Application {
             if (!event.isAltDown() || event.getDeltaY() == 0) {
                 return;
             }
-            changeZoom(event.getDeltaY() > 0 ? 1.1 : 1 / 1.1);
+            zoomAtPointer(
+                    event.getDeltaY() > 0 ? 1.1 : 1 / 1.1,
+                    event.getSceneX(),
+                    event.getSceneY()
+            );
             event.consume();
         });
 
@@ -1435,6 +1439,35 @@ public class PlaaniseppApp extends Application {
 
     private void changeZoom(double factor) {
         setZoom(zoomLevel * factor);
+    }
+
+    private void zoomAtPointer(double factor, double sceneX, double sceneY) {
+        Node viewport = mapScrollPane.lookup(".viewport");
+        if (viewport == null) {
+            changeZoom(factor);
+            return;
+        }
+        Point2D mapPoint = mapPane.sceneToLocal(sceneX, sceneY);
+        Bounds viewportSceneBounds = viewport.localToScene(viewport.getBoundsInLocal());
+        double pointerViewportX = sceneX - viewportSceneBounds.getMinX();
+        double pointerViewportY = sceneY - viewportSceneBounds.getMinY();
+
+        setZoom(zoomLevel * factor);
+        Platform.runLater(() -> {
+            mapScrollPane.applyCss();
+            mapScrollPane.layout();
+            Bounds viewportBounds = mapScrollPane.getViewportBounds();
+            double horizontalRange = Math.max(0, mapWidth * zoomLevel - viewportBounds.getWidth());
+            double verticalRange = Math.max(0, mapHeight * zoomLevel - viewportBounds.getHeight());
+            if (horizontalRange > 0) {
+                double targetOffsetX = mapPoint.getX() * zoomLevel - pointerViewportX;
+                mapScrollPane.setHvalue(Math.clamp(targetOffsetX / horizontalRange, 0.0, 1.0));
+            }
+            if (verticalRange > 0) {
+                double targetOffsetY = mapPoint.getY() * zoomLevel - pointerViewportY;
+                mapScrollPane.setVvalue(Math.clamp(targetOffsetY / verticalRange, 0.0, 1.0));
+            }
+        });
     }
 
     private void setZoom(double zoomLevel) {

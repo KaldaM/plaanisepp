@@ -203,7 +203,7 @@ Rakenduse praegune suumivahemik 25–400% säilib. Liugur peab kasutama sama `se
 - Tavaline kerimine ja kaardi lohistamine säilitavad praeguse käitumise.
 - Windowsi ja Linuxi klaviatuuri- ning hiirekäitumist kontrollitakse eraldi.
 
-Suumiliugur, protsendinäiduga 100% taastamise nupp ja `Alt + hiirerull` on teostatud olemasoleva `setZoom` loogika põhjal. Tavaline hiirerull jääb kaardiala kerimiseks.
+Suumiliugur, protsendinäiduga 100% taastamise nupp ja `Alt + hiirerull` on teostatud olemasoleva `setZoom` loogika põhjal. Hiirerulliga suumimisel jääb kursori all olev kaardipunkt kursori alla; tavaline hiirerull jääb kaardiala kerimiseks.
 
 ## 6. Käivitusekraan ja uue plaani loomine
 
