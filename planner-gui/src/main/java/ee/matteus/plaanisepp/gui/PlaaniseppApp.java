@@ -77,6 +77,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
@@ -159,6 +160,8 @@ public class PlaaniseppApp extends Application {
     private Scale mapScale;
     private ImageView mapImageView;
     private double zoomLevel = 1.0;
+    private Slider zoomSlider;
+    private Button zoomPercentButton;
     private double mapWidth = MIN_MAP_WIDTH;
     private double mapHeight = MIN_MAP_HEIGHT;
     private double objectListHeight;
@@ -525,14 +528,17 @@ public class PlaaniseppApp extends Application {
         Button planSettingsButton = new Button("Plaani andmed");
         planSettingsButton.setOnAction(event -> showPlanSettingsDialog());
 
-        Button zoomInButton = new Button("+");
-        zoomInButton.setOnAction(event -> changeZoom(1.2));
+        zoomSlider = new Slider(25, 400, zoomLevel * 100);
+        zoomSlider.setPrefWidth(140);
+        zoomSlider.setBlockIncrement(5);
+        zoomSlider.setTooltip(new Tooltip("Kaardi suum 25–400%"));
+        zoomSlider.valueProperty().addListener((observable, oldValue, newValue) ->
+                setZoom(newValue.doubleValue() / 100.0)
+        );
 
-        Button zoomOutButton = new Button("-");
-        zoomOutButton.setOnAction(event -> changeZoom(1 / 1.2));
-
-        Button resetZoomButton = new Button("100%");
-        resetZoomButton.setOnAction(event -> setZoom(1.0));
+        zoomPercentButton = new Button(zoomPercentText());
+        zoomPercentButton.setTooltip(new Tooltip("Taasta 100% suum"));
+        zoomPercentButton.setOnAction(event -> setZoom(1.0));
 
         showCablesButton = new ToggleButton("Kaablid");
         showCablesButton.setSelected(true);
@@ -603,9 +609,8 @@ public class PlaaniseppApp extends Application {
                 placementTypeComboBox,
                 addPlacementButton,
                 new Separator(),
-                zoomInButton,
-                zoomOutButton,
-                resetZoomButton,
+                zoomSlider,
+                zoomPercentButton,
                 measureButton,
                 clearMeasurementsButton,
                 addCablePointButton,
@@ -760,6 +765,13 @@ public class PlaaniseppApp extends Application {
         mapScrollPane.setFitToWidth(false);
         mapScrollPane.setFitToHeight(false);
         mapScrollPane.setStyle("-fx-background: #eef1ec;");
+        mapScrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
+            if (!event.isAltDown() || event.getDeltaY() == 0) {
+                return;
+            }
+            changeZoom(event.getDeltaY() > 0 ? 1.1 : 1 / 1.1);
+            event.consume();
+        });
 
         sidebar = new VBox(10);
         sidebar.setPadding(new Insets(12));
@@ -1431,7 +1443,17 @@ public class PlaaniseppApp extends Application {
             mapScale.setX(this.zoomLevel);
             mapScale.setY(this.zoomLevel);
         }
+        if (zoomSlider != null && Math.abs(zoomSlider.getValue() - this.zoomLevel * 100) > 0.001) {
+            zoomSlider.setValue(this.zoomLevel * 100);
+        }
+        if (zoomPercentButton != null) {
+            zoomPercentButton.setText(zoomPercentText());
+        }
         updateZoomContentSize();
+    }
+
+    private String zoomPercentText() {
+        return Math.round(zoomLevel * 100) + "%";
     }
 
     private void updateZoomContentSize() {

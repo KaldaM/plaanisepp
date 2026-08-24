@@ -14,8 +14,9 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 3. lisada külgpaneeli ja objektide kontekstimenüüd, üksikobjektide nähtavus ning külgpaneeli jaotiste järjestamine;
 4. lisada objektide kiirotsing kahekordse Shift-klahviga;
 5. asendada suumi `+` ja `-` nupud liuguriga ning lisada `Alt + hiirerull`;
-6. lisada rakenduse käivitamisel hiljutiste plaanide ja uue plaani loomise avavaade;
-7. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+6. lisada salvestamise klahvikombinatsioonid `Ctrl + S` ja `Ctrl + Shift + S`;
+7. lisada rakenduse käivitamisel hiljutiste plaanide ja uue plaani loomise avavaade;
+8. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -202,6 +203,8 @@ Rakenduse praegune suumivahemik 25–400% säilib. Liugur peab kasutama sama `se
 - Tavaline kerimine ja kaardi lohistamine säilitavad praeguse käitumise.
 - Windowsi ja Linuxi klaviatuuri- ning hiirekäitumist kontrollitakse eraldi.
 
+Suumiliugur, protsendinäiduga 100% taastamise nupp ja `Alt + hiirerull` on teostatud olemasoleva `setZoom` loogika põhjal. Tavaline hiirerull jääb kaardiala kerimiseks.
+
 ## 6. Käivitusekraan ja uue plaani loomine
 
 ### Kasutusloogika
@@ -279,7 +282,14 @@ Objektide nimekirja objekti paremklõps pakub vähemalt tegevusi „Muuda”, �
 - Peidetud objekti nähtavus säilib pärast plaani salvestamist ja uuesti avamist.
 - Objekti kustutamisel puhastatakse selle elektri-, kaabli- ja muud seosed olemasolevate reeglite järgi.
 
-## 8. Arenduspõhimõtted
+## 8. Salvestamise klahvikombinatsioonid
+
+- `Ctrl + S` käivitab tavalise salvestamise ja avab faili valiku ainult juhul, kui plaanil pole veel failinime.
+- `Ctrl + Shift + S` käivitab alati „Salvesta kui” tegevuse.
+- Klahvikombinatsioonid peavad kasutama täpselt samu salvestusmeetodeid, dialooge ja eestikeelseid veateateid nagu tööriistariba nupud.
+- Otsetee ei tohi käivituda teist korda dialoogi või muu modaalse akna sees.
+
+## 9. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.
 - Domeeniarvutused jäävad `planner-core` moodulisse ja JavaFX-i esitlus `planner-gui` moodulisse.
