@@ -305,6 +305,8 @@ Lisaks on teostatud `Ctrl + N` uue plaani loomiseks, `Ctrl + O` plaani avamiseks
 - Faili avamine ja uue plaani loomine alustavad uut tühja ajalugu; salvestamine ise ei lisa ajalukku uut sammu.
 - Tagasivõtmine ja uuestitegemine peavad uuendama kaarti, külgpaneele, voolukokkuvõtet ja salvestamata muudatuste olekut ühe tervikuna.
 
+Piiratud undo/redo seisundiajaloo aluskomponent on teostatud ja automaattestidega kaetud. Plaani hetktõmmised, muudatuste salvestamine ning klahvikombinatsioonidega sidumine on veel teostamata.
+
 ## 10. Visuaalse kasutajaliidese uuendamine
 
 Rakendusele tuleb kujundada ühtne ja tänapäevane visuaalne keel. Praegused JavaFX-i vaikestiilid asendatakse järk-järgult Plaanisepa enda stiiliga, säilitades seejuures selguse, töökiiruse ja eri ekraanisuuruste toe.
