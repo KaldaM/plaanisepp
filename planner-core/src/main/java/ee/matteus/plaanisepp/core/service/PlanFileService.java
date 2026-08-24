@@ -98,7 +98,7 @@ public class PlanFileService {
         }
     }
 
-    private Properties createPlanProperties(EventPlan plan, String mapImagePath) {
+    Properties createPlanProperties(EventPlan plan, String mapImagePath) {
         Properties properties = new Properties();
         properties.setProperty("format", PLAN_FORMAT_V4);
         properties.setProperty(FORMAT_VERSION_PROPERTY, Integer.toString(CURRENT_FORMAT_VERSION));
@@ -176,7 +176,7 @@ public class PlanFileService {
         return readPlan(properties);
     }
 
-    private EventPlan readPlan(Properties properties) {
+    EventPlan readPlan(Properties properties) {
         EventPlan plan = new EventPlan(properties.getProperty("plan.name", "Pannkoogihommik"));
         plan.setMapImagePath(properties.getProperty("plan.mapImagePath", ""));
         plan.setPixelsPerMeter(doubleValue(properties, "plan.pixelsPerMeter", EventPlan.DEFAULT_PIXELS_PER_METER));
