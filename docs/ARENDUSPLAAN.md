@@ -305,7 +305,7 @@ Lisaks on teostatud `Ctrl + N` uue plaani loomiseks, `Ctrl + O` plaani avamiseks
 - Faili avamine ja uue plaani loomine alustavad uut tühja ajalugu; salvestamine ise ei lisa ajalukku uut sammu.
 - Tagasivõtmine ja uuestitegemine peavad uuendama kaarti, külgpaneele, voolukokkuvõtet ja salvestamata muudatuste olekut ühe tervikuna.
 
-Piiratud undo/redo seisundiajalugu ja mälus töötav plaani hetktõmmise teenus on teostatud ning automaattestidega kaetud. Hetktõmmis kasutab sama teisendust nagu `.pplan` teenus, taastab objektid ja elektriseosed sõltumatu mudelina ning väldib sama pakitud kaardipildi korduvat hoidmist. Muudatuste salvestamine ja klahvikombinatsioonidega sidumine on veel teostamata.
+Piiratud undo/redo seisundiajalugu ja mälus töötav plaani hetktõmmise teenus on teostatud ning automaattestidega kaetud. Hetktõmmis kasutab sama teisendust nagu `.pplan` teenus, taastab objektid ja elektriseosed sõltumatu mudelina ning väldib sama pakitud kaardipildi korduvat hoidmist. Plaanimuudatused on seotud `Ctrl + Z` ja `Ctrl + Alt + Z` klahvikombinatsioonidega; tekstiväljas jääb `Ctrl + Z` teksti muutmise käsuks. Faili avamine ja uue plaani loomine alustavad uut ajalugu ning salvestatud seisundisse naasmine taastab puhta oleku. Lohistamise ja liugurite järjestikuste sündmuste üheks loogiliseks ajalookirjeks koondamine vajab veel käsitsi kontrolli ja vajaduse korral eraldi täiendust.
 
 ## 10. Visuaalse kasutajaliidese uuendamine
 

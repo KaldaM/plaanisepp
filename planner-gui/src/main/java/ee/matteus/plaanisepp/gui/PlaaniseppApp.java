@@ -23,6 +23,8 @@ import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.TextObject;
 import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.service.PlanFactory;
+import ee.matteus.plaanisepp.core.service.PlanSnapshot;
+import ee.matteus.plaanisepp.core.service.PlanSnapshotService;
 import ee.matteus.plaanisepp.core.service.GeometryCalculator;
 import ee.matteus.plaanisepp.core.service.PowerSummary;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
@@ -147,16 +149,20 @@ public class PlaaniseppApp extends Application {
     private static final double MAX_FONT_SIZE_PIXELS = 120.0;
     private static final String OBJECT_LIST_HEIGHT_PREFERENCE = "objectListHeight";
     private static final long DOUBLE_SHIFT_INTERVAL_NANOS = 500_000_000L;
+    private static final int MAX_PLAN_HISTORY_STEPS = 50;
 
     private final PlanFactory planFactory = new PlanFactory();
     private final PowerSummaryService powerSummaryService = new PowerSummaryService();
     private final ReportTextExporter reportTextExporter = new ReportTextExporter(powerSummaryService);
     private final PlanFileSession planFileSession = new PlanFileSession();
     private final PlanDocumentState planDocumentState = new PlanDocumentState();
+    private final PlanSnapshotService planSnapshotService = new PlanSnapshotService();
+    private final PlanHistory<PlanSnapshot> planHistory = new PlanHistory<>(MAX_PLAN_HISTORY_STEPS);
     private final Preferences preferences = ApplicationPreferences.open();
     private final RecentPlanFiles recentPlanFiles = new RecentPlanFiles(preferences);
 
     private EventPlan plan;
+    private PlanSnapshot savedPlanSnapshot;
     private Pane mapPane;
     private Pane mapContentPane;
     private ScrollPane mapScrollPane;
@@ -368,6 +374,10 @@ public class PlaaniseppApp extends Application {
                 this::savePlanAs
         );
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            handlePlanHistoryShortcut(event, scene);
+            if (event.isConsumed()) {
+                return;
+            }
             if (quickObjectSearchActive) {
                 handleQuickObjectSearchKey(event);
                 if (event.isConsumed()) {
@@ -444,6 +454,40 @@ public class PlaaniseppApp extends Application {
             return;
         }
         lastShiftPressNanos = now;
+    }
+
+    private void handlePlanHistoryShortcut(KeyEvent event, Scene scene) {
+        if (event.getCode() != KeyCode.Z
+                || !event.isControlDown()
+                || event.isShiftDown()
+                || scene.getFocusOwner() instanceof TextInputControl) {
+            return;
+        }
+        if (event.isAltDown()) {
+            redoPlanChange();
+        } else {
+            undoPlanChange();
+        }
+        event.consume();
+    }
+
+    private void undoPlanChange() {
+        planHistory.undo().ifPresent(this::restorePlanSnapshot);
+    }
+
+    private void redoPlanChange() {
+        planHistory.redo().ifPresent(this::restorePlanSnapshot);
+    }
+
+    private void restorePlanSnapshot(PlanSnapshot snapshot) {
+        plan = planSnapshotService.restore(snapshot);
+        resetPlanViewState(false);
+        if (snapshot.equals(savedPlanSnapshot)) {
+            planDocumentState.markClean();
+        } else {
+            planDocumentState.markDirty();
+        }
+        updateWindowTitle();
     }
 
     private void openQuickObjectSearch() {
@@ -2520,6 +2564,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private void resetPlanViewState() {
+        resetPlanViewState(true);
+    }
+
+    private void resetPlanViewState(boolean resetHistory) {
         selectedObject = null;
         pendingPowerSourceConsumer = null;
         clearPendingPlacementDetails();
@@ -2560,15 +2608,29 @@ public class PlaaniseppApp extends Application {
         redrawMap();
         refreshSummary();
         refreshDetails();
-        markClean();
+        if (resetHistory) {
+            resetPlanHistory();
+        }
     }
 
     private void markDirty() {
+        planHistory.record(planSnapshotService.create(plan));
         planDocumentState.markDirty();
         updateWindowTitle();
     }
 
     private void markClean() {
+        PlanSnapshot snapshot = planSnapshotService.create(plan);
+        savedPlanSnapshot = snapshot;
+        planHistory.replaceCurrent(snapshot);
+        planDocumentState.markClean();
+        updateWindowTitle();
+    }
+
+    private void resetPlanHistory() {
+        PlanSnapshot snapshot = planSnapshotService.create(plan);
+        planHistory.reset(snapshot);
+        savedPlanSnapshot = snapshot;
         planDocumentState.markClean();
         updateWindowTitle();
     }

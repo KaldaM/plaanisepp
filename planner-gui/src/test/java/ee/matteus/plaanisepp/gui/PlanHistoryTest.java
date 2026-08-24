@@ -58,4 +58,16 @@ class PlanHistoryTest {
         assertEquals("first", history.undo().orElseThrow());
         assertTrue(history.undo().isEmpty());
     }
+
+    @Test
+    void replacesCurrentStateWithoutCreatingAnUndoStep() {
+        PlanHistory<String> history = new PlanHistory<>(10);
+        history.reset("initial");
+        history.record("changed");
+
+        history.replaceCurrent("saved");
+
+        assertEquals("initial", history.undo().orElseThrow());
+        assertEquals("saved", history.redo().orElseThrow());
+    }
 }

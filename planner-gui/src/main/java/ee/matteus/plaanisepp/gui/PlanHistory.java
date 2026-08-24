@@ -41,6 +41,10 @@ final class PlanHistory<T> {
         redoStates.clear();
     }
 
+    void replaceCurrent(T state) {
+        currentState = Objects.requireNonNull(state);
+    }
+
     Optional<T> undo() {
         if (undoStates.isEmpty()) {
             return Optional.empty();
