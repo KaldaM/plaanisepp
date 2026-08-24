@@ -115,6 +115,13 @@ public class PlaaniseppApp extends Application {
     private static final String SUMMARY_SECTION = "summary";
     private static final String EQUIPMENT_SECTION = "equipment";
     private static final String OUTLET_SECTION = "outlet";
+    private static final String SIDEBAR_SECTION_ORDER_PREFERENCE = "sidebarSectionOrder";
+    private static final List<String> DEFAULT_SIDEBAR_SECTION_ORDER = List.of(
+            OBJECT_LIST_SECTION,
+            SELECTED_OBJECT_SECTION,
+            MAP_LAYERS_SECTION,
+            SUMMARY_SECTION
+    );
     private static final Pattern CABLE_LENGTH_PATTERN = Pattern.compile("\\d+(?:[,.]\\d+)?");
     private static final Comparator<CableSummaryRow> CABLE_SUMMARY_ROW_COMPARATOR = Comparator
             .comparing((CableSummaryRow row) -> row.connection().connectorType())
@@ -163,8 +170,10 @@ public class PlaaniseppApp extends Application {
     private final Set<String> collapsedPowerSummaryKeys = new HashSet<>();
     private final Set<String> collapsedObjectGroups = new HashSet<>();
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
+    private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private Set<String> knownGroups = new HashSet<>();
     private ListView<SummaryListItem> summaryList;
+    private VBox sidebar;
     private CheckBox showPowerSummaryCheckBox;
     private CheckBox showCableSummaryCheckBox;
     private CheckBox showGroupSummaryCheckBox;
@@ -630,15 +639,15 @@ public class PlaaniseppApp extends Application {
         mapScrollPane.setFitToHeight(false);
         mapScrollPane.setStyle("-fx-background: #eef1ec;");
 
-        VBox sidebar = new VBox(10);
+        sidebar = new VBox(10);
         sidebar.setPadding(new Insets(12));
         objectListSection = collapsibleSection(OBJECT_LIST_SECTION, "Objektid", createObjectListPanel(), false);
-        sidebar.getChildren().add(objectListSection);
         selectedObjectSection = collapsibleSection(
                 SELECTED_OBJECT_SECTION, "Valitud objekt", createDetailPanel(), true
         );
-        sidebar.getChildren().add(selectedObjectSection);
-        sidebar.getChildren().add(collapsibleSection(MAP_LAYERS_SECTION, "Kaardi kihid", createMapLayersPanel(), false));
+        TitledPane mapLayersSection = collapsibleSection(
+                MAP_LAYERS_SECTION, "Kaardi kihid", createMapLayersPanel(), false
+        );
 
         showPowerSummaryCheckBox = new CheckBox("Vool");
         showPowerSummaryCheckBox.setSelected(true);
@@ -744,7 +753,11 @@ public class PlaaniseppApp extends Application {
                 new VBox(8, summaryFilters, cableLegend, summaryList),
                 true
         );
-        sidebar.getChildren().add(powerSummarySection);
+        registerSidebarSection(OBJECT_LIST_SECTION, objectListSection);
+        registerSidebarSection(SELECTED_OBJECT_SECTION, selectedObjectSection);
+        registerSidebarSection(MAP_LAYERS_SECTION, mapLayersSection);
+        registerSidebarSection(SUMMARY_SECTION, powerSummarySection);
+        applySidebarSectionOrder(loadSidebarSectionOrder());
         ScrollPane sidebarScrollPane = new ScrollPane(sidebar);
         sidebarScrollPane.setFitToWidth(true);
 
@@ -1527,6 +1540,83 @@ public class PlaaniseppApp extends Application {
                 sidebarSectionStates.put(stateKey, newValue)
         );
         return pane;
+    }
+
+    private void registerSidebarSection(String stateKey, TitledPane pane) {
+        sidebarSections.put(stateKey, pane);
+        MenuItem moveUpItem = new MenuItem("Liiguta üles");
+        moveUpItem.setOnAction(event -> moveSidebarSection(stateKey, -1));
+        MenuItem moveDownItem = new MenuItem("Liiguta alla");
+        moveDownItem.setOnAction(event -> moveSidebarSection(stateKey, 1));
+        MenuItem resetOrderItem = new MenuItem("Taasta vaikejärjestus");
+        resetOrderItem.setOnAction(event -> resetSidebarSectionOrder());
+        ContextMenu contextMenu = new ContextMenu(moveUpItem, moveDownItem, resetOrderItem);
+        contextMenu.setOnShowing(event -> {
+            List<String> order = currentSidebarSectionOrder();
+            int index = order.indexOf(stateKey);
+            moveUpItem.setDisable(index <= 0);
+            moveDownItem.setDisable(index < 0 || index >= order.size() - 1);
+        });
+        pane.setOnContextMenuRequested(event -> {
+            showContextMenu(contextMenu, pane, event.getScreenX(), event.getScreenY());
+            event.consume();
+        });
+    }
+
+    private List<String> loadSidebarSectionOrder() {
+        List<String> order = new ArrayList<>();
+        String storedOrder = preferences.get(SIDEBAR_SECTION_ORDER_PREFERENCE, "");
+        for (String stateKey : storedOrder.split(",")) {
+            if (DEFAULT_SIDEBAR_SECTION_ORDER.contains(stateKey) && !order.contains(stateKey)) {
+                order.add(stateKey);
+            }
+        }
+        for (String stateKey : DEFAULT_SIDEBAR_SECTION_ORDER) {
+            if (!order.contains(stateKey)) {
+                order.add(stateKey);
+            }
+        }
+        return order;
+    }
+
+    private List<String> currentSidebarSectionOrder() {
+        return sidebar.getChildren().stream()
+                .map(node -> sidebarSections.entrySet().stream()
+                        .filter(entry -> entry.getValue() == node)
+                        .map(Map.Entry::getKey)
+                        .findFirst()
+                        .orElse(""))
+                .filter(stateKey -> !stateKey.isBlank())
+                .toList();
+    }
+
+    private void moveSidebarSection(String stateKey, int offset) {
+        List<String> order = new ArrayList<>(currentSidebarSectionOrder());
+        int currentIndex = order.indexOf(stateKey);
+        int targetIndex = currentIndex + offset;
+        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= order.size()) {
+            return;
+        }
+        order.remove(currentIndex);
+        order.add(targetIndex, stateKey);
+        applySidebarSectionOrder(order);
+        saveSidebarSectionOrder(order);
+    }
+
+    private void resetSidebarSectionOrder() {
+        applySidebarSectionOrder(DEFAULT_SIDEBAR_SECTION_ORDER);
+        preferences.remove(SIDEBAR_SECTION_ORDER_PREFERENCE);
+    }
+
+    private void applySidebarSectionOrder(List<String> order) {
+        sidebar.getChildren().setAll(order.stream()
+                .map(sidebarSections::get)
+                .filter(java.util.Objects::nonNull)
+                .toList());
+    }
+
+    private void saveSidebarSectionOrder(List<String> order) {
+        preferences.put(SIDEBAR_SECTION_ORDER_PREFERENCE, String.join(",", order));
     }
 
     private void toggleSelectedPlacement() {

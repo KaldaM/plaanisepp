@@ -230,6 +230,8 @@ Rakenduse tavalisel käivitamisel kuvatakse avavaade, kus saab avada hiljuti kas
 
 Kasutaja saab muuta külgpaneeli põhijaotiste järjestust. Näiteks saab tõsta „Voolu kokkuvõtte” või „Kaardi kihid” enda töövoo järgi üles- või allapoole. Valitud järjestus säilitatakse rakenduse eelistustes, mitte `.pplan` failis, sest see on kasutaja töökeskkonna, mitte konkreetse plaani omadus. Järjestuse taastamiseks peab olema vaikejärjestuse taastamise võimalus.
 
+Külgpaneeli põhijaotiste järjestamine on teostatud jaotise paremklõpsumenüü kaudu. Jaotist saab liigutada üles või alla, vaikejärjestuse taastada ning valitud järjestus säilib rakenduse eelistustes.
+
 ### Kaardi kontekstimenüü
 
 Kaardi tühjal kohal tehtud paremklõps avab menüü „Lisa”, mille alammenüüst saab valida lisatava objektitüübi. Valitud objekt luuakse kohe paremklõpsu asukohta. Lisamine peab kasutama samu vaikeväärtusi, valideerimist ja objektiandmete dialoogi nagu olemasolev tööriistariba kaudu lisamine.
@@ -245,6 +247,12 @@ Kaardil oleva objekti paremklõps avab objektimenüü järgmiste põhitegevusteg
 Objektil tehtud paremklõps ei tohi samal ajal avada kaardi tühja ala „Lisa” menüüd ega alustada objekti lohistamist.
 
 Kaardiobjekti ja objektide nimekirja kontekstimenüü „Muuda” ning „Kustuta” tegevused on teostatud. „Muuda” avab valitud objekti jaotise ning „Kustuta” kasutab olemasolevat lukustuse, kinnituse ja seoste puhastamise töövoogu.
+
+Edaspidi peab „Muuda” saama avada objekti andmed eraldi dialoogis, mis sisaldab sisuliselt samu välju ja tegevusi nagu praegune „Valitud objekt” jaotis. Nii saab kasutaja valida kompaktsema külgpaneeli töövoo ilma objekti muutmise võimalusi kaotamata. Dialoog ja külgpaneel peavad kasutama ühist rakendusloogikat, et valideerimine, elektriühendused ja muudatused ei hakkaks eri vaadetes erinevalt käituma.
+
+### Kaabli kontekstimenüü
+
+Kaardil oleva kaabli paremklõps peab pakkuma tegevust „Muuda trajektoori”. See valib konkreetse vooluühenduse, tõstab kaabli selgelt esile ning käivitab olemasoleva kaablipunktide lisamise ja eemaldamise töövoo. Lahendus peab eristama sama tarbija vaike- ja alternatiivühendusi, et muudetaks just seda kaablit, millel paremklõps tehti. Nii saab trajektoori muuta ilma tööriistariba „Kaabli punkt” nuppu kasutamata.
 
 ### Objektide nimekirja tegevused ja nähtavus
 
