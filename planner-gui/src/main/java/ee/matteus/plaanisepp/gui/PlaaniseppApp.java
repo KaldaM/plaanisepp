@@ -173,6 +173,7 @@ public class PlaaniseppApp extends Application {
     private String editingCableConnectionId;
     private boolean mapDraggedSincePress;
     private boolean synchronizingSidebarSelection;
+    private boolean startupPlanFileProvided;
     private boolean quickObjectSearchActive;
     private boolean shiftKeyPressed;
     private long lastShiftPressNanos;
@@ -411,6 +412,8 @@ public class PlaaniseppApp extends Application {
         stage.show();
         if (startupPlanError != null) {
             showError("Plaanifaili avamine ebaõnnestus", startupPlanError);
+        } else if (!startupPlanFileProvided) {
+            Platform.runLater(this::showStartupPlanDialog);
         }
     }
 
@@ -492,6 +495,7 @@ public class PlaaniseppApp extends Application {
     private String initializePlan() {
         plan = planFactory.createEmptyPlan();
         Optional<Path> startupPlanFile = StartupPlanFileResolver.resolve(getParameters().getRaw());
+        startupPlanFileProvided = startupPlanFile.isPresent();
         if (startupPlanFile.isEmpty()) {
             return null;
         }
@@ -6713,12 +6717,28 @@ public class PlaaniseppApp extends Application {
             return;
         }
 
+        openPlanFile(selectedFile.get());
+    }
+
+    private void showStartupPlanDialog() {
+        StartupPlanDialog.show(stage, recentPlanFiles.load()).ifPresent(choice -> {
+            switch (choice.action()) {
+                case NEW_PLAN -> newPlan();
+                case OPEN_RECENT -> openPlanFile(choice.path().toFile());
+                case OPEN_OTHER -> openPlan();
+            }
+        });
+    }
+
+    private boolean openPlanFile(File file) {
         try {
-            plan = planFileSession.load(selectedFile.get());
-            recentPlanFiles.remember(selectedFile.get());
+            plan = planFileSession.load(file);
+            recentPlanFiles.remember(file);
             resetPlanViewState();
+            return true;
         } catch (IOException | RuntimeException exception) {
             showError("Faili avamine ebaõnnestus", exception.getMessage());
+            return false;
         }
     }
 

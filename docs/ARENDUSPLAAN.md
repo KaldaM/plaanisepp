@@ -230,7 +230,7 @@ Rakenduse tavalisel käivitamisel kuvatakse avavaade, kus saab avada hiljuti kas
 - Faili topeltklõps ja `.pplan` käsureaargument avavad plaani otse.
 - Versioonita ning versioon 1–3 plaanide avamine jääb muutmata.
 
-Hiljutiste plaanide püsiloendi alusloogika on teostatud. Edukalt avatud või salvestatud fail tõstetakse kuni kümmet kirjet sisaldava loendi algusesse, duplikaadid eemaldatakse ning enam mitte olemasolevad failid puhastatakse. Käivitusvaade ja loendi kasutajaliides on veel teostamata.
+Hiljutiste plaanide püsiloend ja esimene käivitusdialoog on teostatud. Edukalt avatud või salvestatud fail tõstetakse kuni kümmet kirjet sisaldava loendi algusesse, duplikaadid eemaldatakse ning enam mitte olemasolevad failid puhastatakse. Tavakäivitusel saab avada hiljutise või muu plaani või alustada uut; failiargumendiga käivitus avaneb jätkuvalt otse. Uue plaani nime, kaardi ja mõõtkava ühine loomise vaade on veel teostamata.
 
 ## 7. Külgpaneeli kohandamine ja kontekstimenüüd
 
