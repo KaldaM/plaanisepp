@@ -17,8 +17,12 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 6. lisada salvestamise klahvikombinatsioonid `Ctrl + S` ja `Ctrl + Shift + S`;
 7. lisada rakenduse käivitamisel hiljutiste plaanide ja uue plaani loomise avavaade;
 8. lisada plaani muudatuste tagasivõtmine `Ctrl + Z` ja uuestitegemine `Ctrl + Alt + Z` abil;
-9. uuendada rakenduse visuaalne keel ja vähendada JavaFX-i vaikekomponentide vananenud ilmet;
-10. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+9. lisada plaanipõhine checklist ja soovituslike objektide kontrollnimekiri;
+10. avaldada versioonitud paigalduspaketid GitHub Releasesis ning võimaldada nende leidmist rakendusest;
+11. lisada tulevase PA-planeerimise juurde mõõtude ja elektrivajadusega objektieelseadistused;
+12. lisada fikseeritud pikkusega lõikudest koosnev aedade planeerimise tööriist ja inventarikokkuvõte;
+13. uuendada rakenduse visuaalne keel ja vähendada JavaFX-i vaikekomponentide vananenud ilmet;
+14. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -304,10 +308,97 @@ Lisaks on teostatud `Ctrl + N` uue plaani loomiseks, `Ctrl + O` plaani avamiseks
 - Ajalugu peab hõlmama vähemalt objektide lisamist, kustutamist, liigutamist ja andmete muutmist ning kaabli trajektoori muutmist.
 - Faili avamine ja uue plaani loomine alustavad uut tühja ajalugu; salvestamine ise ei lisa ajalukku uut sammu.
 - Tagasivõtmine ja uuestitegemine peavad uuendama kaarti, külgpaneele, voolukokkuvõtet ja salvestamata muudatuste olekut ühe tervikuna.
+- Tööriistaribal või muus püsivalt nähtavas kohas peavad olema hiirega kasutatavad undo- ja redo-nupud.
+- Nuppude keelatud olek peab näitama, kui vastavas suunas pole enam võimalik ajaloos liikuda.
+- Nuppude kohtspikrid peavad kuvama tegevuse nime ja vastava klahvikombinatsiooni.
 
 Piiratud undo/redo seisundiajalugu ja mälus töötav plaani hetktõmmise teenus on teostatud ning automaattestidega kaetud. Hetktõmmis kasutab sama teisendust nagu `.pplan` teenus, taastab objektid ja elektriseosed sõltumatu mudelina ning väldib sama pakitud kaardipildi korduvat hoidmist. Plaanimuudatused on seotud `Ctrl + Z` ja `Ctrl + Alt + Z` klahvikombinatsioonidega; tekstiväljas jääb `Ctrl + Z` teksti muutmise käsuks. Faili avamine ja uue plaani loomine alustavad uut ajalugu ning salvestatud seisundisse naasmine taastab puhta oleku. Objekti ja nimesildi lohistamine kasutab tehingut, mille esimene liikumine loob ajalookirje ning järgmised liikumised asendavad sama kirje lõppseisundit; tulemus ei sõltu JavaFX-i hiire vabastamise sündmuse jõudmisest ümber joonistatud sõlmeni. Ala-, joone-, kaabli- ja ühenduspunkti lohistamine salvestatakse ühe sammuna hiire vabastamisel. Undo/redo säilitab võimaluse korral aktiivse tööriista, sealhulgas kaablipunktide lisamise režiimi; eemaldatud ühendusele viitav režiim lõpetatakse turvaliselt.
 
-## 10. Visuaalse kasutajaliidese uuendamine
+## 10. Checklistid
+
+### Kasutaja checklist
+
+Iga plaan saab kasutaja hallatava kontrollnimekirja, kuhu saab lisada vabatekstilisi ülesandeid, neid ümber nimetada, järjestada, tehtuks märkida ja kustutada. Checklist, kirjete järjestus ja tehtud olek kuuluvad plaaniandmete hulka ning peavad `.pplan` failis säilima. Vormingu järgmise versiooni lisamisel säilib versioonita ning versioon 1–4 plaanide avamine; vanades plaanides on checklist vaikimisi tühi.
+
+### Soovituste checklist
+
+Eraldi soovituste loend aitab kontrollida, kas tavapärased alaplaani osad on läbi mõeldud. Esialgne soovitusloend sisaldab vähemalt järgmisi kirjeid:
+
+- Tehnikatelk;
+- Infotelk;
+- Merch;
+- Emergency exit;
+- PA;
+- Redla auto;
+- Osalejate telk;
+- Esmaabi.
+
+Soovituse saab märkida tehtuks või ebaoluliseks. Kui soovitus vastab olemasolevale objektieelseadistusele, saab selle juurest alustada objekti lisamist, kuid rakendus ei tohi ainult nime sarnasuse põhjal automaatselt väita, et soovitus on täidetud. Soovitusloend peab tulevikus toetama eri üritusetüüpide malle.
+
+## 11. Versioonitud paigalduspaketid ja vanade versioonide allalaadimine
+
+GitHub Releasesis avaldatakse iga väljalaske juurde versioonitud Windowsi ja Linuxi paigalduspaketid. Nii saab kasutaja paigaldada rakenduse ilma lähtekoodi või `main` haru kloonimata ning vajaduse korral laadida alla varasema versiooni, näiteks vana ja uue kujunduse võrdlemiseks.
+
+Rakendusse lisatakse vaade või link „Versioonid”, mis kuvab vähemalt praeguse versiooni, uusima saadaoleva versiooni ja GitHub Releasesi allalaadimislehe. Kui rakendus hakkab tulevikus pakette ise alla laadima, peab see:
+
+- valima õige operatsioonisüsteemi ja arhitektuuri paketi;
+- kuvama enne allalaadimist täpse versiooni ja faili;
+- kontrollima faili terviklust avaldatud kontrollsummaga;
+- mitte käivitama paigaldajat kasutaja selge kinnituseta;
+- jätma alles võimaluse laadida teadlikult alla varasem versioon.
+
+Release-töövoog tehakse eraldi etapina pärast seda, kui versiooninumbrid, Windowsi EXE ja Linuxi RPM/rakendusepilt on käsitsi stabiilselt korratavad.
+
+## 12. PA-süsteemi objektieelseadistused
+
+Tulevase PA-planeerimise jaoks lisatakse objektieelseadistused, mis loovad kaardile kohe õigete mõõtude ja tüüpilise elektrivajadusega objektid. Esimeste erieelseadistuste hulka kuulub **Red Bull DJ Truck** mõõtudega **6 × 2,2 m**. Selle elektrivajadus lisatakse pärast kasutatava konfiguratsiooni tegelike tehniliste andmete kinnitamist ning jääb objekti loomisel muudetavaks.
+
+Kõlarite ja muu PA-tehnika eelseadistustel peab samuti olema sisseehitatud vaikimisi elektrivajadus. Mudel peab eristama seadme tüüpilist vaikeväärtust plaanis kasutaja määratud tegelikust väärtusest, et eelseadistuse uuendamine ei kirjutaks olemasolevate plaanide käsitsi muudetud võimsusi üle.
+
+Eelseadistused peavad kasutama sama objektide, seadmete ja elektriühenduste mudelit nagu käsitsi loodud objektid. Need ei tohi luua eraldi, ainult kaardil nähtavat paralleelmudelit.
+
+## 13. Aedade planeerimise tööriist
+
+Ürituse inventari planeerimiseks lisatakse eraldi aiaridade tööriist. Aed ei ole tavaline vabapikkusega joon, vaid koosneb vaikimisi **3,5 m** pikkustest füüsilistest aialõikudest. Plaan peab näitama nii aiaketi geomeetriat kui ka selleks vajalike aedade täpset kogust.
+
+### Domeenimudel
+
+- aiarida koosneb järjestatud jäikadest aialõikudest ja nende ühenduspunktidest;
+- lõigu vaikepikkus on 3,5 m, kuid väärtus jääb vajaduse korral muudetavaks eri inventaritüüpide jaoks;
+- iga lõik on eraldi identifitseeritav, et seda saaks ühendada, lahti ühendada, eemaldada või teise ritta tõsta;
+- ühendatud lõigud säilitavad liigutamisel oma tegeliku pikkuse ja ühenduse naaberlõikudega;
+- lahti ühendatud lõigust või alamreast saab iseseisev aiarida;
+- `.pplan` salvestab lõikude pikkused, järjestuse, ühendused ja kuju tagasiühilduva uue vorminguversioonina.
+
+### Kasutamine kaardil
+
+- kasutaja määrab aiaraja alguse ja soovitud suuna või murrupunktid;
+- rakendus paigutab rajale 3,5 m lõigud ning näitab, mitu füüsilist aeda on vaja;
+- otsapunkti lohistamine pöörab või paigutab ühendatud jäiga lõigu ümber ilma selle pikkust muutmata;
+- ühenduspunkti muutmisel säilitavad kõrvalolevad lõigud pikkuse ja rakendus lahendab ühendatud ahela uue kuju;
+- terve rea saab korraga ümber paigutada või pöörata;
+- kontekstimenüüst saab valitud ühenduse lahti võtta, read uuesti ühendada, lõigu lisada või eemaldada;
+- undo/redo käsitleb ühte lohistamist, ühendamist või lahtiühendamist ühe tegevusena.
+
+Keeruliste kujude jaoks lisatakse generaatorid vähemalt sirgele reale, kaarele ja ringile. Ringi puhul sisestab kasutaja raadiuse ning vajaduse korral sissepääsuava laiuse ja asukoha. Näiteks kastironimise jaoks saab luua **8 m raadiusega** aiaringi, milles on määratud kohas osalejate sissepääsuava. Kuna 3,5 m sirged aiad ainult lähendavad ringjoont, peab rakendus enne loomist näitama lõikude arvu, tekkiva hulknurga tegelikku kuju ja kõrvalekallet soovitud raadiusest.
+
+### Inventarikokkuvõte
+
+- kuvatakse aedade koguarv kogu plaanis ning soovi korral grupi või aiatüübi kaupa;
+- eristatakse standardsed täispikad lõigud, teise pikkusega lõigud ja teadlikult jäetud avad;
+- kokkuvõte peab vältima sama füüsilise lõigu topeltarvestust ühendatud ridade korral;
+- aedade loend peab olema kasutatav eksporditavas TXT- ja PDF-raportis.
+
+### Vastuvõtukriteeriumid
+
+- sirge ja murtud aiarida koosnevad tegeliku pikkusega lõikudest ning kogus on kontrollitav;
+- ühendatud lõigu liigutamine ei muuda selle pikkust ega tekita ühendusse nähtamatut vahet;
+- rea saab valitud ühenduskohast lahti võtta ja hiljem uuesti ühendada;
+- 8 m raadiusega ringi saab luua määratud sissepääsuavaga ning rakendus kuvab enne kinnitamist vajaliku aedade arvu;
+- aiaridade salvestamine, avamine, undo/redo ja raportitesse lisamine säilitavad sama geomeetria ning inventarikoguse;
+- versioonita ning varasemate `.pplan` versioonide avamine jääb muutmata.
+
+## 14. Visuaalse kasutajaliidese uuendamine
 
 Rakendusele tuleb kujundada ühtne ja tänapäevane visuaalne keel. Praegused JavaFX-i vaikestiilid asendatakse järk-järgult Plaanisepa enda stiiliga, säilitades seejuures selguse, töökiiruse ja eri ekraanisuuruste toe.
 
@@ -336,7 +427,7 @@ FXML-vaateid saab visuaalselt kujundada Gluon Scene Builderiga ning IntelliJ IDE
 - visuaalne uuendus ei muuda plaaniandmeid, `.pplan` vormingut ega olemasolevaid töövooge;
 - enne suuremat ümberkujundamist säilitatakse võrdluspildid peamistest vaadetest.
 
-## 11. Arenduspõhimõtted
+## 15. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.
 - Domeeniarvutused jäävad `planner-core` moodulisse ja JavaFX-i esitlus `planner-gui` moodulisse.
