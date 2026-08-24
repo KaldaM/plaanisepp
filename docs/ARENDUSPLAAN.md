@@ -253,7 +253,7 @@ Objektil tehtud paremklõps ei tohi samal ajal avada kaardi tühja ala „Lisa�
 
 Kaardiobjekti ja objektide nimekirja kontekstimenüü „Muuda” ning „Kustuta” tegevused on teostatud. „Muuda” avab valitud objekti jaotise ning „Kustuta” kasutab olemasolevat lukustuse, kinnituse ja seoste puhastamise töövoogu.
 
-Edaspidi peab „Muuda” saama avada objekti andmed eraldi dialoogis, mis sisaldab sisuliselt samu välju ja tegevusi nagu praegune „Valitud objekt” jaotis. Nii saab kasutaja valida kompaktsema külgpaneeli töövoo ilma objekti muutmise võimalusi kaotamata. Dialoog ja külgpaneel peavad kasutama ühist rakendusloogikat, et valideerimine, elektriühendused ja muudatused ei hakkaks eri vaadetes erinevalt käituma.
+Edaspidi peab „Muuda” saama avada objekti andmed eraldi dialoogis, mis sisaldab sisuliselt samu välju ja tegevusi nagu praegune „Valitud objekt” jaotis. Nii saab kasutaja valida kompaktsema külgpaneeli töövoo ilma objekti muutmise võimalusi kaotamata. Dialoog ja külgpaneel peavad kasutama ühist rakendusloogikat, et valideerimine, elektriühendused ja muudatused ei hakkaks eri vaadetes erinevalt käituma. Valitud objekti muutmise dialoogi klahvikombinatsiooniks kavandatakse `Alt + Enter`.
 
 ### Kaabli kontekstimenüü
 
@@ -290,6 +290,8 @@ Objektide nimekirja objekti paremklõps pakub vähemalt tegevusi „Muuda”, �
 - Otsetee ei tohi käivituda teist korda dialoogi või muu modaalse akna sees.
 
 Salvestamise klahvikombinatsioonid on teostatud põhiakna kiirklahvidena ning kasutavad tööriistariba nuppudega samu salvestusmeetodeid.
+
+Lisaks on teostatud `Ctrl + N` uue plaani loomiseks, `Ctrl + O` plaani avamiseks ja `Ctrl + Shift + P` plaani andmete muutmiseks. Kõik otseteed kasutavad vastavate tööriistariba nuppudega samu tegevusi.
 
 ## 9. Arenduspõhimõtted
 

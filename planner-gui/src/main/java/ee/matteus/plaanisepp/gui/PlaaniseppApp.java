@@ -338,6 +338,22 @@ public class PlaaniseppApp extends Application {
 
         Scene scene = new Scene(root, 1200, 760);
         scene.getAccelerators().put(
+                new KeyCodeCombination(KeyCode.N, KeyCombination.CONTROL_DOWN),
+                this::newPlan
+        );
+        scene.getAccelerators().put(
+                new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN),
+                this::openPlan
+        );
+        scene.getAccelerators().put(
+                new KeyCodeCombination(
+                        KeyCode.P,
+                        KeyCombination.CONTROL_DOWN,
+                        KeyCombination.SHIFT_DOWN
+                ),
+                this::showPlanSettingsDialog
+        );
+        scene.getAccelerators().put(
                 new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN),
                 this::savePlan
         );
