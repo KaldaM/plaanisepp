@@ -178,6 +178,8 @@ public class PlaaniseppApp extends Application {
     private boolean addingCablePoint;
     private String editingCableConnectionId;
     private boolean mapDraggedSincePress;
+    private boolean planDragInProgress;
+    private boolean planDragRecorded;
     private boolean synchronizingSidebarSelection;
     private boolean startupPlanFileProvided;
     private boolean quickObjectSearchActive;
@@ -398,6 +400,10 @@ public class PlaaniseppApp extends Application {
                 deactivateQuickObjectSearch();
             }
         });
+        scene.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> {
+            planDragInProgress = false;
+            planDragRecorded = false;
+        });
         scene.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER && isShapePlacementPending()) {
                 finishPendingShapePlacement();
@@ -480,8 +486,41 @@ public class PlaaniseppApp extends Application {
     }
 
     private void restorePlanSnapshot(PlanSnapshot snapshot) {
+        planDragInProgress = false;
+        planDragRecorded = false;
+        String selectedObjectId = selectedObject == null ? null : selectedObject.id();
+        String pendingConsumerId = pendingPowerSourceConsumer == null ? null : pendingPowerSourceConsumer.id();
         plan = planSnapshotService.restore(snapshot);
-        resetPlanViewState(false);
+        selectedObject = selectedObjectId == null
+                ? null
+                : plan.findObject(selectedObjectId).orElse(null);
+        pendingPowerSourceConsumer = pendingConsumerId == null
+                ? null
+                : plan.findObject(pendingConsumerId).orElse(null);
+        if (editingCableConnectionId != null && plan.powerConnections().stream()
+                .noneMatch(connection -> connection.id().equals(editingCableConnectionId))) {
+            editingCableConnectionId = null;
+            addingCablePoint = false;
+            if (addCablePointButton != null) {
+                addCablePointButton.setSelected(false);
+            }
+        }
+        knownGroups.clear();
+        visibleGroups.clear();
+        if (planNameField != null) {
+            planNameField.setText(plan.name());
+        }
+        if (pixelsPerMeterField != null) {
+            pixelsPerMeterField.setText(formatMeters(plan.pixelsPerMeter()));
+        }
+        applyMapLayerControlsFromPlan();
+        refreshPlacementButtons();
+        updateMapToolStatus();
+        refreshGroupFilters();
+        refreshObjectList();
+        redrawMap();
+        refreshSummary();
+        refreshDetails();
         if (snapshot.equals(savedPlanSnapshot)) {
             planDocumentState.markClean();
         } else {
@@ -2614,7 +2653,27 @@ public class PlaaniseppApp extends Application {
     }
 
     private void markDirty() {
+        planDragInProgress = false;
+        planDragRecorded = false;
         planHistory.record(planSnapshotService.create(plan));
+        planDocumentState.markDirty();
+        updateWindowTitle();
+    }
+
+    private void beginPlanDrag() {
+        planDragInProgress = true;
+        planDragRecorded = false;
+    }
+
+    private void recordPlanDragChange() {
+        PlanSnapshot snapshot = planSnapshotService.create(plan);
+        if (!planDragInProgress || !planDragRecorded) {
+            planHistory.record(snapshot);
+            planDragInProgress = true;
+            planDragRecorded = true;
+        } else {
+            planHistory.replaceCurrent(snapshot);
+        }
         planDocumentState.markDirty();
         updateWindowTitle();
     }
@@ -3915,6 +3974,7 @@ public class PlaaniseppApp extends Application {
             }
             selectedObject = object;
             refreshDetails();
+            beginPlanDrag();
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
             dragDelta.x = mapPoint.getX() - label.getLayoutX();
             dragDelta.y = mapPoint.getY() - label.getLayoutY();
@@ -3931,7 +3991,7 @@ public class PlaaniseppApp extends Application {
             label.setLayoutY(labelY);
             object.setMapLabelOffset(new Position(labelX - defaultX, labelY - defaultY));
             refreshDetails();
-            markDirty();
+            recordPlanDragChange();
             event.consume();
         });
     }
@@ -4025,6 +4085,7 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             selectObject(object);
+            beginPlanDrag();
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
             dragDelta.x = mapPoint.getX() - object.position().x();
             dragDelta.y = mapPoint.getY() - object.position().y();
@@ -4041,7 +4102,7 @@ public class PlaaniseppApp extends Application {
             object.moveTo(object.position().moveTo(mapPoint.getX() - dragDelta.x, mapPoint.getY() - dragDelta.y));
             redrawMap();
             refreshSummary();
-            markDirty();
+            recordPlanDragChange();
             event.consume();
         });
     }
