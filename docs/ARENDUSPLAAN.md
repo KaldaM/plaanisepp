@@ -289,6 +289,8 @@ Objektide nimekirja objekti paremklõps pakub vähemalt tegevusi „Muuda”, �
 - Klahvikombinatsioonid peavad kasutama täpselt samu salvestusmeetodeid, dialooge ja eestikeelseid veateateid nagu tööriistariba nupud.
 - Otsetee ei tohi käivituda teist korda dialoogi või muu modaalse akna sees.
 
+Salvestamise klahvikombinatsioonid on teostatud põhiakna kiirklahvidena ning kasutavad tööriistariba nuppudega samu salvestusmeetodeid.
+
 ## 9. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.

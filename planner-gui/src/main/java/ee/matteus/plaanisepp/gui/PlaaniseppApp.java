@@ -74,6 +74,8 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
@@ -335,6 +337,18 @@ public class PlaaniseppApp extends Application {
         refreshDetails();
 
         Scene scene = new Scene(root, 1200, 760);
+        scene.getAccelerators().put(
+                new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN),
+                this::savePlan
+        );
+        scene.getAccelerators().put(
+                new KeyCodeCombination(
+                        KeyCode.S,
+                        KeyCombination.CONTROL_DOWN,
+                        KeyCombination.SHIFT_DOWN
+                ),
+                this::savePlanAs
+        );
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             if (quickObjectSearchActive) {
                 handleQuickObjectSearchKey(event);
