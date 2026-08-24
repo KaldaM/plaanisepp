@@ -182,6 +182,8 @@ Objektide külgpaneel kasutab samuti kokkupakitavat hierarhiat: objektid on rüh
 - Escape ei muuda valitud objekti.
 - Objektipaneeli eelnev olek taastub.
 
+Objekti kiirotsing on teostatud olemasoleva objektide nimekirja põhjal. Kaks kiiret `Shift`-vajutust avavad otsingu, nooleklahvid liiguvad tulemuste vahel, `Enter` valib ja tsentreerib objekti ning kuvab pulseeriva kontrastse rõnga. `Escape` taastab varasema otsinguteksti ja paneelioleku; tekstiväljas kasutatud Shift kiirotsingut ei käivita.
+
 ## 5. Suumi kasutuskogemus
 
 ### Kasutusloogika

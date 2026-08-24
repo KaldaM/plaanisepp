@@ -28,6 +28,9 @@ import ee.matteus.plaanisepp.core.service.PowerSummary;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
@@ -55,6 +58,7 @@ import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToolBar;
@@ -70,7 +74,9 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
@@ -81,6 +87,7 @@ import javafx.scene.transform.Scale;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.StringConverter;
+import javafx.util.Duration;
 
 import javax.imageio.ImageIO;
 import java.io.ByteArrayInputStream;
@@ -136,6 +143,7 @@ public class PlaaniseppApp extends Application {
     private static final double MIN_FONT_SIZE_PIXELS = 6.0;
     private static final double MAX_FONT_SIZE_PIXELS = 120.0;
     private static final String OBJECT_LIST_HEIGHT_PREFERENCE = "objectListHeight";
+    private static final long DOUBLE_SHIFT_INTERVAL_NANOS = 500_000_000L;
 
     private final PlanFactory planFactory = new PlanFactory();
     private final PowerSummaryService powerSummaryService = new PowerSummaryService();
@@ -159,6 +167,13 @@ public class PlaaniseppApp extends Application {
     private String editingCableConnectionId;
     private boolean mapDraggedSincePress;
     private boolean synchronizingSidebarSelection;
+    private boolean quickObjectSearchActive;
+    private boolean shiftKeyPressed;
+    private long lastShiftPressNanos;
+    private boolean objectSearchPreviousExpanded;
+    private String objectSearchPreviousText = "";
+    private Timeline objectSearchHighlightTimeline;
+    private Node objectSearchHighlight;
     private ContextMenu activeContextMenu;
     private double mapPressSceneX;
     private double mapPressSceneY;
@@ -172,6 +187,7 @@ public class PlaaniseppApp extends Application {
     private final Set<String> collapsedObjectGroups = new HashSet<>();
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
+    private final Map<String, Node> mapObjectNodes = new HashMap<>();
     private Set<String> knownGroups = new HashSet<>();
     private ListView<SummaryListItem> summaryList;
     private VBox sidebar;
@@ -316,6 +332,27 @@ public class PlaaniseppApp extends Application {
         refreshDetails();
 
         Scene scene = new Scene(root, 1200, 760);
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (quickObjectSearchActive) {
+                handleQuickObjectSearchKey(event);
+                if (event.isConsumed()) {
+                    return;
+                }
+            }
+            handleDoubleShift(event, scene);
+        });
+        scene.addEventFilter(KeyEvent.KEY_RELEASED, event -> {
+            if (event.getCode() == KeyCode.SHIFT) {
+                shiftKeyPressed = false;
+            }
+        });
+        scene.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            if (quickObjectSearchActive
+                    && event.getTarget() instanceof Node target
+                    && !isInsideObjectListSection(target)) {
+                deactivateQuickObjectSearch();
+            }
+        });
         scene.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER && isShapePlacementPending()) {
                 finishPendingShapePlacement();
@@ -341,6 +378,81 @@ public class PlaaniseppApp extends Application {
         if (startupPlanError != null) {
             showError("Plaanifaili avamine ebaõnnestus", startupPlanError);
         }
+    }
+
+    private void handleDoubleShift(KeyEvent event, Scene scene) {
+        if (event.getCode() != KeyCode.SHIFT) {
+            lastShiftPressNanos = 0;
+            return;
+        }
+        if (shiftKeyPressed) {
+            return;
+        }
+        shiftKeyPressed = true;
+        if (scene.getFocusOwner() instanceof TextInputControl) {
+            lastShiftPressNanos = 0;
+            return;
+        }
+        if (isPlacementPending() || addingCablePoint || measuringActive) {
+            lastShiftPressNanos = 0;
+            return;
+        }
+        long now = System.nanoTime();
+        if (!quickObjectSearchActive
+                && lastShiftPressNanos > 0
+                && now - lastShiftPressNanos <= DOUBLE_SHIFT_INTERVAL_NANOS) {
+            lastShiftPressNanos = 0;
+            openQuickObjectSearch();
+            event.consume();
+            return;
+        }
+        lastShiftPressNanos = now;
+    }
+
+    private void openQuickObjectSearch() {
+        if (objectSearchField == null || objectListSection == null) {
+            return;
+        }
+        quickObjectSearchActive = true;
+        objectSearchPreviousExpanded = objectListSection.isExpanded();
+        objectSearchPreviousText = objectSearchField.getText();
+        boolean animated = objectListSection.isAnimated();
+        objectListSection.setAnimated(false);
+        objectListSection.setExpanded(true);
+        objectSearchField.clear();
+        selectFirstQuickSearchResult();
+        Platform.runLater(() -> {
+            objectListSection.setAnimated(animated);
+            objectSearchField.requestFocus();
+            objectSearchField.selectAll();
+        });
+    }
+
+    private void finishQuickObjectSearch() {
+        if (!quickObjectSearchActive) {
+            return;
+        }
+        quickObjectSearchActive = false;
+        objectSearchField.setText(objectSearchPreviousText);
+        objectListSection.setExpanded(objectSearchPreviousExpanded);
+        mapPane.requestFocus();
+    }
+
+    private void deactivateQuickObjectSearch() {
+        quickObjectSearchActive = false;
+        lastShiftPressNanos = 0;
+        mapPane.requestFocus();
+    }
+
+    private boolean isInsideObjectListSection(Node node) {
+        Node current = node;
+        while (current != null) {
+            if (current == objectListSection) {
+                return true;
+            }
+            current = current.getParent();
+        }
+        return false;
     }
 
     private String initializePlan() {
@@ -577,6 +689,7 @@ public class PlaaniseppApp extends Application {
 
     private SplitPane createContent() {
         mapPane = new Pane();
+        mapPane.setFocusTraversable(true);
         mapPane.setMinSize(MIN_MAP_WIDTH, MIN_MAP_HEIGHT);
         mapPane.setPrefSize(MIN_MAP_WIDTH, MIN_MAP_HEIGHT);
         mapPane.setStyle("-fx-background-color: #eef1ec;");
@@ -778,7 +891,12 @@ public class PlaaniseppApp extends Application {
     private VBox createObjectListPanel() {
         objectSearchField = new TextField();
         objectSearchField.setPromptText("Otsi nime, tüübi või grupi järgi");
-        objectSearchField.textProperty().addListener((observable, oldValue, newValue) -> refreshObjectList());
+        objectSearchField.textProperty().addListener((observable, oldValue, newValue) -> {
+            refreshObjectList();
+            if (quickObjectSearchActive) {
+                selectFirstQuickSearchResult();
+            }
+        });
         objectList = new ListView<>();
         objectList.setPrefHeight(objectListHeight);
         objectList.setTooltip(new Tooltip("Topeltklõps viib kaardil objektini"));
@@ -871,6 +989,9 @@ public class PlaaniseppApp extends Application {
             if (newValue.isGroup()) {
                 return;
             }
+            if (quickObjectSearchActive) {
+                return;
+            }
             PlannerObject object = newValue.objectItem().object();
             if (selectedObject != null && selectedObject.id().equals(object.id())) {
                 updateRevealObjectButton();
@@ -880,10 +1001,13 @@ public class PlaaniseppApp extends Application {
         });
         objectList.setOnMouseClicked(event -> {
             ObjectListEntry selectedEntry = objectList.getSelectionModel().getSelectedItem();
-            if (selectedEntry != null
-                    && !selectedEntry.isGroup()
-                    && event.getButton() == MouseButton.PRIMARY
-                    && event.getClickCount() == 2) {
+            if (selectedEntry == null || selectedEntry.isGroup() || event.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            if (quickObjectSearchActive) {
+                activateQuickObjectSearchResult(selectedEntry);
+                event.consume();
+            } else if (event.getClickCount() == 2) {
                 centerMapOnObject(selectedEntry.objectItem().object());
                 event.consume();
             }
@@ -893,6 +1017,57 @@ public class PlaaniseppApp extends Application {
         updateRevealObjectButton();
         refreshObjectList();
         return new VBox(8, objectSearchField, objectList, createObjectListResizeHandle(), revealObjectButton);
+    }
+
+    private void handleQuickObjectSearchKey(KeyEvent event) {
+        if (!quickObjectSearchActive) {
+            return;
+        }
+        if (event.getCode() == KeyCode.ESCAPE) {
+            finishQuickObjectSearch();
+            event.consume();
+            return;
+        }
+        if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.UP) {
+            moveQuickSearchSelection(event.getCode() == KeyCode.DOWN ? 1 : -1);
+            event.consume();
+            return;
+        }
+        if (event.getCode() == KeyCode.ENTER) {
+            ObjectListEntry entry = objectList.getSelectionModel().getSelectedItem();
+            if (entry != null && !entry.isGroup()) {
+                activateQuickObjectSearchResult(entry);
+            }
+            event.consume();
+        }
+    }
+
+    private void activateQuickObjectSearchResult(ObjectListEntry entry) {
+        PlannerObject object = entry.objectItem().object();
+        finishQuickObjectSearch();
+        selectObject(object);
+        centerMapOnObject(object);
+        highlightObjectSearchResult(object);
+    }
+
+    private void selectFirstQuickSearchResult() {
+        objectList.getItems().stream()
+                .filter(entry -> !entry.isGroup())
+                .findFirst()
+                .ifPresent(entry -> selectSidebarItem(objectList, entry, objectListSection));
+    }
+
+    private void moveQuickSearchSelection(int offset) {
+        List<ObjectListEntry> results = objectList.getItems().stream()
+                .filter(entry -> !entry.isGroup())
+                .toList();
+        if (results.isEmpty()) {
+            return;
+        }
+        ObjectListEntry selected = objectList.getSelectionModel().getSelectedItem();
+        int currentIndex = results.indexOf(selected);
+        int targetIndex = Math.clamp(currentIndex + offset, 0, results.size() - 1);
+        selectSidebarItem(objectList, results.get(targetIndex), objectListSection);
     }
 
     private Label createObjectListResizeHandle() {
@@ -1141,6 +1316,63 @@ public class PlaaniseppApp extends Application {
                 mapScrollPane.setVvalue(clamp(targetY / verticalRange, 0, 1));
             }
         });
+    }
+
+    private void highlightObjectSearchResult(PlannerObject object) {
+        if (objectSearchHighlightTimeline != null) {
+            objectSearchHighlightTimeline.stop();
+        }
+        if (objectSearchHighlight != null) {
+            mapPane.getChildren().remove(objectSearchHighlight);
+        }
+        Node objectNode = mapObjectNodes.get(object.id());
+        if (objectNode != null) {
+            objectNode.applyCss();
+            objectNode.autosize();
+        }
+        Bounds bounds = objectNode == null ? null : objectNode.getBoundsInParent();
+        Position fallbackCenter = CablePathHelper.objectCenter(object, pixelsPerMeter());
+        double padding = 12;
+        double x = bounds == null ? fallbackCenter.x() - 24 : bounds.getMinX() - padding;
+        double y = bounds == null ? fallbackCenter.y() - 24 : bounds.getMinY() - padding;
+        double width = bounds == null ? 48 : Math.max(48, bounds.getWidth() + padding * 2);
+        double height = bounds == null ? 48 : Math.max(48, bounds.getHeight() + padding * 2);
+        Rectangle highlight = new Rectangle(x, y, width, height);
+        highlight.setArcWidth(18);
+        highlight.setArcHeight(18);
+        highlight.setFill(Color.TRANSPARENT);
+        highlight.setStroke(Color.web("#d946ef"));
+        highlight.setStrokeWidth(6);
+        highlight.setMouseTransparent(true);
+        objectSearchHighlight = highlight;
+        mapPane.getChildren().add(highlight);
+        highlight.toFront();
+
+        Timeline timeline = new Timeline(
+                new KeyFrame(
+                        Duration.ZERO,
+                        new KeyValue(highlight.scaleXProperty(), 1.0),
+                        new KeyValue(highlight.scaleYProperty(), 1.0),
+                        new KeyValue(highlight.opacityProperty(), 1.0)
+                ),
+                new KeyFrame(
+                        Duration.millis(320),
+                        new KeyValue(highlight.scaleXProperty(), 1.12),
+                        new KeyValue(highlight.scaleYProperty(), 1.12),
+                        new KeyValue(highlight.opacityProperty(), 0.25)
+                )
+        );
+        timeline.setAutoReverse(true);
+        timeline.setCycleCount(6);
+        timeline.setOnFinished(event -> {
+            mapPane.getChildren().remove(highlight);
+            if (objectSearchHighlight == highlight) {
+                objectSearchHighlight = null;
+                objectSearchHighlightTimeline = null;
+            }
+        });
+        objectSearchHighlightTimeline = timeline;
+        timeline.play();
     }
 
     private void updateRevealObjectButton() {
@@ -2326,6 +2558,7 @@ public class PlaaniseppApp extends Application {
 
     private void redrawMap() {
         mapPane.getChildren().clear();
+        mapObjectNodes.clear();
         powerConnectionAnchorMarkers.clear();
         addMapImage();
         if (showCables()) {
@@ -3534,6 +3767,7 @@ public class PlaaniseppApp extends Application {
 
 
     private void makeSelectable(Node node, PlannerObject object) {
+        mapObjectNodes.putIfAbsent(object.id(), node);
         node.setOnContextMenuRequested(event -> {
             if (!isPlacementPending() && !measuringActive && !addingCablePoint) {
                 showObjectContextMenu(object, event.getScreenX(), event.getScreenY());
