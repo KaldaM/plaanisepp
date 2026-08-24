@@ -2422,6 +2422,14 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showPlanSettingsDialog() {
+        showPlanSettingsDialog(false);
+    }
+
+    private void showNewPlanSettingsDialog() {
+        showPlanSettingsDialog(true);
+    }
+
+    private void showPlanSettingsDialog(boolean creatingNewPlan) {
         PlanSettingsDialog.Settings initialSettings = new PlanSettingsDialog.Settings(
                 plan.name(),
                 formatMeters(plan.pixelsPerMeter()),
@@ -2440,14 +2448,23 @@ public class PlaaniseppApp extends Application {
                 () -> setScaleFromLastMeasurement()
                         ? Optional.of(formatMeters(plan.pixelsPerMeter()))
                         : Optional.empty(),
-                planFileSession::rememberDirectory
-        ).ifPresent(settings -> applyPlanSettings(
-                settings.planName(),
-                settings.pixelsPerMeterText(),
-                settings.objectLabelFontSize(),
-                settings.cableLabelFontSize(),
-                settings.mapImagePath()
-        ));
+                planFileSession::rememberDirectory,
+                creatingNewPlan
+        ).ifPresent(settings -> {
+            String planName = creatingNewPlan && settings.planName().isBlank()
+                    ? plan.name()
+                    : settings.planName();
+            String pixelsPerMeter = creatingNewPlan && settings.pixelsPerMeterText().isBlank()
+                    ? formatMeters(plan.pixelsPerMeter())
+                    : settings.pixelsPerMeterText();
+            applyPlanSettings(
+                    planName,
+                    pixelsPerMeter,
+                    settings.objectLabelFontSize(),
+                    settings.cableLabelFontSize(),
+                    settings.mapImagePath()
+            );
+        });
     }
 
     private void applyPlanSettings(
@@ -2499,6 +2516,7 @@ public class PlaaniseppApp extends Application {
         plan = planFactory.createEmptyPlan();
         planFileSession.clearCurrentFile();
         resetPlanViewState();
+        showNewPlanSettingsDialog();
     }
 
     private void resetPlanViewState() {

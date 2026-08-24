@@ -29,7 +29,8 @@ final class PlanSettingsDialog {
             double minimumFontSize,
             double maximumFontSize,
             Supplier<Optional<String>> scaleFromMeasurement,
-            Consumer<File> selectedMapFileHandler
+            Consumer<File> selectedMapFileHandler,
+            boolean creatingNewPlan
     ) {
         TextField planNameField = new TextField(initialSettings.planName());
         TextField pixelsPerMeterField = new TextField(initialSettings.pixelsPerMeterText());
@@ -51,6 +52,8 @@ final class PlanSettingsDialog {
         defaultMapButton.setOnAction(event -> selectMap(initialSettings.defaultMapPath(), selectedMapPath, mapLabel));
         Button orthophotoButton = new Button("Ortofoto");
         orthophotoButton.setOnAction(event -> selectMap(initialSettings.orthophotoMapPath(), selectedMapPath, mapLabel));
+        Button noMapButton = new Button("Kaardita");
+        noMapButton.setOnAction(event -> selectMap("", selectedMapPath, mapLabel));
         Button loadMapButton = new Button("Laadi kaart");
         loadMapButton.setOnAction(event -> chooseMapFile(
                 owner,
@@ -76,13 +79,19 @@ final class PlanSettingsDialog {
         ));
         form.addRow(2, new Label("Objektisildi suurus"), pixelControl(objectLabelFontSizeSlider));
         form.addRow(3, new Label("Kaablisildi suurus"), pixelControl(cableLabelFontSizeSlider));
-        form.addRow(4, new Label("Kaart"), new HBox(8, defaultMapButton, orthophotoButton, loadMapButton));
+        form.addRow(4, new Label("Kaart"), new HBox(
+                8,
+                defaultMapButton,
+                orthophotoButton,
+                noMapButton,
+                loadMapButton
+        ));
         form.addRow(5, new Label("Valitud kaart"), mapLabel);
 
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
         dialog.initOwner(owner);
-        dialog.setTitle("Plaani andmed");
-        dialog.setHeaderText("Muuda plaani andmeid");
+        dialog.setTitle(creatingNewPlan ? "Uus plaan" : "Plaani andmed");
+        dialog.setHeaderText(creatingNewPlan ? "Sisesta uue plaani andmed" : "Muuda plaani andmeid");
         dialog.getDialogPane().setContent(form);
         return dialog.showAndWait()
                 .filter(ButtonType.OK::equals)
