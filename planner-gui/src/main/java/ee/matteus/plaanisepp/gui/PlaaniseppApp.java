@@ -258,7 +258,6 @@ public class PlaaniseppApp extends Application {
     private Label customObjectAreaLabel;
     private Label customObjectPerimeterLabel;
     private ComboBox<PowerSourceChoice> powerSourceComboBox;
-    private ComboBox<ConnectorType> connectionTypeComboBox;
     private ComboBox<OutletChoice> connectionOutletComboBox;
     private TextField cableLengthNotesField;
     private TextField cableNotesField;
@@ -1803,11 +1802,9 @@ public class PlaaniseppApp extends Application {
         customObjectPerimeterLabel = new Label("-");
         customObjectShapeComboBox.setOnAction(event -> updateCustomObjectSizeFields());
         powerSourceComboBox = new ComboBox<>();
-        powerSourceComboBox.setOnAction(event -> refreshConnectionTypeChoices(null));
-        connectionTypeComboBox = new ComboBox<>();
-        connectionTypeComboBox.setConverter(connectorTypeConverter());
-        connectionTypeComboBox.setOnAction(event -> refreshConnectionOutletChoices(null));
         connectionOutletComboBox = new ComboBox<>();
+        connectionOutletComboBox.setCellFactory(list -> createOutletChoiceCell());
+        connectionOutletComboBox.setButtonCell(createOutletChoiceCell());
         cableLengthNotesField = new TextField();
         cableLengthNotesField.setPromptText("nt 20 + 10 + 10");
         cableLengthNotesField.setOnAction(event -> autoApplyCableLengthNotes());
@@ -1955,11 +1952,10 @@ public class PlaaniseppApp extends Application {
 
         GridPane powerConnectionForm = detailGrid();
         powerConnectionForm.addRow(0, new Label("Vooluallikas"), powerSourceSelection);
-        powerConnectionForm.addRow(1, new Label("Ühenduse tüüp"), connectionTypeComboBox);
-        powerConnectionForm.addRow(2, new Label("Väljund"), connectionOutletComboBox);
-        powerConnectionForm.addRow(3, new Label("Kaabli tükid"), cableLengthNotesField);
-        powerConnectionForm.addRow(4, new Label("Kaabli märkmed"), cableNotesField);
-        powerConnectionForm.addRow(5, new Label("Sildi asukoht"), resetCableLabelButton);
+        powerConnectionForm.addRow(1, new Label("Väljund"), connectionOutletComboBox);
+        powerConnectionForm.addRow(2, new Label("Kaabli tükid"), cableLengthNotesField);
+        powerConnectionForm.addRow(3, new Label("Kaabli märkmed"), cableNotesField);
+        powerConnectionForm.addRow(4, new Label("Sildi asukoht"), resetCableLabelButton);
         powerConnectionPanel = new VBox(
                 8,
                 sectionLabel("Vool"),
@@ -2123,13 +2119,18 @@ public class PlaaniseppApp extends Application {
             autoApplyCustomObjectShape();
         });
         powerSourceComboBox.setOnAction(event -> {
-            refreshConnectionTypeChoices(null);
-            PowerSourceChoice choice = powerSourceComboBox.getSelectionModel().getSelectedItem();
-            if (choice != null && choice.isNone()) {
+            boolean applyUserChange = !updatingDetailControls;
+            boolean previouslyUpdating = updatingDetailControls;
+            updatingDetailControls = true;
+            try {
+                refreshConnectionOutletChoices(null);
+            } finally {
+                updatingDetailControls = previouslyUpdating;
+            }
+            if (applyUserChange) {
                 autoApplySelectedPowerConnection();
             }
         });
-        connectionTypeComboBox.setOnAction(event -> refreshConnectionOutletChoices(null));
         connectionOutletComboBox.setOnAction(event -> autoApplySelectedPowerConnection());
         configureDetailSliderPreview(textObjectFontSizeSlider);
         configureDetailSliderPreview(lineWidthSlider);
@@ -4767,7 +4768,6 @@ public class PlaaniseppApp extends Application {
         tentColorPicker.setDisable(!tentSelected);
         tentOpacitySlider.setDisable(!tentSelected);
         powerSourceComboBox.setDisable(!powerConsumerSelected);
-        connectionTypeComboBox.setDisable(!powerConsumerSelected);
         connectionOutletComboBox.setDisable(!powerConsumerSelected);
         cableLengthNotesField.setDisable(!powerConsumerSelected);
         cableNotesField.setDisable(!powerConsumerSelected);
@@ -6037,7 +6037,7 @@ public class PlaaniseppApp extends Application {
         }
 
         powerSourceComboBox.getSelectionModel().selectFirst();
-        refreshConnectionTypeChoices(ConnectorType.SCHUKO_230V);
+        refreshConnectionOutletChoices(null);
         if (!(selectedObject instanceof PowerConsumer)) {
             return;
         }
@@ -6047,37 +6047,8 @@ public class PlaaniseppApp extends Application {
                     .filter(choice -> choice.sourceId().equals(connection.sourceId()))
                     .findFirst()
                     .ifPresent(choice -> powerSourceComboBox.getSelectionModel().select(choice));
-            refreshConnectionTypeChoices(connection.connectorType());
             refreshConnectionOutletChoices(connection.outletId());
         });
-    }
-
-    private void refreshConnectionTypeChoices(ConnectorType preferredType) {
-        ConnectorType currentType = preferredType != null
-                ? preferredType
-                : connectionTypeComboBox.getSelectionModel().getSelectedItem();
-        connectionTypeComboBox.getItems().clear();
-
-        PowerSource selectedSource = selectedPowerSource();
-        if (selectedSource == null) {
-            connectionTypeComboBox.getItems().addAll(ConnectorType.values());
-        } else {
-            for (PowerOutlet outlet : selectedSource.outlets()) {
-                if (!connectionTypeComboBox.getItems().contains(outlet.type())) {
-                    connectionTypeComboBox.getItems().add(outlet.type());
-                }
-            }
-        }
-
-        if (connectionTypeComboBox.getItems().isEmpty()) {
-            return;
-        }
-        if (currentType != null && connectionTypeComboBox.getItems().contains(currentType)) {
-            connectionTypeComboBox.getSelectionModel().select(currentType);
-        } else {
-            connectionTypeComboBox.getSelectionModel().selectFirst();
-        }
-        refreshConnectionOutletChoices(null);
     }
 
     private void refreshConnectionOutletChoices(String preferredOutletId) {
@@ -6087,21 +6058,21 @@ public class PlaaniseppApp extends Application {
         connectionOutletComboBox.getItems().clear();
 
         PowerSource selectedSource = selectedPowerSource();
-        ConnectorType selectedType = selectedConnectionType();
-        if (selectedSource == null || selectedType == null) {
+        if (selectedSource == null) {
             return;
         }
 
-        int matchingIndex = 1;
+        Map<ConnectorType, Integer> typeIndexes = new EnumMap<>(ConnectorType.class);
         for (PowerOutlet outlet : selectedSource.outlets()) {
-            if (outlet.type() != selectedType) {
-                continue;
-            }
+            int matchingIndex = typeIndexes.merge(outlet.type(), 1, Integer::sum);
+            int usedWatts = usedWatts(outlet.id());
             connectionOutletComboBox.getItems().add(new OutletChoice(
                     outlet.id(),
-                    outletLabel(outlet, matchingIndex)
+                    outlet.type(),
+                    outletLabel(outlet, matchingIndex),
+                    usedWatts,
+                    outlet.capacityWatts()
             ));
-            matchingIndex++;
         }
 
         if (connectionOutletComboBox.getItems().isEmpty()) {
@@ -6114,6 +6085,31 @@ public class PlaaniseppApp extends Application {
                         choice -> connectionOutletComboBox.getSelectionModel().select(choice),
                         () -> connectionOutletComboBox.getSelectionModel().selectFirst()
                 );
+    }
+
+    private ListCell<OutletChoice> createOutletChoiceCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(OutletChoice choice, boolean empty) {
+                super.updateItem(choice, empty);
+                setText(null);
+                setGraphic(null);
+                if (empty || choice == null) {
+                    return;
+                }
+
+                PowerLoadLevel loadLevel = PowerLoadLevel.from(choice.usedWatts(), choice.capacityWatts());
+                Label loadLabel = new Label(choice.displayText());
+                loadLabel.setStyle(loadLevel == PowerLoadLevel.OVERLOADED
+                        ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
+                        : "-fx-text-fill: #1f2937;");
+                ProgressBar loadBar = new ProgressBar(choice.progress());
+                loadBar.setMaxWidth(Double.MAX_VALUE);
+                loadBar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
+                VBox loadContent = new VBox(3, loadLabel, loadBar);
+                setGraphic(loadContent);
+            }
+        };
     }
 
     private String outletLabel(PowerOutlet outlet, int matchingIndex) {
@@ -6205,8 +6201,8 @@ public class PlaaniseppApp extends Application {
     }
 
     private ConnectorType selectedConnectionType() {
-        ConnectorType selectedType = connectionTypeComboBox.getSelectionModel().getSelectedItem();
-        return selectedType == null ? ConnectorType.SCHUKO_230V : selectedType;
+        OutletChoice selectedOutlet = connectionOutletComboBox.getSelectionModel().getSelectedItem();
+        return selectedOutlet == null ? ConnectorType.SCHUKO_230V : selectedOutlet.connectorType();
     }
 
     private String selectedConnectionOutletId() {
@@ -7431,7 +7427,27 @@ public class PlaaniseppApp extends Application {
         }
     }
 
-    private record OutletChoice(String outletId, String name) {
+    private record OutletChoice(
+            String outletId,
+            ConnectorType connectorType,
+            String name,
+            int usedWatts,
+            int capacityWatts
+    ) {
+        private double progress() {
+            if (capacityWatts <= 0) {
+                return usedWatts > 0 ? 1.0 : 0.0;
+            }
+            return Math.clamp((double) usedWatts / capacityWatts, 0.0, 1.0);
+        }
+
+        private String displayText() {
+            if (capacityWatts <= 0) {
+                return name + " · —";
+            }
+            return "%s · %.0f%%".formatted(name, (double) usedWatts * 100 / capacityWatts);
+        }
+
         @Override
         public String toString() {
             return name;
