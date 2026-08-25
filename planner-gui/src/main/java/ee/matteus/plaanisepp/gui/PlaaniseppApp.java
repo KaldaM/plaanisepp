@@ -821,8 +821,64 @@ public class PlaaniseppApp extends Application {
                     : "Peida objekt (Ctrl+H)");
         });
 
+        MenuItem shortcutsItem = new MenuItem("Klahvikombinatsioonid");
+        shortcutsItem.setOnAction(event -> showKeyboardShortcuts());
+        MenuItem aboutItem = new MenuItem("Plaanisepa kohta");
+        aboutItem.setOnAction(event -> showAboutDialog());
+        Menu helpMenu = new Menu("Abi");
+        helpMenu.getItems().addAll(shortcutsItem, new SeparatorMenuItem(), aboutItem);
+
         updatePlanHistoryButtons();
-        return new MenuBar(fileMenu, editMenu);
+        return new MenuBar(fileMenu, editMenu, helpMenu);
+    }
+
+    private void showKeyboardShortcuts() {
+        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        dialog.initOwner(stage);
+        dialog.setTitle("Klahvikombinatsioonid");
+        dialog.setHeaderText("Plaanisepa klahvikombinatsioonid");
+        dialog.setContentText("""
+                Failid
+                Ctrl+N                 uus plaan
+                Ctrl+O                 ava plaan
+                Ctrl+S                 salvesta
+                Ctrl+Shift+S           salvesta kui
+                Ctrl+Shift+P           plaani andmed
+
+                Muutmine
+                Ctrl+Z                 võta tagasi
+                Ctrl+Alt+Z             tee uuesti
+                Alt+Enter              muuda valitud objekti
+                Ctrl+C / Ctrl+V        kopeeri / kleebi objekt
+                Ctrl+L                 lukusta või eemalda lukustus
+                Ctrl+H                 peida või kuva objekt
+                Delete                 kustuta objekt
+
+                Kaart
+                Ctrl+Shift+1…8         lisa valitud tüüpi objekt
+                kaks korda Shift       otsi objekti
+                Alt+hiirerull          suumi kursori asukoha järgi
+                Escape                 lõpeta aktiivne tööriist või otsing
+                """);
+        dialog.showAndWait();
+    }
+
+    private void showAboutDialog() {
+        String implementationVersion = PlaaniseppApp.class.getPackage().getImplementationVersion();
+        String version = implementationVersion == null || implementationVersion.isBlank()
+                ? "arendusversioon"
+                : implementationVersion;
+        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        dialog.initOwner(stage);
+        dialog.setTitle("Plaanisepa kohta");
+        dialog.setHeaderText("Plaanisepp");
+        dialog.setContentText("""
+                Ürituse alaplaani ja elektrivajaduse planeerija
+
+                Versioon: %s
+                Java: %s
+                """.formatted(version, System.getProperty("java.version", "määramata")));
+        dialog.showAndWait();
     }
 
     private ToolBar createToolbar() {
