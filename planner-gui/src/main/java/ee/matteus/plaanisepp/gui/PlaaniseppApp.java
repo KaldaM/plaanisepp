@@ -174,6 +174,8 @@ public class PlaaniseppApp extends Application {
     private double zoomLevel = 1.0;
     private Slider zoomSlider;
     private Button zoomPercentButton;
+    private Button undoButton;
+    private Button redoButton;
     private double mapWidth = MIN_MAP_WIDTH;
     private double mapHeight = MIN_MAP_HEIGHT;
     private double objectListHeight;
@@ -575,10 +577,21 @@ public class PlaaniseppApp extends Application {
 
     private void undoPlanChange() {
         planHistory.undo().ifPresent(this::restorePlanSnapshot);
+        updatePlanHistoryButtons();
     }
 
     private void redoPlanChange() {
         planHistory.redo().ifPresent(this::restorePlanSnapshot);
+        updatePlanHistoryButtons();
+    }
+
+    private void updatePlanHistoryButtons() {
+        if (undoButton != null) {
+            undoButton.setDisable(!planHistory.canUndo());
+        }
+        if (redoButton != null) {
+            redoButton.setDisable(!planHistory.canRedo());
+        }
     }
 
     private void restorePlanSnapshot(PlanSnapshot snapshot) {
@@ -710,6 +723,15 @@ public class PlaaniseppApp extends Application {
         Button newPlanButton = new Button("Uus plaan");
         newPlanButton.setOnAction(event -> newPlan());
 
+        undoButton = new Button("↶");
+        undoButton.setTooltip(new Tooltip("Võta viimane plaanimuudatus tagasi (Ctrl+Z)"));
+        undoButton.setOnAction(event -> undoPlanChange());
+
+        redoButton = new Button("↷");
+        redoButton.setTooltip(new Tooltip("Tee viimati tagasivõetud plaanimuudatus uuesti (Ctrl+Alt+Z)"));
+        redoButton.setOnAction(event -> redoPlanChange());
+        updatePlanHistoryButtons();
+
         placementTypeComboBox = new ComboBox<>();
         placementTypeComboBox.getItems().addAll(PlacementType.values());
         placementTypeComboBox.getSelectionModel().select(PlacementType.TENT);
@@ -825,6 +847,10 @@ public class PlaaniseppApp extends Application {
                 saveButton,
                 saveAsButton,
                 openButton,
+                new Separator(),
+                undoButton,
+                redoButton,
+                new Separator(),
                 exportSummaryButton,
                 exportMapImageButton,
                 exportPdfButton,
@@ -2949,6 +2975,7 @@ public class PlaaniseppApp extends Application {
         planHistory.record(planSnapshotService.create(plan));
         planDocumentState.markDirty();
         updateWindowTitle();
+        updatePlanHistoryButtons();
     }
 
     private void beginPlanDrag() {
@@ -2967,6 +2994,7 @@ public class PlaaniseppApp extends Application {
         }
         planDocumentState.markDirty();
         updateWindowTitle();
+        updatePlanHistoryButtons();
     }
 
     private void markClean() {
@@ -2975,6 +3003,7 @@ public class PlaaniseppApp extends Application {
         planHistory.replaceCurrent(snapshot);
         planDocumentState.markClean();
         updateWindowTitle();
+        updatePlanHistoryButtons();
     }
 
     private void resetPlanHistory() {
@@ -2983,6 +3012,7 @@ public class PlaaniseppApp extends Application {
         savedPlanSnapshot = snapshot;
         planDocumentState.markClean();
         updateWindowTitle();
+        updatePlanHistoryButtons();
     }
 
     private void updateWindowTitle() {

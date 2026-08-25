@@ -30,6 +30,35 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
+## Teostatud 25. augustil 2026
+
+Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d8384e`.
+
+- Külgpaneeli põhijaotiste järjestust saab paremklõpsumenüüst muuta, vaikejärjestuse taastada ja kasutaja eelistustes säilitada.
+- Kaabli trajektoori saab kaabli paremklõpsumenüüst muutma hakata, punkte lisada ja lohistada ning muutmise selgelt lõpetada.
+- Objektide kiirotsing avaneb kahe kiire `Shift`-vajutusega, saab kohe klaviatuurifookuse ning toetab valimist, tsentreerimist, esiletõstmist ja korrektset katkestamist.
+- Suumimiseks lisati liugur ja `Alt + hiirerull`; hiirega suumimisel jääb kursori all olev kaardipunkt paigale.
+- Lisati salvestamise kiirklahvid `Ctrl + S` ja `Ctrl + Shift + S` ning plaanihalduse kiirklahvid `Ctrl + N` ja `Ctrl + O`.
+- Lisati hiljutiste plaanide püsiloend, rakenduse käivitusdialoog ning uue plaani loomise dialoog koos plaaniandmete ja kaardi valimisega.
+- Lisati piiratud undo/redo ajalugu ja plaani hetktõmmised. `Ctrl + Z` ning `Ctrl + Alt + Z` taastavad plaanimuudatusi, lohistamine moodustab ühe tervikliku ajalookirje ning tööriistariba nupud näitavad keelatud olekuga, kui tagasi- või edasiliikumine pole võimalik.
+- Arengukava täiendati visuaalse uuenduse, checklist'ide, aedade tööriista, versioonide allalaadimise, aluskaartide, korraldajavaate ja kommenteerimise ideedega.
+- Objekti grupi määramine muudeti redigeeritavaks rippmenüüks: valida saab olemasoleva grupi või sisestada uue grupinime.
+- Lisati valitud objekti kiirklahvid `Ctrl + L` lukustamiseks, `Ctrl + H` peitmiseks ja `Delete` kustutamiseks.
+- Objekti dubleerimise nupp asendati kopeerimise ja kleepimisega: töötavad `Ctrl + C`, `Ctrl + V` ning kaardi ja objekti paremklõpsumenüüd.
+- Objektitüüpide lisamiseks lisati kiirklahvid `Ctrl + Shift + 1…8`.
+- Läbipaistvuse muutmine annab lohistamise ajal kaardil vahetu eelvaate.
+- Objekti lisamise dialoogi lisati „Näita nime” valik, selle eelmine väärtus jäetakse meelde ning valitud objekti nimi kuvatakse ka üldiselt peidetud nimesiltide korral.
+- Lisati kogu kaardi geomeetriat kaitsev paigutuslukk, mis jätab andmete muutmise võimalikuks, kuid takistab objektide, kaablite, siltide ja punktide kogemata liigutamist.
+- Objekti omaduste eraldi „Rakenda muudatused” nupp eemaldati; sobivad muudatused rakenduvad nüüd automaatselt.
+- Vooluallika saab valida otse kaardilt. Väljundi valik näitab kõiki valitud kapi väljundeid koos nende koormuse ja vaba võimsusega, mitte ainult varem sobitatud ühendustüüpi.
+- Vooluühenduste haldus muudeti ühendusepõhiseks: külgpaneelil saab valida põhi- või alternatiivühenduse ning muuta selle kappi, väljundit, kaablitükke, märkmeid ja silti.
+- Alternatiivühenduse saab luua, eemaldada või põhiühenduseks määrata otse külgpaneelilt. Seadme toide rakendub valimisel kohe.
+- Seadmete lisamine ja muutmine viidi dialoogi, kus saab korraga määrata nime, võimsuse ning põhi- või alternatiivtoite. Muutmine ja eemaldamine asuvad seadme paremklõpsumenüüs.
+- Seadmete loend näitab tegelikku toiteallikat, väljundi vaba võimsust, koormusprotsenti ja värvilist koormusriba. Vooluallika rippmenüü näitab sama kapi kogukoormuse kohta.
+- Kaablisildi nähtavust saab määrata iga ühenduse kohta eraldi ja valitud kaabli silt jääb nähtavaks ka peidetud siltide korral. Kaabli vähem kasutatavad andmed asuvad vaikimisi suletud „Kaabli lisainfo” jaotises.
+- `.pplan` failivormingu versioon 5 salvestab ühendusepõhise kaablisildi nähtavuse ning vanemad plaanid jäävad avatavaks.
+- Alajaotuskilbi koormus jõuab ülesvoolu kapi konkreetse väljundi ja kapi kogukoormuse arvestusse.
+
 ## 1. Rakenduse nimi
 
 ### Nimeotsus
@@ -317,6 +346,8 @@ Lisaks on teostatud `Ctrl + N` uue plaani loomiseks, `Ctrl + O` plaani avamiseks
 - Nuppude kohtspikrid peavad kuvama tegevuse nime ja vastava klahvikombinatsiooni.
 
 Piiratud undo/redo seisundiajalugu ja mälus töötav plaani hetktõmmise teenus on teostatud ning automaattestidega kaetud. Hetktõmmis kasutab sama teisendust nagu `.pplan` teenus, taastab objektid ja elektriseosed sõltumatu mudelina ning väldib sama pakitud kaardipildi korduvat hoidmist. Plaanimuudatused on seotud `Ctrl + Z` ja `Ctrl + Alt + Z` klahvikombinatsioonidega; tekstiväljas jääb `Ctrl + Z` teksti muutmise käsuks. Faili avamine ja uue plaani loomine alustavad uut ajalugu ning salvestatud seisundisse naasmine taastab puhta oleku. Objekti ja nimesildi lohistamine kasutab tehingut, mille esimene liikumine loob ajalookirje ning järgmised liikumised asendavad sama kirje lõppseisundit; tulemus ei sõltu JavaFX-i hiire vabastamise sündmuse jõudmisest ümber joonistatud sõlmeni. Ala-, joone-, kaabli- ja ühenduspunkti lohistamine salvestatakse ühe sammuna hiire vabastamisel. Undo/redo säilitab võimaluse korral aktiivse tööriista, sealhulgas kaablipunktide lisamise režiimi; eemaldatud ühendusele viitav režiim lõpetatakse turvaliselt.
+
+Tööriistaribal on hiirega kasutatavad undo- ja redo-nupud koos klahvikombinatsioonide kohtspikritega. Nuppude lubatud olek uueneb plaanimuudatuse, lohistamise, undo, redo, salvestamise, faili avamise ja uue plaani loomise järel ning näitab kohe, kas vastavas suunas saab ajaloos liikuda.
 
 ## 10. Checklistid
 
