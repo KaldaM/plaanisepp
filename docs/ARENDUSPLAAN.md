@@ -35,6 +35,7 @@ Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanid
 Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d8384e`.
 
 - Külgpaneeli põhijaotiste järjestust saab paremklõpsumenüüst muuta, vaikejärjestuse taastada ja kasutaja eelistustes säilitada.
+- Rakendusele lisati laiendatav menüüriba. Uue plaani loomine, avamine, salvestamine, „Salvesta kui”, ekspordid ja plaani andmed viidi tööriistaribalt „Fail” menüüsse; senised klahvikombinatsioonid säilisid.
 - Kaabli trajektoori saab kaabli paremklõpsumenüüst muutma hakata, punkte lisada ja lohistada ning muutmise selgelt lõpetada.
 - Objektide kiirotsing avaneb kahe kiire `Shift`-vajutusega, saab kohe klaviatuurifookuse ning toetab valimist, tsentreerimist, esiletõstmist ja korrektset katkestamist.
 - Suumimiseks lisati liugur ja `Alt + hiirerull`; hiirega suumimisel jääb kursori all olev kaardipunkt paigale.

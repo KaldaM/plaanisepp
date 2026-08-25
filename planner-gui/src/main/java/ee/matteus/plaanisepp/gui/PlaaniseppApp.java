@@ -52,7 +52,9 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
@@ -348,7 +350,7 @@ public class PlaaniseppApp extends Application {
         objectListHeight = loadObjectListHeightPreference();
 
         BorderPane root = new BorderPane();
-        root.setTop(createToolbar());
+        root.setTop(new VBox(createMenuBar(), createToolbar()));
         root.setCenter(createContent());
 
         refreshGroupFilters();
@@ -357,34 +359,6 @@ public class PlaaniseppApp extends Application {
         refreshDetails();
 
         Scene scene = new Scene(root, 1200, 760);
-        scene.getAccelerators().put(
-                new KeyCodeCombination(KeyCode.N, KeyCombination.CONTROL_DOWN),
-                this::newPlan
-        );
-        scene.getAccelerators().put(
-                new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN),
-                this::openPlan
-        );
-        scene.getAccelerators().put(
-                new KeyCodeCombination(
-                        KeyCode.P,
-                        KeyCombination.CONTROL_DOWN,
-                        KeyCombination.SHIFT_DOWN
-                ),
-                this::showPlanSettingsDialog
-        );
-        scene.getAccelerators().put(
-                new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN),
-                this::savePlan
-        );
-        scene.getAccelerators().put(
-                new KeyCodeCombination(
-                        KeyCode.S,
-                        KeyCombination.CONTROL_DOWN,
-                        KeyCombination.SHIFT_DOWN
-                ),
-                this::savePlanAs
-        );
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             handlePlanHistoryShortcut(event, scene);
             if (event.isConsumed()) {
@@ -719,10 +693,60 @@ public class PlaaniseppApp extends Application {
         }
     }
 
-    private ToolBar createToolbar() {
-        Button newPlanButton = new Button("Uus plaan");
-        newPlanButton.setOnAction(event -> newPlan());
+    private MenuBar createMenuBar() {
+        MenuItem newPlanItem = new MenuItem("Uus plaan");
+        newPlanItem.setAccelerator(new KeyCodeCombination(KeyCode.N, KeyCombination.CONTROL_DOWN));
+        newPlanItem.setOnAction(event -> newPlan());
 
+        MenuItem openPlanItem = new MenuItem("Ava…");
+        openPlanItem.setAccelerator(new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN));
+        openPlanItem.setOnAction(event -> openPlan());
+
+        MenuItem savePlanItem = new MenuItem("Salvesta");
+        savePlanItem.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN));
+        savePlanItem.setOnAction(event -> savePlan());
+
+        MenuItem savePlanAsItem = new MenuItem("Salvesta kui…");
+        savePlanAsItem.setAccelerator(new KeyCodeCombination(
+                KeyCode.S,
+                KeyCombination.CONTROL_DOWN,
+                KeyCombination.SHIFT_DOWN
+        ));
+        savePlanAsItem.setOnAction(event -> savePlanAs());
+
+        MenuItem exportTextItem = new MenuItem("Tekstiraport (TXT)…");
+        exportTextItem.setOnAction(event -> exportSummary());
+        MenuItem exportImageItem = new MenuItem("Kaardipilt (PNG)…");
+        exportImageItem.setOnAction(event -> exportMapImage());
+        MenuItem exportPdfItem = new MenuItem("Plaan ja raport (PDF)…");
+        exportPdfItem.setOnAction(event -> exportPdf());
+        Menu exportMenu = new Menu("Ekspordi");
+        exportMenu.getItems().addAll(exportTextItem, exportImageItem, exportPdfItem);
+
+        MenuItem planSettingsItem = new MenuItem("Plaani andmed…");
+        planSettingsItem.setAccelerator(new KeyCodeCombination(
+                KeyCode.P,
+                KeyCombination.CONTROL_DOWN,
+                KeyCombination.SHIFT_DOWN
+        ));
+        planSettingsItem.setOnAction(event -> showPlanSettingsDialog());
+
+        Menu fileMenu = new Menu("Fail");
+        fileMenu.getItems().addAll(
+                newPlanItem,
+                openPlanItem,
+                new SeparatorMenuItem(),
+                savePlanItem,
+                savePlanAsItem,
+                new SeparatorMenuItem(),
+                exportMenu,
+                new SeparatorMenuItem(),
+                planSettingsItem
+        );
+        return new MenuBar(fileMenu);
+    }
+
+    private ToolBar createToolbar() {
         undoButton = new Button("↶");
         undoButton.setTooltip(new Tooltip("Võta viimane plaanimuudatus tagasi (Ctrl+Z)"));
         undoButton.setOnAction(event -> undoPlanChange());
@@ -742,30 +766,6 @@ public class PlaaniseppApp extends Application {
                 "Vali tüüp ja vajuta kaardile, kuhu objekt lisada (kiirvalikud Ctrl+Shift+1…8)"
         ));
         addPlacementButton.setOnAction(event -> toggleSelectedPlacement());
-
-        Button saveButton = new Button("Salvesta");
-        saveButton.setOnAction(event -> savePlan());
-
-        Button saveAsButton = new Button("Salvesta kui");
-        saveAsButton.setOnAction(event -> savePlanAs());
-
-        Button exportSummaryButton = new Button("Ekspordi TXT");
-        exportSummaryButton.setTooltip(new Tooltip("Ekspordib tekstiraporti .txt failina"));
-        exportSummaryButton.setOnAction(event -> exportSummary());
-
-        Button exportMapImageButton = new Button("Ekspordi pilt");
-        exportMapImageButton.setTooltip(new Tooltip("Ekspordib kaardi .png pildina"));
-        exportMapImageButton.setOnAction(event -> exportMapImage());
-
-        Button exportPdfButton = new Button("Ekspordi PDF");
-        exportPdfButton.setTooltip(new Tooltip("Ekspordib kaardi ja raporti .pdf failina"));
-        exportPdfButton.setOnAction(event -> exportPdf());
-
-        Button openButton = new Button("Ava");
-        openButton.setOnAction(event -> openPlan());
-
-        Button planSettingsButton = new Button("Plaani andmed");
-        planSettingsButton.setOnAction(event -> showPlanSettingsDialog());
 
         zoomSlider = new Slider(25, 400, zoomLevel * 100);
         zoomSlider.setPrefWidth(140);
@@ -843,18 +843,8 @@ public class PlaaniseppApp extends Application {
         updatePlanTitleLabel();
 
         return new ToolBar(
-                newPlanButton,
-                saveButton,
-                saveAsButton,
-                openButton,
-                new Separator(),
                 undoButton,
                 redoButton,
-                new Separator(),
-                exportSummaryButton,
-                exportMapImageButton,
-                exportPdfButton,
-                planSettingsButton,
                 new Separator(),
                 new Label("Lisa"),
                 placementTypeComboBox,
