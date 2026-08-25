@@ -411,15 +411,16 @@ Keeruliste kujude jaoks lisatakse generaatorid vähemalt sirgele reale, kaarele 
 - Läbipaistvuse liugur peab näitama tulemust kaardil kohe lohistamise ajal ning selle kõrval peab alati olema nähtav arvuline protsent. Üks lohistamine salvestatakse undo-ajaloos ühe muudatusena.
 - Kui nimesildid on üldiselt peidetud, kuvatakse valitud objekti nimesilt ajutiselt seni, kuni objekt on valitud. See ei muuda plaani ega kihi püsivat nähtavusseadet.
 
-### „Rakenda muudatused” reegel
+### Automaatse rakendamise reegel
 
-Praegune segane automaatse ja nupuga rakendamise kombinatsioon tuleb muuta järjekindlaks:
+Valitud objekti eraldi „Rakenda muudatused” nupp eemaldatakse, sest see muudab külgpaneeli kasutamise aeglasemaks ja ebaselgemaks. Kõik väljad rakenduvad automaatselt:
 
 - ühe väärtusega otsesed juhtelemendid, näiteks lukustus, nähtavus, värv ja läbipaistvus, annavad kaardil kohese eelvaate;
-- mitme omavahel seotud tekstiväljaga objektiandmed moodustavad ühe muutmistehingu ning kinnitatakse „Rakenda muudatused” tegevusega;
-- rakendamata muudatused tähistatakse vaates selgelt ning teise objekti valimisel küsitakse vajaduse korral, kas need rakendada või hüljata;
-- `Ctrl + Enter` rakendab aktiivse objektiandmete vaate muudatused;
-- `Escape` taastab rakendamata väljad viimati kinnitatud väärtustele;
+- teksti- ja arvuväli kinnitub Enteriga või väljalt lahkudes;
+- omavahel seotud vooluvalikud rakenduvad siis, kui moodustub täielik ja kehtiv kombinatsioon;
+- ajutiselt vigast arvuväärtust ei kirjutata mudelisse ning kasutajale kuvatakse selge valideerimisteade;
+- ühe välja redigeerimine või üks liugurilohistamine moodustab ühe undo-sammu;
+- teise objekti valimine ei tohi pooleliolevat korrektset väljamuudatust kaotada;
 - sama omadus ei tohi mõnes vaates rakenduda kohe ja teises alles nupuga.
 
 ### Klahvikombinatsioonid
@@ -427,7 +428,6 @@ Praegune segane automaatse ja nupuga rakendamise kombinatsioon tuleb muuta järj
 - `Ctrl + L` lülitab valitud objekti lukustuse sisse või välja.
 - `Ctrl + H` peidab valitud objekti või kuvab selle uuesti.
 - `Delete` kustutab valitud objekti, kasutades sama kinnitust ja seoste puhastamist nagu kontekstimenüü.
-- `Ctrl + Enter` rakendab aktiivses omaduste vaates tehtud muudatused.
 - `Ctrl + Shift + 1` alustab telgi lisamist.
 - `Ctrl + Shift + 2` alustab elektrikapi lisamist.
 - `Ctrl + Shift + 3` alustab alajaotuskilbi lisamist.

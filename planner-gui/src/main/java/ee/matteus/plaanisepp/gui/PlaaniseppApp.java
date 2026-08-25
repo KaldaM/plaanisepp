@@ -336,6 +336,8 @@ public class PlaaniseppApp extends Application {
     private int keyboardPasteCount;
     private boolean updatingOpacityControls;
     private boolean opacityDragChanged;
+    private boolean updatingDetailControls;
+    private boolean detailSliderDragChanged;
     private boolean mapLayoutLocked;
     private Stage stage;
 
@@ -494,16 +496,6 @@ public class PlaaniseppApp extends Application {
     }
 
     private void handleSelectedObjectShortcut(KeyEvent event, Scene scene) {
-        if (event.getCode() == KeyCode.ENTER
-                && event.isControlDown()
-                && !event.isAltDown()
-                && !event.isShiftDown()) {
-            if (selectedObject != null) {
-                applyDetails();
-                event.consume();
-            }
-            return;
-        }
         if (scene.getFocusOwner() instanceof TextInputControl
                 || isPlacementPending()
                 || addingCablePoint
@@ -1781,7 +1773,10 @@ public class PlaaniseppApp extends Application {
         lockedCheckBox.setTooltip(new Tooltip("Lülita valitud objekti lukustust (Ctrl+L)"));
         lockedCheckBox.setOnAction(event -> updateSelectedLock());
         showMapLabelCheckBox = new CheckBox("Näita nime");
-        showMapLabelCheckBox.setTooltip(new Tooltip("Peidab või näitab ainult kaardil olevat nime, mitte objekti ennast"));
+        showMapLabelCheckBox.setTooltip(new Tooltip(
+                "Rakendub kohe; valitud objekti nimi jääb valiku ajal siiski nähtavaks"
+        ));
+        showMapLabelCheckBox.setOnAction(event -> updateSelectedMapLabelVisibility());
         resetMapLabelButton = new Button("Lähtesta nime asukoht");
         resetMapLabelButton.setOnAction(event -> resetSelectedMapLabelPosition());
         tentWidthField = new TextField();
@@ -1936,6 +1931,7 @@ public class PlaaniseppApp extends Application {
 
         lineColorPicker = new ColorPicker();
         lineWidthSlider = createPixelSlider(1, 50, LineObject.DEFAULT_WIDTH_PIXELS);
+        configureAutoApplyingDetailControls();
         lineLengthLabel = new Label("-");
         GridPane lineForm = detailGrid();
         lineForm.addRow(0, new Label("Värv"), lineColorPicker);
@@ -1968,9 +1964,6 @@ public class PlaaniseppApp extends Application {
         GridPane notesForm = detailGrid();
         notesForm.addRow(0, new Label("Märkmed"), notesArea);
 
-        Button applyButton = new Button("Rakenda muudatused");
-        applyButton.setTooltip(new Tooltip("Rakenda valitud objekti muudatused (Ctrl+Enter)"));
-        applyButton.setOnAction(event -> applyDetails());
         choosePowerSourceButton = new Button("Vali kapp kaardilt");
         choosePowerSourceButton.setOnAction(event -> startPowerSourceSelectionFromMap());
         deleteObjectButton = new Button("Kustuta objekt");
@@ -2015,7 +2008,6 @@ public class PlaaniseppApp extends Application {
                 equipmentSection,
                 outletSection,
                 new VBox(8, sectionLabel("Märkmed"), notesForm),
-                applyButton,
                 choosePowerSourceButton,
                 deleteObjectButton
         );
@@ -2103,6 +2095,82 @@ public class PlaaniseppApp extends Application {
         } finally {
             updatingOpacityControls = false;
         }
+    }
+
+    private void configureAutoApplyingDetailControls() {
+        configureTextCommit(nameField, this::autoApplySelectedName);
+        configureTextCommit(groupField.getEditor(), this::autoApplySelectedGroup);
+        groupField.setOnAction(event -> autoApplySelectedGroup());
+        configureTextCommit(tentWidthField, this::autoApplyTentSize);
+        configureTextCommit(tentHeightField, this::autoApplyTentSize);
+        configureTextCommit(tentRotationField, this::autoApplyTentRotation);
+        configureTextCommit(customObjectWidthField, this::autoApplyCustomObjectSize);
+        configureTextCommit(customObjectHeightField, this::autoApplyCustomObjectSize);
+        configureTextCommit(customObjectRotationField, this::autoApplyCustomObjectRotation);
+
+        tentColorPicker.setOnAction(event -> autoApplySelectedColor());
+        customObjectColorPicker.setOnAction(event -> autoApplySelectedColor());
+        textObjectColorPicker.setOnAction(event -> autoApplySelectedColor());
+        markerColorPicker.setOnAction(event -> autoApplySelectedColor());
+        areaColorPicker.setOnAction(event -> autoApplySelectedColor());
+        lineColorPicker.setOnAction(event -> autoApplySelectedColor());
+        markerTypeComboBox.setOnAction(event -> autoApplyMarkerType());
+        customObjectShapeComboBox.setOnAction(event -> {
+            updateCustomObjectSizeFields();
+            autoApplyCustomObjectShape();
+        });
+        powerSourceComboBox.setOnAction(event -> {
+            refreshConnectionTypeChoices(null);
+            PowerSourceChoice choice = powerSourceComboBox.getSelectionModel().getSelectedItem();
+            if (choice != null && choice.isNone()) {
+                autoApplySelectedPowerConnection();
+            }
+        });
+        connectionTypeComboBox.setOnAction(event -> refreshConnectionOutletChoices(null));
+        connectionOutletComboBox.setOnAction(event -> autoApplySelectedPowerConnection());
+        configureDetailSliderPreview(textObjectFontSizeSlider);
+        configureDetailSliderPreview(lineWidthSlider);
+    }
+
+    private void configureTextCommit(TextField field, Runnable action) {
+        field.setOnAction(event -> action.run());
+        field.focusedProperty().addListener((observable, wasFocused, isFocused) -> {
+            if (wasFocused && !isFocused) {
+                action.run();
+            }
+        });
+    }
+
+    private void configureDetailSliderPreview(Slider slider) {
+        slider.valueProperty().addListener((observable, oldValue, newValue) -> {
+            if (updatingDetailControls || !previewSelectedDetailSlider(slider, newValue.doubleValue())) {
+                return;
+            }
+            redrawMap();
+            if (slider.isValueChanging()) {
+                detailSliderDragChanged = true;
+            } else {
+                markDirty();
+            }
+        });
+        slider.valueChangingProperty().addListener((observable, wasChanging, isChanging) -> {
+            if (wasChanging && !isChanging && detailSliderDragChanged) {
+                detailSliderDragChanged = false;
+                markDirty();
+            }
+        });
+    }
+
+    private boolean previewSelectedDetailSlider(Slider slider, double value) {
+        if (slider == textObjectFontSizeSlider && selectedObject instanceof TextObject textObject) {
+            textObject.setFontSize(value);
+            return true;
+        }
+        if (slider == lineWidthSlider && selectedObject instanceof LineObject lineObject) {
+            lineObject.setWidthPixels(value);
+            return true;
+        }
+        return false;
     }
 
     private String opacityPercentageText(double percentage) {
@@ -4408,12 +4476,40 @@ public class PlaaniseppApp extends Application {
     }
 
     private void selectObject(PlannerObject object) {
+        if (selectedObject != null
+                && object != null
+                && !selectedObject.id().equals(object.id())
+                && !updatingDetailControls) {
+            commitPendingDetailFieldsBeforeSelectionChange();
+        }
         selectedObject = object;
         clearObjectSearchIfItHides(object);
         refreshDetails();
         revealObjectInObjectList(object);
         revealObjectInPowerSummary(object);
         redrawMap();
+    }
+
+    private void commitPendingDetailFieldsBeforeSelectionChange() {
+        PlanSnapshot before = planSnapshotService.create(plan);
+        selectedObject.rename(nameField.getText());
+        selectedObject.setGroupName(groupField.getEditor().getText());
+        selectedObject.setNotes(notesArea.getText());
+        if (selectedObject instanceof Tent tent) {
+            applyTentSize(tent);
+            applyTentRotation(tent);
+        } else if (selectedObject instanceof CustomObject customObject) {
+            applyCustomObjectSize(customObject);
+            applyCustomObjectRotation(customObject);
+        }
+        autoApplyCableLengthNotes();
+        autoApplyCableNotes();
+        if (!before.equals(planSnapshotService.create(plan))) {
+            refreshGroupFilters();
+            refreshObjectList();
+            refreshSummary();
+            markDirty();
+        }
     }
 
     private void clearObjectSearchIfItHides(PlannerObject object) {
@@ -4617,6 +4713,15 @@ public class PlaaniseppApp extends Application {
     }
 
     private void refreshDetails() {
+        updatingDetailControls = true;
+        try {
+            refreshDetailControls();
+        } finally {
+            updatingDetailControls = false;
+        }
+    }
+
+    private void refreshDetailControls() {
         boolean hasSelection = selectedObject != null;
         boolean tentSelected = selectedObject instanceof Tent;
         boolean powerSourceSelected = selectedObject instanceof PowerSource;
@@ -5006,6 +5111,15 @@ public class PlaaniseppApp extends Application {
         markDirty();
     }
 
+    private void updateSelectedMapLabelVisibility() {
+        if (selectedObject == null || selectedObject instanceof TextObject) {
+            return;
+        }
+        selectedObject.setShowMapLabel(showMapLabelCheckBox.isSelected());
+        redrawMap();
+        markDirty();
+    }
+
     private void resetSelectedMapLabelPosition() {
         if (mapLayoutLocked) {
             showMapLayoutLockedMessage();
@@ -5113,68 +5227,139 @@ public class PlaaniseppApp extends Application {
         return "Objekt";
     }
 
-    private void applyDetails() {
-        if (selectedObject == null) {
+    private void autoApplySelectedName() {
+        if (updatingDetailControls || selectedObject == null
+                || selectedObject.name().equals(nameField.getText())) {
             return;
         }
-
         selectedObject.rename(nameField.getText());
-        selectedObject.setGroupName(groupField.getEditor().getText());
-        selectedObject.setNotes(notesArea.getText());
-        selectedObject.setLocked(lockedCheckBox.isSelected());
-        selectedObject.setShowMapLabel(showMapLabelCheckBox.isSelected());
+        finishAutoAppliedDetailsChange(false);
+    }
+
+    private void autoApplySelectedGroup() {
+        if (updatingDetailControls || selectedObject == null) {
+            return;
+        }
+        String groupName = groupField.getEditor().getText();
+        if (selectedObject.groupName().equals(groupName)) {
+            return;
+        }
+        selectedObject.setGroupName(groupName);
+        finishAutoAppliedDetailsChange(true);
+    }
+
+    private void autoApplyTentSize() {
+        if (updatingDetailControls || !(selectedObject instanceof Tent tent)) {
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        if (applyTentSize(tent)) {
+            finishAutoAppliedDetailsChange(before, false);
+        }
+    }
+
+    private void autoApplyTentRotation() {
+        if (updatingDetailControls || !(selectedObject instanceof Tent tent)) {
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        if (applyTentRotation(tent)) {
+            finishAutoAppliedDetailsChange(before, false);
+        }
+    }
+
+    private void autoApplyCustomObjectSize() {
+        if (updatingDetailControls || !(selectedObject instanceof CustomObject customObject)) {
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        if (applyCustomObjectSize(customObject)) {
+            finishAutoAppliedDetailsChange(before, false);
+        }
+    }
+
+    private void autoApplyCustomObjectRotation() {
+        if (updatingDetailControls || !(selectedObject instanceof CustomObject customObject)) {
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        if (applyCustomObjectRotation(customObject)) {
+            finishAutoAppliedDetailsChange(before, false);
+        }
+    }
+
+    private void autoApplyCustomObjectShape() {
+        if (updatingDetailControls || !(selectedObject instanceof CustomObject customObject)) {
+            return;
+        }
+        CustomObjectShape shape = customObjectShapeComboBox.getSelectionModel().getSelectedItem();
+        if (shape == null || shape == customObject.shape()) {
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        customObject.setShape(shape);
+        if (shape == CustomObjectShape.CIRCLE) {
+            customObject.setRotationDegrees(0);
+        }
+        if (applyCustomObjectSize(customObject)) {
+            finishAutoAppliedDetailsChange(before, false);
+        }
+    }
+
+    private void autoApplySelectedColor() {
+        if (updatingDetailControls || selectedObject == null) {
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
         if (selectedObject instanceof Tent tent) {
-            if (!applyTentSize(tent)) {
-                return;
-            }
-            if (!applyTentRotation(tent)) {
-                return;
-            }
-            if (!applyTentOpacity(tent)) {
-                return;
-            }
             tent.setColorHex(toHex(tentColorPicker.getValue()));
         } else if (selectedObject instanceof CustomObject customObject) {
-            if (!applyCustomObjectSize(customObject)) {
-                return;
-            }
-            if (!applyCustomObjectRotation(customObject)) {
-                return;
-            }
-            if (!applyCustomObjectOpacity(customObject)) {
-                return;
-            }
-            CustomObjectShape selectedShape = customObjectShapeComboBox.getSelectionModel().getSelectedItem();
-            customObject.setShape(selectedShape);
             customObject.setColorHex(toHex(customObjectColorPicker.getValue()));
         } else if (selectedObject instanceof TextObject textObject) {
-            if (!applyTextObjectFontSize(textObject)) {
-                return;
-            }
             textObject.setColorHex(toHex(textObjectColorPicker.getValue()));
         } else if (selectedObject instanceof MarkerObject markerObject) {
-            MarkerType selectedMarkerType = markerTypeComboBox.getSelectionModel().getSelectedItem();
-            markerObject.setMarkerType(selectedMarkerType);
             markerObject.setColorHex(toHex(markerColorPicker.getValue()));
         } else if (selectedObject instanceof AreaObject areaObject) {
-            if (!applyAreaOpacity(areaObject)) {
-                return;
-            }
             areaObject.setColorHex(toHex(areaColorPicker.getValue()));
         } else if (selectedObject instanceof LineObject lineObject) {
-            if (!applyLineWidth(lineObject)) {
-                return;
-            }
             lineObject.setColorHex(toHex(lineColorPicker.getValue()));
         }
-        if (selectedObject instanceof PowerConsumer && !applySelectedPowerSource(selectedObject)) {
+        finishAutoAppliedDetailsChange(before, false);
+    }
+
+    private void autoApplyMarkerType() {
+        if (updatingDetailControls || !(selectedObject instanceof MarkerObject markerObject)) {
             return;
         }
-        setAddingCablePoint(false);
-        if (addCablePointButton != null) {
-            addCablePointButton.setSelected(false);
+        MarkerType markerType = markerTypeComboBox.getSelectionModel().getSelectedItem();
+        if (markerType == null || markerType == markerObject.markerType()) {
+            return;
         }
-        refreshGroupFilters();
+        markerObject.setMarkerType(markerType);
+        finishAutoAppliedDetailsChange(false);
+    }
+
+    private void autoApplySelectedPowerConnection() {
+        if (updatingDetailControls || !(selectedObject instanceof PowerConsumer)) {
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        if (applySelectedPowerSource(selectedObject)) {
+            finishAutoAppliedDetailsChange(before, false);
+        }
+    }
+
+    private void finishAutoAppliedDetailsChange(boolean refreshGroups) {
+        finishAutoAppliedDetailsChange(null, refreshGroups);
+    }
+
+    private void finishAutoAppliedDetailsChange(PlanSnapshot before, boolean refreshGroups) {
+        if (before != null && before.equals(planSnapshotService.create(plan))) {
+            return;
+        }
+        if (refreshGroups) {
+            refreshGroupFilters();
+        }
         refreshObjectList();
         redrawMap();
         refreshSummary();
@@ -5735,11 +5920,6 @@ public class PlaaniseppApp extends Application {
         }
     }
 
-    private boolean applyTentOpacity(Tent tent) {
-        tent.setOpacity(tentOpacitySlider.getValue() / 100.0);
-        return true;
-    }
-
     private boolean applyCustomObjectSize(CustomObject object) {
         try {
             CustomObjectShape selectedShape = customObjectShapeComboBox.getSelectionModel().getSelectedItem();
@@ -5778,26 +5958,6 @@ public class PlaaniseppApp extends Application {
             showError("Pööret ei muudetud", "Sisesta objekti pööre arvuna kraadides.");
             return false;
         }
-    }
-
-    private boolean applyTextObjectFontSize(TextObject object) {
-        object.setFontSize(textObjectFontSizeSlider.getValue());
-        return true;
-    }
-
-    private boolean applyAreaOpacity(AreaObject object) {
-        object.setOpacity(areaOpacitySlider.getValue() / 100.0);
-        return true;
-    }
-
-    private boolean applyCustomObjectOpacity(CustomObject object) {
-        object.setOpacity(customObjectOpacitySlider.getValue() / 100.0);
-        return true;
-    }
-
-    private boolean applyLineWidth(LineObject object) {
-        object.setWidthPixels(lineWidthSlider.getValue());
-        return true;
     }
 
     private String formatMeters(double meters) {
