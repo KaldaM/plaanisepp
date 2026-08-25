@@ -26,4 +26,30 @@ class FenceRowTest {
         assertThrows(IllegalArgumentException.class, () -> row.setSegmentCount(0));
         assertThrows(IllegalArgumentException.class, () -> row.setSegmentLengthMeters(0));
     }
+
+    @Test
+    void rotatesEndWithoutChangingFenceLength() {
+        FenceRow row = new FenceRow("fence", "Aiarida", new Position(10, 20));
+        row.setSegmentCount(2);
+
+        row.rotateEndToward(new Position(10, 200));
+
+        assertEquals(90, row.rotationDegrees(), 0.0001);
+        assertEquals(7, row.totalLengthMeters(), 0.0001);
+        assertEquals(10, row.endPosition(10).x(), 0.0001);
+        assertEquals(90, row.endPosition(10).y(), 0.0001);
+    }
+
+    @Test
+    void movesStartWhileKeepingEndAndLengthFixed() {
+        FenceRow row = new FenceRow("fence", "Aiarida", new Position(0, 0));
+        row.setSegmentCount(2);
+        Position originalEnd = row.endPosition(10);
+
+        row.moveStartTowardKeepingEnd(new Position(originalEnd.x(), -100), 10);
+
+        assertEquals(originalEnd.x(), row.endPosition(10).x(), 0.0001);
+        assertEquals(originalEnd.y(), row.endPosition(10).y(), 0.0001);
+        assertEquals(7, row.totalLengthMeters(), 0.0001);
+    }
 }

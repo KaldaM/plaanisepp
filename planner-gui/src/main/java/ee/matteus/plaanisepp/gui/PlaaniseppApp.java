@@ -276,6 +276,10 @@ public class PlaaniseppApp extends Application {
     private ColorPicker lineColorPicker;
     private Slider lineWidthSlider;
     private Label lineLengthLabel;
+    private TextField fenceSegmentCountField;
+    private TextField fenceSegmentLengthField;
+    private TextField fenceRotationField;
+    private Label fenceTotalLengthLabel;
     private Label customObjectWidthLabel;
     private Label customObjectHeightLabel;
     private TextField customObjectWidthField;
@@ -309,6 +313,7 @@ public class PlaaniseppApp extends Application {
     private VBox markerPanel;
     private VBox areaPanel;
     private VBox linePanel;
+    private VBox fenceRowPanel;
     private VBox tentPanel;
     private VBox powerConnectionPanel;
     private VBox equipmentPanel;
@@ -2481,6 +2486,20 @@ public class PlaaniseppApp extends Application {
         lineForm.addRow(2, new Label("Pikkus"), lineLengthLabel);
         linePanel = new VBox(8, sectionLabel("Joon"), lineForm);
 
+        fenceSegmentCountField = new TextField();
+        fenceSegmentLengthField = new TextField();
+        fenceRotationField = new TextField();
+        fenceTotalLengthLabel = new Label("-");
+        configureTextCommit(fenceSegmentCountField, this::autoApplyFenceRowGeometry);
+        configureTextCommit(fenceSegmentLengthField, this::autoApplyFenceRowGeometry);
+        configureTextCommit(fenceRotationField, this::autoApplyFenceRowGeometry);
+        GridPane fenceRowForm = detailGrid();
+        fenceRowForm.addRow(0, new Label("Aedade arv"), fenceSegmentCountField);
+        fenceRowForm.addRow(1, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
+        fenceRowForm.addRow(2, new Label("Suund °"), fenceRotationField);
+        fenceRowForm.addRow(3, new Label("Kogupikkus"), fenceTotalLengthLabel);
+        fenceRowPanel = new VBox(8, sectionLabel("Aiarida"), fenceRowForm);
+
         GridPane tentForm = detailGrid();
         tentForm.addRow(0, new Label("Laius m"), tentWidthField);
         tentForm.addRow(1, new Label("Pikkus m"), tentHeightField);
@@ -2549,6 +2568,7 @@ public class PlaaniseppApp extends Application {
                 markerPanel,
                 areaPanel,
                 linePanel,
+                fenceRowPanel,
                 tentPanel,
                 powerConnectionPanel,
                 equipmentSection,
@@ -4507,6 +4527,7 @@ public class PlaaniseppApp extends Application {
         double perpendicularX = -Math.sin(angle) * 6;
         double perpendicularY = Math.cos(angle) * 6;
         double segmentLengthPixels = fenceRow.segmentLengthMeters() * pixelsPerMeter();
+        List<Line> dividers = new ArrayList<>();
         for (int index = 1; index < fenceRow.segmentCount(); index++) {
             double x = start.x() + Math.cos(angle) * segmentLengthPixels * index;
             double y = start.y() + Math.sin(angle) * segmentLengthPixels * index;
@@ -4520,6 +4541,7 @@ public class PlaaniseppApp extends Application {
             divider.setStrokeWidth(2);
             divider.setMouseTransparent(true);
             mapPane.getChildren().add(divider);
+            dividers.add(divider);
         }
 
         Position center = new Position((start.x() + end.x()) / 2, (start.y() + end.y()) / 2);
@@ -4533,6 +4555,130 @@ public class PlaaniseppApp extends Application {
         inventoryLabel.setStyle("-fx-background-color: rgba(255,255,255,0.88); -fx-padding: 2 4 2 4;");
         inventoryLabel.setMouseTransparent(true);
         mapPane.getChildren().add(inventoryLabel);
+        if (isSelected(fenceRow) && !mapLayoutLocked) {
+            addFenceRowEndpointHandles(fenceRow, fenceLine, dividers, inventoryLabel);
+        }
+    }
+
+    private void addFenceRowEndpointHandles(
+            FenceRow fenceRow,
+            Line fenceLine,
+            List<Line> dividers,
+            Label inventoryLabel
+    ) {
+        Position start = fenceRow.position();
+        Position end = fenceRow.endPosition(pixelsPerMeter());
+        Circle startHandle = shapePointHandle(start, Color.web(fenceRow.colorHex()));
+        Circle endHandle = shapePointHandle(end, Color.web(fenceRow.colorHex()));
+        startHandle.setCursor(Cursor.HAND);
+        endHandle.setCursor(Cursor.HAND);
+        Tooltip.install(startHandle, new Tooltip("Lohista rea algust; lõpp ja aedade pikkused jäävad paigale"));
+        Tooltip.install(endHandle, new Tooltip("Lohista rea pööramiseks; aedade pikkused ei muutu"));
+        makeFenceRowStartDraggable(startHandle, endHandle, fenceRow, fenceLine, dividers, inventoryLabel);
+        makeFenceRowEndDraggable(startHandle, endHandle, fenceRow, fenceLine, dividers, inventoryLabel);
+        mapPane.getChildren().addAll(startHandle, endHandle);
+    }
+
+    private void makeFenceRowEndDraggable(
+            Circle startHandle,
+            Circle endHandle,
+            FenceRow fenceRow,
+            Line fenceLine,
+            List<Line> dividers,
+            Label inventoryLabel
+    ) {
+        final boolean[] dragged = {false};
+        endHandle.setOnMousePressed(event -> {
+            dragged[0] = false;
+            event.consume();
+        });
+        endHandle.setOnMouseDragged(event -> {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || fenceRow.locked()) {
+                event.consume();
+                return;
+            }
+            Point2D point = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+            fenceRow.rotateEndToward(new Position(point.getX(), point.getY()));
+            updateFenceRowDragPreview(fenceRow, fenceLine, dividers, inventoryLabel, startHandle, endHandle);
+            dragged[0] = true;
+            event.consume();
+        });
+        endHandle.setOnMouseReleased(event -> {
+            if (dragged[0]) {
+                refreshEditedShapeObject();
+            }
+            event.consume();
+        });
+        endHandle.setOnMouseClicked(event -> event.consume());
+    }
+
+    private void makeFenceRowStartDraggable(
+            Circle startHandle,
+            Circle endHandle,
+            FenceRow fenceRow,
+            Line fenceLine,
+            List<Line> dividers,
+            Label inventoryLabel
+    ) {
+        final boolean[] dragged = {false};
+        startHandle.setOnMousePressed(event -> {
+            dragged[0] = false;
+            event.consume();
+        });
+        startHandle.setOnMouseDragged(event -> {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || fenceRow.locked()) {
+                event.consume();
+                return;
+            }
+            Point2D point = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+            fenceRow.moveStartTowardKeepingEnd(new Position(point.getX(), point.getY()), pixelsPerMeter());
+            updateFenceRowDragPreview(fenceRow, fenceLine, dividers, inventoryLabel, startHandle, endHandle);
+            dragged[0] = true;
+            event.consume();
+        });
+        startHandle.setOnMouseReleased(event -> {
+            if (dragged[0]) {
+                refreshEditedShapeObject();
+            }
+            event.consume();
+        });
+        startHandle.setOnMouseClicked(event -> event.consume());
+    }
+
+    private void updateFenceRowDragPreview(
+            FenceRow fenceRow,
+            Line fenceLine,
+            List<Line> dividers,
+            Label inventoryLabel,
+            Circle startHandle,
+            Circle endHandle
+    ) {
+        Position start = fenceRow.position();
+        Position end = fenceRow.endPosition(pixelsPerMeter());
+        fenceLine.setStartX(start.x());
+        fenceLine.setStartY(start.y());
+        fenceLine.setEndX(end.x());
+        fenceLine.setEndY(end.y());
+        startHandle.setCenterX(start.x());
+        startHandle.setCenterY(start.y());
+        endHandle.setCenterX(end.x());
+        endHandle.setCenterY(end.y());
+        double angle = Math.toRadians(fenceRow.rotationDegrees());
+        double perpendicularX = -Math.sin(angle) * 6;
+        double perpendicularY = Math.cos(angle) * 6;
+        double segmentLengthPixels = fenceRow.segmentLengthMeters() * pixelsPerMeter();
+        for (int index = 0; index < dividers.size(); index++) {
+            double x = start.x() + Math.cos(angle) * segmentLengthPixels * (index + 1);
+            double y = start.y() + Math.sin(angle) * segmentLengthPixels * (index + 1);
+            Line divider = dividers.get(index);
+            divider.setStartX(x - perpendicularX);
+            divider.setStartY(y - perpendicularY);
+            divider.setEndX(x + perpendicularX);
+            divider.setEndY(y + perpendicularY);
+        }
+        inventoryLabel.setLayoutX((start.x() + end.x()) / 2 + 8);
+        inventoryLabel.setLayoutY((start.y() + end.y()) / 2 + 28);
+        fenceRotationField.setText(formatDegrees(fenceRow.rotationDegrees()));
     }
 
     private void addAreaMidpointHandles(AreaObject object, Polygon polygon) {
@@ -5459,6 +5605,7 @@ public class PlaaniseppApp extends Application {
         boolean markerSelected = selectedObject instanceof MarkerObject;
         boolean areaSelected = selectedObject instanceof AreaObject;
         boolean lineSelected = selectedObject instanceof LineObject;
+        boolean fenceRowSelected = selectedObject instanceof FenceRow;
         boolean powerConsumerSelected = selectedObject instanceof PowerConsumer;
         boolean equipmentContainerSelected = selectedObject instanceof EquipmentContainer;
         nameField.setDisable(!hasSelection);
@@ -5487,6 +5634,9 @@ public class PlaaniseppApp extends Application {
         areaOpacitySlider.setDisable(!areaSelected);
         lineColorPicker.setDisable(!lineSelected);
         lineWidthSlider.setDisable(!lineSelected);
+        fenceSegmentCountField.setDisable(!fenceRowSelected);
+        fenceSegmentLengthField.setDisable(!fenceRowSelected);
+        fenceRotationField.setDisable(!fenceRowSelected);
         tentWidthField.setDisable(!tentSelected);
         tentHeightField.setDisable(!tentSelected);
         tentRotationField.setDisable(!tentSelected);
@@ -5552,6 +5702,7 @@ public class PlaaniseppApp extends Application {
         setSectionVisible(markerPanel, markerSelected);
         setSectionVisible(areaPanel, areaSelected);
         setSectionVisible(linePanel, lineSelected);
+        setSectionVisible(fenceRowPanel, fenceRowSelected);
         setSectionVisible(tentPanel, tentSelected);
         setSectionVisible(powerConnectionPanel, powerConsumerSelected && !organizerView);
         setSectionVisible(equipmentSection, equipmentContainerSelected && !organizerView);
@@ -5584,6 +5735,10 @@ public class PlaaniseppApp extends Application {
             lineColorPicker.setValue(Color.web("#0f766e"));
             lineWidthSlider.setValue(LineObject.DEFAULT_WIDTH_PIXELS);
             lineLengthLabel.setText("-");
+            fenceSegmentCountField.clear();
+            fenceSegmentLengthField.clear();
+            fenceRotationField.clear();
+            fenceTotalLengthLabel.setText("-");
             customObjectWidthField.clear();
             customObjectHeightField.clear();
             customObjectRotationField.clear();
@@ -5690,6 +5845,13 @@ public class PlaaniseppApp extends Application {
             customObjectWidthField.clear();
             customObjectHeightField.clear();
             customObjectRotationField.clear();
+            cableLengthNotesField.clear();
+            cableNotesField.clear();
+        } else if (selectedObject instanceof FenceRow fenceRow) {
+            fenceSegmentCountField.setText(Integer.toString(fenceRow.segmentCount()));
+            fenceSegmentLengthField.setText(formatMeters(fenceRow.segmentLengthMeters()));
+            fenceRotationField.setText(formatDegrees(fenceRow.rotationDegrees()));
+            refreshFenceRowLengthLabel(fenceRow);
             cableLengthNotesField.clear();
             cableNotesField.clear();
         } else if (selectedObject instanceof LineObject lineObject) {
@@ -6038,6 +6200,34 @@ public class PlaaniseppApp extends Application {
         if (applyTentSize(tent)) {
             finishAutoAppliedDetailsChange(before, false);
         }
+    }
+
+    private void autoApplyFenceRowGeometry() {
+        if (updatingDetailControls || !(selectedObject instanceof FenceRow fenceRow)) {
+            return;
+        }
+        try {
+            int segmentCount = Integer.parseInt(fenceSegmentCountField.getText().trim());
+            double segmentLength = Double.parseDouble(
+                    fenceSegmentLengthField.getText().trim().replace(',', '.')
+            );
+            double rotation = Double.parseDouble(fenceRotationField.getText().trim().replace(',', '.'));
+            if (segmentCount < 1 || segmentLength <= 0) {
+                return;
+            }
+            PlanSnapshot before = planSnapshotService.create(plan);
+            fenceRow.setSegmentCount(segmentCount);
+            fenceRow.setSegmentLengthMeters(segmentLength);
+            fenceRow.setRotationDegrees(rotation);
+            refreshFenceRowLengthLabel(fenceRow);
+            finishAutoAppliedDetailsChange(before, false);
+        } catch (NumberFormatException ignored) {
+            // Poolikut sisestust ei rakendata enne Enterit või väljalt lahkumist.
+        }
+    }
+
+    private void refreshFenceRowLengthLabel(FenceRow fenceRow) {
+        fenceTotalLengthLabel.setText("%.1f m".formatted(fenceRow.totalLengthMeters()));
     }
 
     private void autoApplyTentRotation() {

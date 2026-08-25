@@ -80,4 +80,39 @@ public class FenceRow extends PlannerObject {
                 position().y() + Math.sin(angleRadians) * lengthPixels
         );
     }
+
+    public void rotateEndToward(Position target) {
+        if (locked()) {
+            return;
+        }
+        double deltaX = target.x() - position().x();
+        double deltaY = target.y() - position().y();
+        if (deltaX == 0 && deltaY == 0) {
+            return;
+        }
+        setRotationDegrees(Math.toDegrees(Math.atan2(deltaY, deltaX)));
+    }
+
+    public void moveStartTowardKeepingEnd(Position target, double pixelsPerMeter) {
+        if (locked() || pixelsPerMeter <= 0) {
+            return;
+        }
+        Position fixedEnd = endPosition(pixelsPerMeter);
+        double deltaX = target.x() - fixedEnd.x();
+        double deltaY = target.y() - fixedEnd.y();
+        double distance = Math.hypot(deltaX, deltaY);
+        if (distance == 0) {
+            return;
+        }
+        double lengthPixels = totalLengthMeters() * pixelsPerMeter;
+        Position newStart = new Position(
+                fixedEnd.x() + deltaX / distance * lengthPixels,
+                fixedEnd.y() + deltaY / distance * lengthPixels
+        );
+        moveTo(newStart);
+        setRotationDegrees(Math.toDegrees(Math.atan2(
+                fixedEnd.y() - newStart.y(),
+                fixedEnd.x() - newStart.x()
+        )));
+    }
 }

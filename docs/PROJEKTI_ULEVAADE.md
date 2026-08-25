@@ -1,7 +1,7 @@
 # Plaanisepp: eesmärgid, areng ja hetkeseis
 
-- Dokumendi viimane sisuline uuendus: 20. august 2026
-- Koodi viimane dokumenteeritud commit: `e53fb3a` (`Extract marker icon factory from application`, 20. august 2026)
+- Dokumendi viimane sisuline uuendus: 26. august 2026
+- Koodi viimane dokumenteeritud commit: `1c5f419` (`Add straight fence row planning`, 26. august 2026)
 - Projekti versioon: `0.1.0`
 
 ## 1. Dokumendi eesmärk
@@ -462,6 +462,14 @@ Allolev ajajoon koondab 186 commitist tähenduslikud etapid. Täpne muudatuste l
 - Alajaotuskilbi saab objektitüüpide valikust kaardile lisada; sama detailipaneel võimaldab hallata nii kilbi väljundeid kui ka selle ülesvoolu toidet.
 - Automaattestid katavad v2 migratsiooni, v3 ringreisi, mitme ühenduse koormusjaotuse ja vigase ühenduseviite turvalise lähtestamise.
 
+### 26. august 2026: sirgete aiaridade planeerimine
+
+- Lisati eraldi aiaridade domeenimudel, mille aluseks on aedade arv, ühe lõigu füüsiline pikkus ja rea suund.
+- Aiarida luuakse kahel kaardiklõpsul ning kuvatakse üksikute standardpikkusega lõikude ja kogupikkusena.
+- Külgpaneel võimaldab aedade arvu, ühe aia pikkust ja suunda täpselt muuta.
+- Valitud rea otspunkte saab lohistada jäiga reana: lõpp-punkt pöörab rida ning alguspunkti lohistamisel jääb senine lõpp paigale. Üksikute aedade pikkus ei muutu.
+- `.pplan` versioon 8 säilitab aiaridade andmed ning tekstiaruanne lisab aia inventari kokkuvõtte.
+
 ## 8. Kasutajatestides tehtud olulisemad õppetunnid
 
 Projekti väärtus ei ole ainult funktsioonide arvus. Korduv päris kasutamine tõi välja mitu üldistatavat disainiõppetundi:
@@ -535,6 +543,7 @@ Veebivaade ja organisatsioonid tähendavad tõenäoliselt eraldi serverit, andme
 - Lohistatava ühenduspunkti JavaFX-i hiirekäitumist ei kata automaattest; see vajab käsitsi kontrollimist eri objektitüüpidega.
 - Rakendusel ei ole veel veebivaadet, kasutajakontosid, õigusi ega keskset andmehoidlat.
 - Tartu kaardiandmetega otseliidestust ei ole.
+- Aiavahend toetab praegu sirget jäika rida. Keerulised ühendatud aiakujud ja lõikude lahtiühendamine on veel tegemata.
 
 ## 11. Soovituslik tööjärjekord
 
