@@ -330,6 +330,8 @@ public class PlaaniseppApp extends Application {
     private MarkerType pendingPlacementMarkerType;
     private PlannerObject copiedObject;
     private int keyboardPasteCount;
+    private boolean updatingOpacityControls;
+    private boolean opacityDragChanged;
     private Stage stage;
 
     @Override
@@ -1753,12 +1755,14 @@ public class PlaaniseppApp extends Application {
         tentRotationField = new TextField();
         tentColorPicker = new ColorPicker();
         tentOpacitySlider = createOpacitySlider(Tent.DEFAULT_OPACITY * 100.0);
+        configureOpacityPreview(tentOpacitySlider);
         customObjectShapeComboBox = new ComboBox<>();
         customObjectShapeComboBox.getItems().addAll(CustomObjectShape.values());
         customObjectShapeComboBox.setConverter(customObjectShapeConverter());
         customObjectShapeComboBox.getSelectionModel().select(CustomObjectShape.SQUARE);
         customObjectColorPicker = new ColorPicker();
         customObjectOpacitySlider = createOpacitySlider(CustomObject.DEFAULT_OPACITY * 100.0);
+        configureOpacityPreview(customObjectOpacitySlider);
         textObjectColorPicker = new ColorPicker();
         customObjectWidthLabel = new Label("Objekti laius m");
         customObjectHeightLabel = new Label("Objekti pikkus m");
@@ -1886,6 +1890,7 @@ public class PlaaniseppApp extends Application {
 
         areaColorPicker = new ColorPicker();
         areaOpacitySlider = createOpacitySlider(AreaObject.DEFAULT_OPACITY * 100.0);
+        configureOpacityPreview(areaOpacitySlider);
         areaSizeLabel = new Label("-");
         areaPerimeterLabel = new Label("-");
         GridPane areaForm = detailGrid();
@@ -2018,6 +2023,52 @@ public class PlaaniseppApp extends Application {
         HBox control = new HBox(8, slider, valueLabel);
         control.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         return control;
+    }
+
+    private void configureOpacityPreview(Slider slider) {
+        slider.valueProperty().addListener((observable, oldValue, newValue) -> {
+            if (updatingOpacityControls || !previewSelectedObjectOpacity(slider, newValue.doubleValue())) {
+                return;
+            }
+            redrawMap();
+            if (slider.isValueChanging()) {
+                opacityDragChanged = true;
+            } else {
+                markDirty();
+            }
+        });
+        slider.valueChangingProperty().addListener((observable, wasChanging, isChanging) -> {
+            if (wasChanging && !isChanging && opacityDragChanged) {
+                opacityDragChanged = false;
+                markDirty();
+            }
+        });
+    }
+
+    private boolean previewSelectedObjectOpacity(Slider slider, double percentage) {
+        double opacity = percentage / 100.0;
+        if (slider == tentOpacitySlider && selectedObject instanceof Tent tent) {
+            tent.setOpacity(opacity);
+            return true;
+        }
+        if (slider == customObjectOpacitySlider && selectedObject instanceof CustomObject customObject) {
+            customObject.setOpacity(opacity);
+            return true;
+        }
+        if (slider == areaOpacitySlider && selectedObject instanceof AreaObject areaObject) {
+            areaObject.setOpacity(opacity);
+            return true;
+        }
+        return false;
+    }
+
+    private void setOpacitySliderValue(Slider slider, double percentage) {
+        updatingOpacityControls = true;
+        try {
+            slider.setValue(percentage);
+        } finally {
+            updatingOpacityControls = false;
+        }
     }
 
     private String opacityPercentageText(double percentage) {
@@ -4600,7 +4651,7 @@ public class PlaaniseppApp extends Application {
             tentHeightField.clear();
             tentRotationField.clear();
             tentColorPicker.setValue(Color.web("#e74c3c"));
-            tentOpacitySlider.setValue(Tent.DEFAULT_OPACITY * 100.0);
+            setOpacitySliderValue(tentOpacitySlider, Tent.DEFAULT_OPACITY * 100.0);
             customObjectShapeComboBox.getSelectionModel().select(CustomObjectShape.SQUARE);
             customObjectColorPicker.setValue(Color.web("#9ca3af"));
             textObjectColorPicker.setValue(Color.web("#111827"));
@@ -4608,7 +4659,7 @@ public class PlaaniseppApp extends Application {
             markerTypeComboBox.getSelectionModel().select(MarkerType.WC);
             markerColorPicker.setValue(Color.web(MarkerType.WC.defaultColorHex()));
             areaColorPicker.setValue(Color.web("#f59e0b"));
-            areaOpacitySlider.setValue(AreaObject.DEFAULT_OPACITY * 100.0);
+            setOpacitySliderValue(areaOpacitySlider, AreaObject.DEFAULT_OPACITY * 100.0);
             areaSizeLabel.setText("-");
             areaPerimeterLabel.setText("-");
             lineColorPicker.setValue(Color.web("#0f766e"));
@@ -4617,7 +4668,7 @@ public class PlaaniseppApp extends Application {
             customObjectWidthField.clear();
             customObjectHeightField.clear();
             customObjectRotationField.clear();
-            customObjectOpacitySlider.setValue(CustomObject.DEFAULT_OPACITY * 100.0);
+            setOpacitySliderValue(customObjectOpacitySlider, CustomObject.DEFAULT_OPACITY * 100.0);
             customObjectAreaLabel.setText("-");
             customObjectPerimeterLabel.setText("-");
             cableLengthNotesField.clear();
@@ -4639,7 +4690,7 @@ public class PlaaniseppApp extends Application {
             tentHeightField.setText(formatMeters(tent.heightMeters()));
             tentRotationField.setText(formatDegrees(tent.rotationDegrees()));
             tentColorPicker.setValue(Color.web(tent.colorHex()));
-            tentOpacitySlider.setValue(tent.opacity() * 100.0);
+            setOpacitySliderValue(tentOpacitySlider, tent.opacity() * 100.0);
             customObjectShapeComboBox.getSelectionModel().select(CustomObjectShape.SQUARE);
             customObjectColorPicker.setValue(Color.web("#9ca3af"));
             textObjectColorPicker.setValue(Color.web("#111827"));
@@ -4662,7 +4713,7 @@ public class PlaaniseppApp extends Application {
             tentColorPicker.setValue(Color.web("#2563eb"));
             customObjectShapeComboBox.getSelectionModel().select(customObject.shape());
             customObjectColorPicker.setValue(Color.web(customObject.colorHex()));
-            customObjectOpacitySlider.setValue(customObject.opacity() * 100.0);
+            setOpacitySliderValue(customObjectOpacitySlider, customObject.opacity() * 100.0);
             textObjectFontSizeSlider.setValue(TextObject.DEFAULT_FONT_SIZE);
             customObjectWidthField.setText(formatMeters(customObject.widthMeters()));
             customObjectHeightField.setText(formatMeters(customObject.heightMeters()));
@@ -4714,7 +4765,7 @@ public class PlaaniseppApp extends Application {
             markerTypeComboBox.getSelectionModel().select(MarkerType.WC);
             markerColorPicker.setValue(Color.web(MarkerType.WC.defaultColorHex()));
             areaColorPicker.setValue(Color.web(areaObject.colorHex()));
-            areaOpacitySlider.setValue(areaObject.opacity() * 100.0);
+            setOpacitySliderValue(areaOpacitySlider, areaObject.opacity() * 100.0);
             refreshAreaMeasurements(areaObject);
             customObjectWidthField.clear();
             customObjectHeightField.clear();
@@ -4733,7 +4784,7 @@ public class PlaaniseppApp extends Application {
             markerTypeComboBox.getSelectionModel().select(MarkerType.WC);
             markerColorPicker.setValue(Color.web(MarkerType.WC.defaultColorHex()));
             areaColorPicker.setValue(Color.web("#f59e0b"));
-            areaOpacitySlider.setValue(AreaObject.DEFAULT_OPACITY * 100.0);
+            setOpacitySliderValue(areaOpacitySlider, AreaObject.DEFAULT_OPACITY * 100.0);
             lineColorPicker.setValue(Color.web(lineObject.colorHex()));
             lineWidthSlider.setValue(lineObject.widthPixels());
             refreshLineLengthLabel(lineObject);
