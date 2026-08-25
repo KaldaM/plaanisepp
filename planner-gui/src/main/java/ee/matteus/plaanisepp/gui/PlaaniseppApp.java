@@ -224,7 +224,7 @@ public class PlaaniseppApp extends Application {
     private TextField pixelsPerMeterField;
     private Label selectedTypeLabel;
     private TextField nameField;
-    private TextField groupField;
+    private ComboBox<String> groupField;
     private CheckBox lockedCheckBox;
     private CheckBox showMapLabelCheckBox;
     private Button resetMapLabelButton;
@@ -1638,7 +1638,9 @@ public class PlaaniseppApp extends Application {
 
         selectedTypeLabel = new Label("Vali kaardilt objekt");
         nameField = new TextField();
-        groupField = new TextField();
+        groupField = new ComboBox<>();
+        groupField.setEditable(true);
+        groupField.setMaxWidth(Double.MAX_VALUE);
         lockedCheckBox = new CheckBox("Lukus");
         lockedCheckBox.setOnAction(event -> updateSelectedLock());
         showMapLabelCheckBox = new CheckBox("Näita nime");
@@ -2129,6 +2131,12 @@ public class PlaaniseppApp extends Application {
         return groupNames.stream()
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
+    }
+
+    private void refreshGroupChoices(String groupName) {
+        groupField.getItems().setAll(existingGroupNames());
+        groupField.getSelectionModel().clearSelection();
+        groupField.getEditor().setText(groupName == null ? "" : groupName);
     }
 
     private void addTent() {
@@ -4480,7 +4488,7 @@ public class PlaaniseppApp extends Application {
         if (!hasSelection) {
             selectedTypeLabel.setText("Vali kaardilt objekt");
             nameField.clear();
-            groupField.clear();
+            refreshGroupChoices("");
             notesArea.clear();
             lockedCheckBox.setSelected(false);
             showMapLabelCheckBox.setSelected(false);
@@ -4518,7 +4526,7 @@ public class PlaaniseppApp extends Application {
 
         selectedTypeLabel.setText(objectTypeName(selectedObject));
         nameField.setText(selectedObject.name());
-        groupField.setText(selectedObject.groupName());
+        refreshGroupChoices(selectedObject.groupName());
         notesArea.setText(selectedObject.notes());
         lockedCheckBox.setSelected(selectedObject.locked());
         showMapLabelCheckBox.setSelected(selectedObject.showMapLabel());
@@ -4864,7 +4872,7 @@ public class PlaaniseppApp extends Application {
         }
 
         selectedObject.rename(nameField.getText());
-        selectedObject.setGroupName(groupField.getText());
+        selectedObject.setGroupName(groupField.getEditor().getText());
         selectedObject.setNotes(notesArea.getText());
         selectedObject.setLocked(lockedCheckBox.isSelected());
         selectedObject.setShowMapLabel(showMapLabelCheckBox.isSelected());
