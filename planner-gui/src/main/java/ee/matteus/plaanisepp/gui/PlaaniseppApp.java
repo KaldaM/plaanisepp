@@ -45,6 +45,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ContextMenu;
@@ -821,6 +822,53 @@ public class PlaaniseppApp extends Application {
                     : "Peida objekt (Ctrl+H)");
         });
 
+        MenuItem resetZoomItem = new MenuItem("Taasta 100% suum");
+        resetZoomItem.setOnAction(event -> setZoom(1.0));
+        CheckMenuItem layoutLockItem = new CheckMenuItem("Paigutus lukus");
+        layoutLockItem.setOnAction(event -> {
+            mapLayoutLockButton.setSelected(layoutLockItem.isSelected());
+            setMapLayoutLocked(layoutLockItem.isSelected());
+        });
+        CheckMenuItem objectLabelsItem = mapLayerMenuItem("Objektide nimed", () -> showObjectLabelsButton);
+        CheckMenuItem cablesItem = mapLayerMenuItem("Kaablid", () -> showCablesButton);
+        CheckMenuItem cableLabelsItem = mapLayerMenuItem("Kaablisildid", () -> showCableLabelsButton);
+        CheckMenuItem tentsItem = mapLayerMenuItem("Telgid", () -> showTentsButton);
+        CheckMenuItem powerSourcesItem = mapLayerMenuItem("Elektrikapid", () -> showPowerSourcesButton);
+        CheckMenuItem customObjectsItem = mapLayerMenuItem("Objektid", () -> showCustomObjectsButton);
+        CheckMenuItem textObjectsItem = mapLayerMenuItem("Tekstid", () -> showTextObjectsButton);
+        CheckMenuItem markerObjectsItem = mapLayerMenuItem("Markerid", () -> showMarkerObjectsButton);
+        CheckMenuItem areaObjectsItem = mapLayerMenuItem("Alad", () -> showAreaObjectsButton);
+        CheckMenuItem lineObjectsItem = mapLayerMenuItem("Jooned", () -> showLineObjectsButton);
+        Menu layersMenu = new Menu("Kaardi kihid");
+        layersMenu.getItems().addAll(
+                objectLabelsItem,
+                cablesItem,
+                cableLabelsItem,
+                new SeparatorMenuItem(),
+                tentsItem,
+                powerSourcesItem,
+                customObjectsItem,
+                textObjectsItem,
+                markerObjectsItem,
+                areaObjectsItem,
+                lineObjectsItem
+        );
+        Menu viewMenu = new Menu("Vaade");
+        viewMenu.getItems().addAll(resetZoomItem, layoutLockItem, new SeparatorMenuItem(), layersMenu);
+        viewMenu.setOnShowing(event -> {
+            layoutLockItem.setSelected(mapLayoutLocked);
+            objectLabelsItem.setSelected(showObjectLabelsButton.isSelected());
+            cablesItem.setSelected(showCablesButton.isSelected());
+            cableLabelsItem.setSelected(showCableLabelsButton.isSelected());
+            tentsItem.setSelected(showTentsButton.isSelected());
+            powerSourcesItem.setSelected(showPowerSourcesButton.isSelected());
+            customObjectsItem.setSelected(showCustomObjectsButton.isSelected());
+            textObjectsItem.setSelected(showTextObjectsButton.isSelected());
+            markerObjectsItem.setSelected(showMarkerObjectsButton.isSelected());
+            areaObjectsItem.setSelected(showAreaObjectsButton.isSelected());
+            lineObjectsItem.setSelected(showLineObjectsButton.isSelected());
+        });
+
         MenuItem shortcutsItem = new MenuItem("Klahvikombinatsioonid");
         shortcutsItem.setOnAction(event -> showKeyboardShortcuts());
         MenuItem aboutItem = new MenuItem("Plaanisepa kohta");
@@ -829,7 +877,23 @@ public class PlaaniseppApp extends Application {
         helpMenu.getItems().addAll(shortcutsItem, new SeparatorMenuItem(), aboutItem);
 
         updatePlanHistoryButtons();
-        return new MenuBar(fileMenu, editMenu, helpMenu);
+        return new MenuBar(fileMenu, editMenu, viewMenu, helpMenu);
+    }
+
+    private CheckMenuItem mapLayerMenuItem(
+            String text,
+            java.util.function.Supplier<ToggleButton> toggleButtonSupplier
+    ) {
+        CheckMenuItem item = new CheckMenuItem(text);
+        item.setOnAction(event -> {
+            ToggleButton toggleButton = toggleButtonSupplier.get();
+            if (toggleButton == null) {
+                return;
+            }
+            toggleButton.setSelected(item.isSelected());
+            updateMapLayerVisibility();
+        });
+        return item;
     }
 
     private void showKeyboardShortcuts() {
