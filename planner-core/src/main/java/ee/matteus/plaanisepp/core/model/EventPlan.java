@@ -133,6 +133,12 @@ public class EventPlan {
     }
 
     public void removeObject(String objectId) {
+        synchronizeFenceRows(pixelsPerMeter);
+        objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .filter(row -> row.connectedToFenceRowId().equals(objectId))
+                .forEach(FenceRow::disconnectStart);
         objects.removeIf(object -> object.id().equals(objectId));
         removePowerConnections(connection ->
                 connection.sourceId().equals(objectId) || connection.consumerId().equals(objectId));
@@ -236,6 +242,46 @@ public class EventPlan {
 
     public Optional<PlannerObject> findObject(String id) {
         return objects.stream().filter(object -> object.id().equals(id)).findFirst();
+    }
+
+    public void synchronizeFenceRows(double pixelsPerMeter) {
+        Set<String> aligned = new HashSet<>();
+        Set<String> visiting = new HashSet<>();
+        for (PlannerObject object : objects) {
+            if (object instanceof FenceRow fenceRow) {
+                alignFenceRow(fenceRow, pixelsPerMeter, aligned, visiting);
+            }
+        }
+    }
+
+    private void alignFenceRow(
+            FenceRow fenceRow,
+            double pixelsPerMeter,
+            Set<String> aligned,
+            Set<String> visiting
+    ) {
+        if (aligned.contains(fenceRow.id()) || !fenceRow.connectedAtStart()) {
+            aligned.add(fenceRow.id());
+            return;
+        }
+        if (!visiting.add(fenceRow.id())) {
+            fenceRow.disconnectStart();
+            aligned.add(fenceRow.id());
+            return;
+        }
+        PlannerObject parentObject = findObject(fenceRow.connectedToFenceRowId()).orElse(null);
+        if (!(parentObject instanceof FenceRow parent) || parent.id().equals(fenceRow.id())) {
+            fenceRow.disconnectStart();
+        } else {
+            alignFenceRow(parent, pixelsPerMeter, aligned, visiting);
+            if (parent.connectedToFenceRowId().equals(fenceRow.id())) {
+                fenceRow.disconnectStart();
+            } else {
+                fenceRow.alignConnectedStart(parent.endPosition(pixelsPerMeter));
+            }
+        }
+        visiting.remove(fenceRow.id());
+        aligned.add(fenceRow.id());
     }
 
     public boolean showCables() {

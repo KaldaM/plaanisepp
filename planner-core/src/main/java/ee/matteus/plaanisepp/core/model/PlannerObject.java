@@ -46,6 +46,10 @@ public abstract class PlannerObject {
         }
     }
 
+    protected void moveToIgnoringLock(Position position) {
+        this.position = position;
+    }
+
     public boolean locked() {
         return locked;
     }

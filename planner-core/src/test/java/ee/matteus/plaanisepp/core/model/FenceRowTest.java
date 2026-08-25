@@ -52,4 +52,42 @@ class FenceRowTest {
         assertEquals(originalEnd.y(), row.endPosition(10).y(), 0.0001);
         assertEquals(7, row.totalLengthMeters(), 0.0001);
     }
+
+    @Test
+    void connectedContinuationFollowsParentEnd() {
+        EventPlan plan = new EventPlan("Aiad");
+        plan.setPixelsPerMeter(10);
+        FenceRow parent = new FenceRow("parent", "Esimene", new Position(10, 20));
+        parent.setSegmentCount(2);
+        FenceRow child = new FenceRow("child", "Jätk", new Position(0, 0));
+        child.connectStartTo(parent.id());
+        child.setLocked(true);
+        plan.addObject(parent);
+        plan.addObject(child);
+
+        plan.synchronizeFenceRows(plan.pixelsPerMeter());
+
+        assertEquals(parent.endPosition(10), child.position());
+        parent.setRotationDegrees(90);
+        plan.synchronizeFenceRows(10);
+        assertEquals(parent.endPosition(10), child.position());
+    }
+
+    @Test
+    void removingParentKeepsContinuationInPlaceAndDisconnectsIt() {
+        EventPlan plan = new EventPlan("Aiad");
+        plan.setPixelsPerMeter(10);
+        FenceRow parent = new FenceRow("parent", "Esimene", new Position(10, 20));
+        FenceRow child = new FenceRow("child", "Jätk", new Position(0, 0));
+        child.connectStartTo(parent.id());
+        plan.addObject(parent);
+        plan.addObject(child);
+        plan.synchronizeFenceRows(plan.pixelsPerMeter());
+        Position connectedPosition = child.position();
+
+        plan.removeObject(parent.id());
+
+        assertEquals(connectedPosition, child.position());
+        assertEquals(false, child.connectedAtStart());
+    }
 }

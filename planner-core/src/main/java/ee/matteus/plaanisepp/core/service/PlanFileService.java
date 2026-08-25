@@ -47,7 +47,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 8;
+    public static final int CURRENT_FORMAT_VERSION = 9;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -739,6 +739,7 @@ public class PlanFileService {
         properties.setProperty(prefix + "rotationDegrees", Double.toString(fenceRow.rotationDegrees()));
         properties.setProperty(prefix + "colorHex", fenceRow.colorHex());
         properties.setProperty(prefix + "widthPixels", Double.toString(fenceRow.widthPixels()));
+        properties.setProperty(prefix + "connectedToFenceRowId", fenceRow.connectedToFenceRowId());
     }
 
     private PlannerObject readObject(Properties properties, String prefix) {
@@ -799,6 +800,10 @@ public class PlanFileService {
         fenceRow.setRotationDegrees(doubleValue(properties, prefix + "rotationDegrees", 0));
         fenceRow.setColorHex(properties.getProperty(prefix + "colorHex", FenceRow.DEFAULT_COLOR_HEX));
         fenceRow.setWidthPixels(doubleValue(properties, prefix + "widthPixels", FenceRow.DEFAULT_WIDTH_PIXELS));
+        String connectedToFenceRowId = properties.getProperty(prefix + "connectedToFenceRowId", "");
+        if (!connectedToFenceRowId.isBlank() && !connectedToFenceRowId.equals(fenceRow.id())) {
+            fenceRow.connectStartTo(connectedToFenceRowId);
+        }
         return fenceRow;
     }
 

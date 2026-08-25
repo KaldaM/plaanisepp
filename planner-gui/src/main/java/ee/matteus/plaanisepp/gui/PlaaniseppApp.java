@@ -364,6 +364,7 @@ public class PlaaniseppApp extends Application {
     private boolean pendingMarkerPlacement;
     private boolean pendingLineObjectPlacement;
     private boolean pendingFenceRowPlacement;
+    private String pendingFenceParentId;
     private boolean pendingAreaObjectPlacement;
     private MarkerType pendingPlacementMarkerType;
     private PlannerObject copiedObject;
@@ -2903,6 +2904,7 @@ public class PlaaniseppApp extends Application {
         pendingPlacementShowMapLabel = placementDetails.showMapLabel();
         preferences.putBoolean(PLACEMENT_SHOW_MAP_LABEL_PREFERENCE, placementDetails.showMapLabel());
         pendingFenceRowPlacement = false;
+        pendingFenceParentId = null;
 
         switch (selectedType) {
             case TENT -> addTent();
@@ -2995,6 +2997,7 @@ public class PlaaniseppApp extends Application {
         pendingMarkerPlacement = false;
         pendingLineObjectPlacement = false;
         pendingFenceRowPlacement = false;
+        pendingFenceParentId = null;
         pendingAreaObjectPlacement = false;
         pendingPowerSourceConsumer = null;
         refreshPlacementButtons();
@@ -3028,6 +3031,7 @@ public class PlaaniseppApp extends Application {
         pendingMarkerPlacement = false;
         pendingLineObjectPlacement = false;
         pendingFenceRowPlacement = false;
+        pendingFenceParentId = null;
         pendingAreaObjectPlacement = false;
         pendingPowerSourceConsumer = null;
         refreshPlacementButtons();
@@ -3200,6 +3204,7 @@ public class PlaaniseppApp extends Application {
         pendingAreaObjectPlacement = false;
         pendingPowerSourceConsumer = null;
         pendingShapePoints.clear();
+        pendingFenceParentId = null;
         refreshPlacementButtons();
         updateMapToolStatus();
         redrawMap();
@@ -3231,10 +3236,24 @@ public class PlaaniseppApp extends Application {
         fenceRow.setColorHex(placementColorHexOrDefault(PlacementType.FENCE_ROW));
         fenceRow.setWidthPixels(pendingLineWidthPixelsOrDefault());
         fenceRow.setSegmentCount(segmentCount);
+        if (pendingFenceParentId != null) {
+            plan.findObject(pendingFenceParentId)
+                    .filter(FenceRow.class::isInstance)
+                    .map(FenceRow.class::cast)
+                    .ifPresent(parent -> {
+                        fenceRow.setGroupName(parent.groupName());
+                        fenceRow.setShowMapLabel(parent.showMapLabel());
+                        fenceRow.setColorHex(parent.colorHex());
+                        fenceRow.setWidthPixels(parent.widthPixels());
+                        fenceRow.setSegmentLengthMeters(parent.segmentLengthMeters());
+                    });
+            fenceRow.connectStartTo(pendingFenceParentId);
+        }
         fenceRow.setRotationDegrees(Math.toDegrees(Math.atan2(deltaY, deltaX)));
         plan.addObject(fenceRow);
         clearPendingPlacementDetails();
         pendingFenceRowPlacement = false;
+        pendingFenceParentId = null;
         pendingShapePoints.clear();
         refreshPlacementButtons();
         updateMapToolStatus();
@@ -3542,6 +3561,7 @@ public class PlaaniseppApp extends Application {
         pendingMarkerPlacement = false;
         pendingLineObjectPlacement = false;
         pendingFenceRowPlacement = false;
+        pendingFenceParentId = null;
         pendingAreaObjectPlacement = false;
         measuringActive = false;
         addingCablePoint = false;
@@ -3726,6 +3746,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void redrawMap() {
+        plan.synchronizeFenceRows(pixelsPerMeter());
         mapPane.getChildren().clear();
         mapObjectNodes.clear();
         powerConnectionAnchorMarkers.clear();
@@ -4572,11 +4593,61 @@ public class PlaaniseppApp extends Application {
         Circle endHandle = shapePointHandle(end, Color.web(fenceRow.colorHex()));
         startHandle.setCursor(Cursor.HAND);
         endHandle.setCursor(Cursor.HAND);
-        Tooltip.install(startHandle, new Tooltip("Lohista rea algust; lõpp ja aedade pikkused jäävad paigale"));
+        Tooltip.install(startHandle, new Tooltip(fenceRow.connectedAtStart()
+                ? "Algus on eelmise aiarajaga ühendatud; lahtiühendamiseks tee paremklõps"
+                : "Lohista rea algust; lõpp ja aedade pikkused jäävad paigale"));
         Tooltip.install(endHandle, new Tooltip("Lohista rea pööramiseks; aedade pikkused ei muutu"));
         makeFenceRowStartDraggable(startHandle, endHandle, fenceRow, fenceLine, dividers, inventoryLabel);
         makeFenceRowEndDraggable(startHandle, endHandle, fenceRow, fenceLine, dividers, inventoryLabel);
+        startHandle.setOpacity(fenceRow.connectedAtStart() ? 0.55 : 1.0);
+        startHandle.setOnContextMenuRequested(event -> {
+            if (fenceRow.connectedAtStart()) {
+                showFenceStartContextMenu(fenceRow, startHandle, event.getScreenX(), event.getScreenY());
+            }
+            event.consume();
+        });
+        endHandle.setOnContextMenuRequested(event -> {
+            showFenceEndContextMenu(fenceRow, endHandle, event.getScreenX(), event.getScreenY());
+            event.consume();
+        });
         mapPane.getChildren().addAll(startHandle, endHandle);
+    }
+
+    private void showFenceStartContextMenu(
+            FenceRow fenceRow,
+            Node owner,
+            double screenX,
+            double screenY
+    ) {
+        MenuItem disconnectItem = new MenuItem("Ühenda eelmisest aiarajast lahti");
+        disconnectItem.setDisable(mapLayoutLocked || fenceRow.locked());
+        disconnectItem.setOnAction(event -> {
+            fenceRow.disconnectStart();
+            refreshEditedShapeObject();
+        });
+        showContextMenu(new ContextMenu(disconnectItem), owner, screenX, screenY);
+    }
+
+    private void showFenceEndContextMenu(
+            FenceRow fenceRow,
+            Node owner,
+            double screenX,
+            double screenY
+    ) {
+        MenuItem continueItem = new MenuItem("Jätka aiarida siit");
+        continueItem.setDisable(mapLayoutLocked || fenceRow.locked());
+        continueItem.setOnAction(event -> startConnectedFenceRow(fenceRow));
+        showContextMenu(new ContextMenu(continueItem), owner, screenX, screenY);
+    }
+
+    private void startConnectedFenceRow(FenceRow parent) {
+        pendingFenceRowPlacement = true;
+        pendingFenceParentId = parent.id();
+        pendingShapePoints.clear();
+        pendingShapePoints.add(parent.endPosition(pixelsPerMeter()));
+        refreshPlacementButtons();
+        updateMapToolStatus();
+        redrawMap();
     }
 
     private void makeFenceRowEndDraggable(
@@ -4626,7 +4697,8 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         startHandle.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || mapLayoutLocked || fenceRow.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked
+                    || fenceRow.locked() || fenceRow.connectedAtStart()) {
                 event.consume();
                 return;
             }
@@ -5227,6 +5299,10 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             selectObject(object);
+            if (object instanceof FenceRow fenceRow && fenceRow.connectedAtStart()) {
+                event.consume();
+                return;
+            }
             if (mapLayoutLocked) {
                 event.consume();
                 return;
@@ -5242,6 +5318,10 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             if (object.locked()) {
+                return;
+            }
+            if (object instanceof FenceRow fenceRow && fenceRow.connectedAtStart()) {
+                event.consume();
                 return;
             }
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
@@ -6734,6 +6814,7 @@ public class PlaaniseppApp extends Application {
         pendingMarkerPlacement = false;
         pendingLineObjectPlacement = false;
         pendingFenceRowPlacement = false;
+        pendingFenceParentId = null;
         pendingAreaObjectPlacement = false;
         pendingPowerSourceConsumer = null;
         clearPendingPlacementDetails();

@@ -10,6 +10,7 @@ public class FenceRow extends PlannerObject {
     private double rotationDegrees;
     private String colorHex;
     private double widthPixels;
+    private String connectedToFenceRowId;
 
     public FenceRow(String id, String name, Position position) {
         super(id, name, position);
@@ -17,6 +18,7 @@ public class FenceRow extends PlannerObject {
         segmentLengthMeters = DEFAULT_SEGMENT_LENGTH_METERS;
         colorHex = DEFAULT_COLOR_HEX;
         widthPixels = DEFAULT_WIDTH_PIXELS;
+        connectedToFenceRowId = "";
     }
 
     public int segmentCount() {
@@ -79,6 +81,29 @@ public class FenceRow extends PlannerObject {
                 position().x() + Math.cos(angleRadians) * lengthPixels,
                 position().y() + Math.sin(angleRadians) * lengthPixels
         );
+    }
+
+    public String connectedToFenceRowId() {
+        return connectedToFenceRowId;
+    }
+
+    public boolean connectedAtStart() {
+        return !connectedToFenceRowId.isBlank();
+    }
+
+    public void connectStartTo(String fenceRowId) {
+        if (fenceRowId == null || fenceRowId.isBlank() || id().equals(fenceRowId)) {
+            throw new IllegalArgumentException("Aiarida peab ühenduma teise olemasoleva aiarajaga.");
+        }
+        connectedToFenceRowId = fenceRowId;
+    }
+
+    public void disconnectStart() {
+        connectedToFenceRowId = "";
+    }
+
+    void alignConnectedStart(Position position) {
+        moveToIgnoringLock(position);
     }
 
     public void rotateEndToward(Position target) {

@@ -468,7 +468,7 @@ Allolev ajajoon koondab 186 commitist tähenduslikud etapid. Täpne muudatuste l
 - Aiarida luuakse kahel kaardiklõpsul ning kuvatakse üksikute standardpikkusega lõikude ja kogupikkusena.
 - Külgpaneel võimaldab aedade arvu, ühe aia pikkust ja suunda täpselt muuta.
 - Valitud rea otspunkte saab lohistada jäiga reana: lõpp-punkt pöörab rida ning alguspunkti lohistamisel jääb senine lõpp paigale. Üksikute aedade pikkus ei muutu.
-- `.pplan` versioon 8 säilitab aiaridade andmed ning tekstiaruanne lisab aia inventari kokkuvõtte.
+- `.pplan` versioon 9 säilitab aiaridade andmed ja ridadevahelised ühendused ning tekstiaruanne lisab aia inventari kokkuvõtte.
 
 ## 8. Kasutajatestides tehtud olulisemad õppetunnid
 

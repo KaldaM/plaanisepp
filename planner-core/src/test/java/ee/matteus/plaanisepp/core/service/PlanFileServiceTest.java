@@ -114,7 +114,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(8, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(9, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -151,6 +151,9 @@ class PlanFileServiceTest {
         fenceRow.setColorHex("#334155");
         fenceRow.setWidthPixels(6);
         plan.addObject(fenceRow);
+        FenceRow continuation = new FenceRow("fence-2", "Jätk", fenceRow.endPosition(plan.pixelsPerMeter()));
+        continuation.connectStartTo(fenceRow.id());
+        plan.addObject(continuation);
         Path file = tempDirectory.resolve("fence-row.pplan");
 
         service.save(plan, file);
@@ -162,6 +165,8 @@ class PlanFileServiceTest {
         assertEquals(42, loadedRow.rotationDegrees());
         assertEquals("#334155", loadedRow.colorHex());
         assertEquals(6, loadedRow.widthPixels());
+        FenceRow loadedContinuation = (FenceRow) loadedPlan.findObject("fence-2").orElseThrow();
+        assertEquals("fence-1", loadedContinuation.connectedToFenceRowId());
     }
 
     @Test
@@ -623,7 +628,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(8, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(9, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()
