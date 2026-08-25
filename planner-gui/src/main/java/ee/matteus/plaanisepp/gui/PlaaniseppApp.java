@@ -288,7 +288,6 @@ public class PlaaniseppApp extends Application {
     private VBox equipmentPanel;
     private VBox outletPanel;
     private Button deleteObjectButton;
-    private Button duplicateObjectButton;
     private Button choosePowerSourceButton;
     private ToggleButton measureButton;
     private ToggleButton addCablePointButton;
@@ -329,6 +328,8 @@ public class PlaaniseppApp extends Application {
     private boolean pendingLineObjectPlacement;
     private boolean pendingAreaObjectPlacement;
     private MarkerType pendingPlacementMarkerType;
+    private PlannerObject copiedObject;
+    private int keyboardPasteCount;
     private Stage stage;
 
     @Override
@@ -493,10 +494,21 @@ public class PlaaniseppApp extends Application {
             return;
         }
         if (scene.getFocusOwner() instanceof TextInputControl
-                || selectedObject == null
                 || isPlacementPending()
                 || addingCablePoint
                 || measuringActive) {
+            return;
+        }
+        if (event.getCode() == KeyCode.V
+                && event.isControlDown()
+                && !event.isAltDown()
+                && !event.isShiftDown()
+                && copiedObject != null) {
+            pasteCopiedObjectWithOffset();
+            event.consume();
+            return;
+        }
+        if (selectedObject == null) {
             return;
         }
         if (event.getCode() == KeyCode.L
@@ -505,6 +517,12 @@ public class PlaaniseppApp extends Application {
                 && !event.isShiftDown()) {
             lockedCheckBox.setSelected(!selectedObject.locked());
             updateSelectedLock();
+            event.consume();
+        } else if (event.getCode() == KeyCode.C
+                && event.isControlDown()
+                && !event.isAltDown()
+                && !event.isShiftDown()) {
+            copySelectedObject();
             event.consume();
         } else if (event.getCode() == KeyCode.H
                 && event.isControlDown()
@@ -1878,8 +1896,6 @@ public class PlaaniseppApp extends Application {
         applyButton.setOnAction(event -> applyDetails());
         choosePowerSourceButton = new Button("Vali kapp kaardilt");
         choosePowerSourceButton.setOnAction(event -> startPowerSourceSelectionFromMap());
-        duplicateObjectButton = new Button("Dubleeri objekt");
-        duplicateObjectButton.setOnAction(event -> duplicateSelectedObject());
         deleteObjectButton = new Button("Kustuta objekt");
         deleteObjectButton.setTooltip(new Tooltip("Kustuta valitud objekt (Delete)"));
         deleteObjectButton.setOnAction(event -> deleteSelectedObject());
@@ -1924,7 +1940,6 @@ public class PlaaniseppApp extends Application {
                 new VBox(8, sectionLabel("Märkmed"), notesForm),
                 applyButton,
                 choosePowerSourceButton,
-                duplicateObjectButton,
                 deleteObjectButton
         );
         detailPanel.setPadding(new Insets(0, 0, 12, 0));
@@ -2140,7 +2155,10 @@ public class PlaaniseppApp extends Application {
             addItem.setOnAction(event -> startPlacementAt(placementType, position));
             addMenu.getItems().add(addItem);
         }
-        showContextMenu(new ContextMenu(addMenu), mapPane, screenX, screenY);
+        MenuItem pasteItem = new MenuItem("Kleebi");
+        pasteItem.setDisable(copiedObject == null);
+        pasteItem.setOnAction(event -> pasteCopiedObject(position));
+        showContextMenu(new ContextMenu(addMenu, pasteItem), mapPane, screenX, screenY);
     }
 
     private void startPlacementAt(PlacementType placementType, Position position) {
@@ -4166,12 +4184,14 @@ public class PlaaniseppApp extends Application {
         selectObject(object);
         MenuItem editItem = new MenuItem("Muuda");
         editItem.setOnAction(event -> editObject(object));
+        MenuItem copyItem = new MenuItem("Kopeeri");
+        copyItem.setOnAction(event -> copyObject(object));
         MenuItem visibilityItem = new MenuItem(object.hidden() ? "Kuva" : "Peida");
         visibilityItem.setOnAction(event -> setObjectHidden(object, !object.hidden()));
         MenuItem deleteItem = new MenuItem("Kustuta");
         deleteItem.setOnAction(event -> deleteObject(object));
         showContextMenu(
-                new ContextMenu(editItem, visibilityItem, deleteItem),
+                new ContextMenu(editItem, copyItem, visibilityItem, deleteItem),
                 mapPane,
                 screenX,
                 screenY
@@ -4445,7 +4465,6 @@ public class PlaaniseppApp extends Application {
         resetMapLabelButton.setDisable(!customMapLabelPosition);
         resetMapLabelButton.setTooltip(new Tooltip(mapLabelResetTooltip(hasSelection, textObjectSelected, customMapLabelPosition)));
         boolean lockedSelection = selectedObject != null && selectedObject.locked();
-        duplicateObjectButton.setDisable(!hasSelection);
         deleteObjectButton.setDisable(!hasSelection || lockedSelection);
         deleteObjectButton.setTooltip(lockedSelection
                 ? new Tooltip("Lukustatud objekti kustutamiseks eemalda enne lukustus")
@@ -4982,12 +5001,35 @@ public class PlaaniseppApp extends Application {
         markDirty();
     }
 
-    private void duplicateSelectedObject() {
+    private void copySelectedObject() {
         if (selectedObject == null) {
             return;
         }
+        copyObject(selectedObject);
+    }
 
-        PlannerObject copy = duplicateObject(selectedObject);
+    private void copyObject(PlannerObject object) {
+        copiedObject = copyObjectAt(object, object.position(), object.name());
+        keyboardPasteCount = 0;
+    }
+
+    private void pasteCopiedObjectWithOffset() {
+        if (copiedObject == null) {
+            return;
+        }
+        keyboardPasteCount++;
+        pasteCopiedObject(new Position(
+                copiedObject.position().x() + 32.0 * keyboardPasteCount,
+                copiedObject.position().y() + 32.0 * keyboardPasteCount
+        ));
+    }
+
+    private void pasteCopiedObject(Position position) {
+        if (copiedObject == null) {
+            return;
+        }
+
+        PlannerObject copy = copyObjectAt(copiedObject, position, duplicateName(copiedObject));
         if (copy == null) {
             return;
         }
@@ -4999,11 +5041,10 @@ public class PlaaniseppApp extends Application {
         markDirty();
     }
 
-    private PlannerObject duplicateObject(PlannerObject original) {
-        Position copyPosition = new Position(original.position().x() + 32, original.position().y() + 32);
+    private PlannerObject copyObjectAt(PlannerObject original, Position copyPosition, String copyName) {
         PlannerObject copy;
         if (original instanceof Tent tent) {
-            Tent tentCopy = new Tent(planFactory.newId(), duplicateName(tent), copyPosition);
+            Tent tentCopy = new Tent(planFactory.newId(), copyName, copyPosition);
             tentCopy.setSizeMeters(tent.widthMeters(), tent.heightMeters());
             tentCopy.setRotationDegrees(tent.rotationDegrees());
             tentCopy.setColorHex(tent.colorHex());
@@ -5011,8 +5052,8 @@ public class PlaaniseppApp extends Application {
             copy = tentCopy;
         } else if (original instanceof PowerSource source) {
             PowerSource sourceCopy = original instanceof DistributionPanel
-                    ? new DistributionPanel(planFactory.newId(), duplicateName(source), copyPosition)
-                    : new PowerSource(planFactory.newId(), duplicateName(source), copyPosition);
+                    ? new DistributionPanel(planFactory.newId(), copyName, copyPosition)
+                    : new PowerSource(planFactory.newId(), copyName, copyPosition);
             for (PowerOutlet outlet : source.outlets()) {
                 sourceCopy.addOutlet(new PowerOutlet(
                         planFactory.newId(),
@@ -5023,7 +5064,7 @@ public class PlaaniseppApp extends Application {
             }
             copy = sourceCopy;
         } else if (original instanceof CustomObject customObject) {
-            CustomObject objectCopy = new CustomObject(planFactory.newId(), duplicateName(customObject), copyPosition);
+            CustomObject objectCopy = new CustomObject(planFactory.newId(), copyName, copyPosition);
             objectCopy.setShape(customObject.shape());
             objectCopy.setColorHex(customObject.colorHex());
             objectCopy.setOpacity(customObject.opacity());
@@ -5031,23 +5072,23 @@ public class PlaaniseppApp extends Application {
             objectCopy.setRotationDegrees(customObject.rotationDegrees());
             copy = objectCopy;
         } else if (original instanceof TextObject textObject) {
-            TextObject textCopy = new TextObject(planFactory.newId(), duplicateName(textObject), copyPosition);
+            TextObject textCopy = new TextObject(planFactory.newId(), copyName, copyPosition);
             textCopy.setColorHex(textObject.colorHex());
             textCopy.setFontSize(textObject.fontSize());
             copy = textCopy;
         } else if (original instanceof MarkerObject markerObject) {
-            MarkerObject markerCopy = new MarkerObject(planFactory.newId(), duplicateName(markerObject), copyPosition);
+            MarkerObject markerCopy = new MarkerObject(planFactory.newId(), copyName, copyPosition);
             markerCopy.setMarkerType(markerObject.markerType());
             markerCopy.setColorHex(markerObject.colorHex());
             copy = markerCopy;
         } else if (original instanceof AreaObject areaObject) {
-            AreaObject areaCopy = new AreaObject(planFactory.newId(), duplicateName(areaObject), copyPosition);
+            AreaObject areaCopy = new AreaObject(planFactory.newId(), copyName, copyPosition);
             areaCopy.setColorHex(areaObject.colorHex());
             areaCopy.setOpacity(areaObject.opacity());
             areaCopy.setPoints(offsetPoints(areaObject.points(), copyPosition.x() - areaObject.position().x(), copyPosition.y() - areaObject.position().y()));
             copy = areaCopy;
         } else if (original instanceof LineObject lineObject) {
-            LineObject lineCopy = new LineObject(planFactory.newId(), duplicateName(lineObject), copyPosition);
+            LineObject lineCopy = new LineObject(planFactory.newId(), copyName, copyPosition);
             lineCopy.setColorHex(lineObject.colorHex());
             lineCopy.setWidthPixels(lineObject.widthPixels());
             lineCopy.setPoints(offsetPoints(lineObject.points(), copyPosition.x() - lineObject.position().x(), copyPosition.y() - lineObject.position().y()));
