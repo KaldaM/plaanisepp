@@ -69,7 +69,7 @@ Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d
 ## Teostatud 26. augustil 2026
 
 - Lisati „Vaade” menüüst lülitatav korraldajavaade. See peidab kaablid, elektrikapid ja alajaotuskilbid kaardilt, elektriandmed külgpaneelilt ning tehnilised objektitüübid lisamisvalikutest, muutmata plaaniandmeid või varasemaid kihivalikuid.
-- Lisati aiaridade esimene etapp: kahe kaardipunktiga saab luua sirge rea, mis ümardatakse lähima täisarvu 3,5 m aialõikudeni. Kaart, külgpaneeli kokkuvõte ning TXT-raport kuvavad vajalike aedade arvu ja `.pplan` versioon 9 säilitab rea füüsilise geomeetria ning ridadevahelised ühendused.
+- Lisati aiaridade esimene etapp: kahe kaardipunktiga saab luua sirge rea, mis ümardatakse lähima täisarvu 3,5 m aialõikudeni. Kaart, külgpaneeli kokkuvõte ning TXT-raport kuvavad vajalike aedade arvu. `.pplan` versioon 10 säilitab read jagatud ühenduspunktide võrguna, mis võib olla avatud, hargnev või suletud ilma kunstliku esimese reata.
 
 ## 1. Rakenduse nimi
 

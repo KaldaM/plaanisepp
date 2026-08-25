@@ -114,7 +114,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(9, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(10, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -152,8 +152,8 @@ class PlanFileServiceTest {
         fenceRow.setWidthPixels(6);
         plan.addObject(fenceRow);
         FenceRow continuation = new FenceRow("fence-2", "Jätk", fenceRow.endPosition(plan.pixelsPerMeter()));
-        continuation.connectStartTo(fenceRow.id());
         plan.addObject(continuation);
+        plan.setFenceRowJoints(continuation, fenceRow.endJointId(), continuation.endJointId());
         Path file = tempDirectory.resolve("fence-row.pplan");
 
         service.save(plan, file);
@@ -166,7 +166,48 @@ class PlanFileServiceTest {
         assertEquals("#334155", loadedRow.colorHex());
         assertEquals(6, loadedRow.widthPixels());
         FenceRow loadedContinuation = (FenceRow) loadedPlan.findObject("fence-2").orElseThrow();
-        assertEquals("fence-1", loadedContinuation.connectedToFenceRowId());
+        assertEquals(loadedRow.endJointId(), loadedContinuation.startJointId());
+    }
+
+    @Test
+    void migratesVersionNineFenceParentLinkToSharedJoint() {
+        Properties properties = new Properties();
+        properties.setProperty("formatVersion", "9");
+        properties.setProperty("plan.name", "Vana aiavõrk");
+        properties.setProperty("plan.pixelsPerMeter", "10");
+        properties.setProperty("objects.count", "2");
+        writeFenceRowProperties(properties, "object.0.", "first", 0, 0, 0, "");
+        writeFenceRowProperties(properties, "object.1.", "second", 35, 0, 90, "first");
+
+        EventPlan loadedPlan = service.readPlan(properties);
+
+        FenceRow first = (FenceRow) loadedPlan.findObject("first").orElseThrow();
+        FenceRow second = (FenceRow) loadedPlan.findObject("second").orElseThrow();
+        assertEquals(first.endJointId(), second.startJointId());
+        assertEquals(2, loadedPlan.fenceJointDegree(first.endJointId()));
+        assertFalse(second.connectedAtStart());
+    }
+
+    private void writeFenceRowProperties(
+            Properties properties,
+            String prefix,
+            String id,
+            double x,
+            double y,
+            double rotation,
+            String connectedTo
+    ) {
+        properties.setProperty(prefix + "type", "FENCE_ROW");
+        properties.setProperty(prefix + "id", id);
+        properties.setProperty(prefix + "name", id);
+        properties.setProperty(prefix + "x", Double.toString(x));
+        properties.setProperty(prefix + "y", Double.toString(y));
+        properties.setProperty(prefix + "segmentCount", "1");
+        properties.setProperty(prefix + "segmentLengthMeters", "3.5");
+        properties.setProperty(prefix + "rotationDegrees", Double.toString(rotation));
+        if (!connectedTo.isBlank()) {
+            properties.setProperty(prefix + "connectedToFenceRowId", connectedTo);
+        }
     }
 
     @Test
@@ -628,7 +669,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(9, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(10, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

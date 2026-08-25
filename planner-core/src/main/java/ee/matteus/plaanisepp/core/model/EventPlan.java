@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -24,6 +25,7 @@ public class EventPlan {
     private double objectLabelFontSize = DEFAULT_OBJECT_LABEL_FONT_SIZE;
     private double cableLabelFontSize = DEFAULT_CABLE_LABEL_FONT_SIZE;
     private final List<PlannerObject> objects = new ArrayList<>();
+    private final List<FenceJoint> fenceJoints = new ArrayList<>();
     private final List<PowerConnection> powerConnections = new ArrayList<>();
     private final List<ChecklistItem> checklistItems = new ArrayList<>();
     private final Map<String, ChecklistSuggestionStatus> checklistSuggestionStatuses = new TreeMap<>();
@@ -130,16 +132,14 @@ public class EventPlan {
 
     public void addObject(PlannerObject object) {
         objects.add(object);
+        if (object instanceof FenceRow fenceRow) {
+            ensureFenceJoints(fenceRow);
+        }
     }
 
     public void removeObject(String objectId) {
-        synchronizeFenceRows(pixelsPerMeter);
-        objects.stream()
-                .filter(FenceRow.class::isInstance)
-                .map(FenceRow.class::cast)
-                .filter(row -> row.connectedToFenceRowId().equals(objectId))
-                .forEach(FenceRow::disconnectStart);
         objects.removeIf(object -> object.id().equals(objectId));
+        removeUnusedFenceJoints();
         removePowerConnections(connection ->
                 connection.sourceId().equals(objectId) || connection.consumerId().equals(objectId));
     }
@@ -244,44 +244,181 @@ public class EventPlan {
         return objects.stream().filter(object -> object.id().equals(id)).findFirst();
     }
 
-    public void synchronizeFenceRows(double pixelsPerMeter) {
-        Set<String> aligned = new HashSet<>();
-        Set<String> visiting = new HashSet<>();
-        for (PlannerObject object : objects) {
-            if (object instanceof FenceRow fenceRow) {
-                alignFenceRow(fenceRow, pixelsPerMeter, aligned, visiting);
-            }
+    public List<FenceJoint> fenceJoints() {
+        return Collections.unmodifiableList(fenceJoints);
+    }
+
+    public void addFenceJoint(FenceJoint joint) {
+        if (findFenceJoint(joint.id()).isEmpty()) {
+            fenceJoints.add(joint);
         }
     }
 
-    private void alignFenceRow(
-            FenceRow fenceRow,
-            double pixelsPerMeter,
-            Set<String> aligned,
-            Set<String> visiting
-    ) {
-        if (aligned.contains(fenceRow.id()) || !fenceRow.connectedAtStart()) {
-            aligned.add(fenceRow.id());
-            return;
+    public Optional<FenceJoint> findFenceJoint(String id) {
+        return fenceJoints.stream().filter(joint -> joint.id().equals(id)).findFirst();
+    }
+
+    public int fenceJointDegree(String jointId) {
+        return (int) objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .filter(row -> row.startJointId().equals(jointId) || row.endJointId().equals(jointId))
+                .count();
+    }
+
+    public String createFenceJoint(Position position) {
+        String id = UUID.randomUUID().toString();
+        addFenceJoint(new FenceJoint(id, position));
+        return id;
+    }
+
+    public void setFenceRowJoints(FenceRow row, String startJointId, String endJointId) {
+        if (findFenceJoint(startJointId).isEmpty() || findFenceJoint(endJointId).isEmpty()) {
+            throw new IllegalArgumentException("Aiaraja ühenduspunkti ei leitud.");
         }
-        if (!visiting.add(fenceRow.id())) {
-            fenceRow.disconnectStart();
-            aligned.add(fenceRow.id());
-            return;
+        row.setJointIds(startJointId, endJointId);
+        removeUnusedFenceJoints();
+        synchronizeFenceRows(pixelsPerMeter);
+    }
+
+    public void disconnectFenceEndpoint(FenceRow row, boolean startEndpoint) {
+        String currentJointId = startEndpoint ? row.startJointId() : row.endJointId();
+        FenceJoint current = findFenceJoint(currentJointId).orElseThrow();
+        String separateJointId = createFenceJoint(current.position());
+        row.setJointIds(
+                startEndpoint ? separateJointId : row.startJointId(),
+                startEndpoint ? row.endJointId() : separateJointId
+        );
+        removeUnusedFenceJoints();
+    }
+
+    public boolean moveFenceEndpoint(FenceRow row, boolean startEndpoint, Position target) {
+        String movingJointId = startEndpoint ? row.startJointId() : row.endJointId();
+        if (fenceJointDegree(movingJointId) > 1) {
+            return false;
         }
-        PlannerObject parentObject = findObject(fenceRow.connectedToFenceRowId()).orElse(null);
-        if (!(parentObject instanceof FenceRow parent) || parent.id().equals(fenceRow.id())) {
-            fenceRow.disconnectStart();
+        FenceJoint fixed = findFenceJoint(startEndpoint ? row.endJointId() : row.startJointId()).orElseThrow();
+        double deltaX = target.x() - fixed.position().x();
+        double deltaY = target.y() - fixed.position().y();
+        double distance = Math.hypot(deltaX, deltaY);
+        if (distance == 0) {
+            return false;
+        }
+        double lengthPixels = row.totalLengthMeters() * pixelsPerMeter;
+        Position constrained = new Position(
+                fixed.position().x() + deltaX / distance * lengthPixels,
+                fixed.position().y() + deltaY / distance * lengthPixels
+        );
+        findFenceJoint(movingJointId).orElseThrow().moveTo(constrained);
+        synchronizeFenceRows(pixelsPerMeter);
+        return true;
+    }
+
+    public boolean applyFenceRowGeometry(FenceRow row) {
+        if (fenceJointDegree(row.endJointId()) == 1) {
+            findFenceJoint(row.endJointId()).orElseThrow().moveTo(row.endPosition(pixelsPerMeter));
+        } else if (fenceJointDegree(row.startJointId()) == 1) {
+            Position fixedEnd = findFenceJoint(row.endJointId()).orElseThrow().position();
+            double angle = Math.toRadians(row.rotationDegrees());
+            double lengthPixels = row.totalLengthMeters() * pixelsPerMeter;
+            findFenceJoint(row.startJointId()).orElseThrow().moveTo(new Position(
+                    fixedEnd.x() - Math.cos(angle) * lengthPixels,
+                    fixedEnd.y() - Math.sin(angle) * lengthPixels
+            ));
         } else {
-            alignFenceRow(parent, pixelsPerMeter, aligned, visiting);
-            if (parent.connectedToFenceRowId().equals(fenceRow.id())) {
-                fenceRow.disconnectStart();
-            } else {
-                fenceRow.alignConnectedStart(parent.endPosition(pixelsPerMeter));
+            return false;
+        }
+        synchronizeFenceRows(pixelsPerMeter);
+        return true;
+    }
+
+    public boolean translateFenceNetwork(String fenceRowId, double deltaX, double deltaY) {
+        FenceRow startRow = findObject(fenceRowId)
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .orElseThrow();
+        Set<String> rowIds = new HashSet<>();
+        Set<String> jointIds = new HashSet<>();
+        collectFenceNetwork(startRow, rowIds, jointIds);
+        boolean lockedNetwork = objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .filter(object -> rowIds.contains(object.id()))
+                .anyMatch(PlannerObject::locked);
+        if (lockedNetwork) {
+            return false;
+        }
+        fenceJoints.stream()
+                .filter(joint -> jointIds.contains(joint.id()))
+                .forEach(joint -> joint.moveTo(new Position(
+                        joint.position().x() + deltaX,
+                        joint.position().y() + deltaY
+                )));
+        synchronizeFenceRows(pixelsPerMeter);
+        return true;
+    }
+
+    private void collectFenceNetwork(FenceRow row, Set<String> rowIds, Set<String> jointIds) {
+        if (!rowIds.add(row.id())) {
+            return;
+        }
+        jointIds.add(row.startJointId());
+        jointIds.add(row.endJointId());
+        objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .filter(candidate -> !rowIds.contains(candidate.id()))
+                .filter(candidate -> jointIds.contains(candidate.startJointId())
+                        || jointIds.contains(candidate.endJointId()))
+                .forEach(candidate -> collectFenceNetwork(candidate, rowIds, jointIds));
+    }
+
+    public void migrateLegacyFenceConnections() {
+        List<FenceRow> rows = objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .toList();
+        for (FenceRow row : rows) {
+            if (!row.connectedAtStart()) {
+                continue;
+            }
+            findObject(row.connectedToFenceRowId())
+                    .filter(FenceRow.class::isInstance)
+                    .map(FenceRow.class::cast)
+                    .ifPresentOrElse(parent -> row.setJointIds(parent.endJointId(), row.endJointId()), () -> {
+                    });
+            row.disconnectStart();
+        }
+        removeUnusedFenceJoints();
+        synchronizeFenceRows(pixelsPerMeter);
+    }
+
+    private void ensureFenceJoints(FenceRow row) {
+        if (!row.startJointId().isBlank() && !row.endJointId().isBlank()) {
+            return;
+        }
+        row.setJointIds(createFenceJoint(row.position()), createFenceJoint(row.endPosition(pixelsPerMeter)));
+    }
+
+    private void removeUnusedFenceJoints() {
+        Set<String> usedJointIds = objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .flatMap(row -> java.util.stream.Stream.of(row.startJointId(), row.endJointId()))
+                .collect(Collectors.toSet());
+        fenceJoints.removeIf(joint -> !usedJointIds.contains(joint.id()));
+    }
+
+    public void synchronizeFenceRows(double pixelsPerMeter) {
+        for (PlannerObject object : objects) {
+            if (object instanceof FenceRow fenceRow) {
+                ensureFenceJoints(fenceRow);
+                FenceJoint start = findFenceJoint(fenceRow.startJointId()).orElse(null);
+                FenceJoint end = findFenceJoint(fenceRow.endJointId()).orElse(null);
+                if (start != null && end != null) {
+                    fenceRow.alignToEndpoints(start.position(), end.position(), pixelsPerMeter);
+                }
             }
         }
-        visiting.remove(fenceRow.id());
-        aligned.add(fenceRow.id());
     }
 
     public boolean showCables() {

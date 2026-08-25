@@ -11,6 +11,8 @@ public class FenceRow extends PlannerObject {
     private String colorHex;
     private double widthPixels;
     private String connectedToFenceRowId;
+    private String startJointId;
+    private String endJointId;
 
     public FenceRow(String id, String name, Position position) {
         super(id, name, position);
@@ -19,6 +21,8 @@ public class FenceRow extends PlannerObject {
         colorHex = DEFAULT_COLOR_HEX;
         widthPixels = DEFAULT_WIDTH_PIXELS;
         connectedToFenceRowId = "";
+        startJointId = "";
+        endJointId = "";
     }
 
     public int segmentCount() {
@@ -102,8 +106,29 @@ public class FenceRow extends PlannerObject {
         connectedToFenceRowId = "";
     }
 
-    void alignConnectedStart(Position position) {
-        moveToIgnoringLock(position);
+    public String startJointId() {
+        return startJointId;
+    }
+
+    public String endJointId() {
+        return endJointId;
+    }
+
+    public void setJointIds(String startJointId, String endJointId) {
+        if (startJointId == null || startJointId.isBlank()
+                || endJointId == null || endJointId.isBlank()
+                || startJointId.equals(endJointId)) {
+            throw new IllegalArgumentException("Aiarida peab ühendama kahte erinevat ühenduspunkti.");
+        }
+        this.startJointId = startJointId;
+        this.endJointId = endJointId;
+    }
+
+    void alignToEndpoints(Position start, Position end, double pixelsPerMeter) {
+        moveToIgnoringLock(start);
+        setRotationDegrees(Math.toDegrees(Math.atan2(end.y() - start.y(), end.x() - start.x())));
+        double lengthMeters = Math.hypot(end.x() - start.x(), end.y() - start.y()) / pixelsPerMeter;
+        setSegmentLengthMeters(lengthMeters / segmentCount);
     }
 
     public void rotateEndToward(Position target) {

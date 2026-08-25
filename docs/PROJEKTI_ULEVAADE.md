@@ -468,7 +468,8 @@ Allolev ajajoon koondab 186 commitist tähenduslikud etapid. Täpne muudatuste l
 - Aiarida luuakse kahel kaardiklõpsul ning kuvatakse üksikute standardpikkusega lõikude ja kogupikkusena.
 - Külgpaneel võimaldab aedade arvu, ühe aia pikkust ja suunda täpselt muuta.
 - Valitud rea otspunkte saab lohistada jäiga reana: lõpp-punkt pöörab rida ning alguspunkti lohistamisel jääb senine lõpp paigale. Üksikute aedade pikkus ei muutu.
-- `.pplan` versioon 9 säilitab aiaridade andmed ja ridadevahelised ühendused ning tekstiaruanne lisab aia inventari kokkuvõtte.
+- `.pplan` versioon 10 säilitab aiaridade geomeetria jagatud ühenduspunktide võrguna ning tekstiaruanne lisab aia inventari kokkuvõtte. Versioon 9 suunatud jätkuseosed migreeritakse avamisel samasse võrgumudelisse.
+- Aiavõrk võib olla avatud, hargnev või suletud, mistõttu ristkülikul ja ringil pole kunstlikku esimest ega viimast rida. Ükskõik millise rea keskelt lohistamine nihutab kogu ühendatud võrku.
 
 ## 8. Kasutajatestides tehtud olulisemad õppetunnid
 
@@ -543,7 +544,7 @@ Veebivaade ja organisatsioonid tähendavad tõenäoliselt eraldi serverit, andme
 - Lohistatava ühenduspunkti JavaFX-i hiirekäitumist ei kata automaattest; see vajab käsitsi kontrollimist eri objektitüüpidega.
 - Rakendusel ei ole veel veebivaadet, kasutajakontosid, õigusi ega keskset andmehoidlat.
 - Tartu kaardiandmetega otseliidestust ei ole.
-- Aiavahend toetab praegu sirget jäika rida. Keerulised ühendatud aiakujud ja lõikude lahtiühendamine on veel tegemata.
+- Aiavahend toetab sirgeid jäiku ridu ja nende jagatud ühenduspunktidega võrke. Vabakujulise kõvera automaatne aedadeks jaotamine ning suletud võrgu kuju piirangutega ümbervormimine on veel tegemata.
 
 ## 11. Soovituslik tööjärjekord
 

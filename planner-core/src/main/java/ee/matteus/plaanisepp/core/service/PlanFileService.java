@@ -11,6 +11,7 @@ import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EquipmentContainer;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
+import ee.matteus.plaanisepp.core.model.FenceJoint;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.MarkerType;
@@ -47,7 +48,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 9;
+    public static final int CURRENT_FORMAT_VERSION = 10;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -155,6 +156,15 @@ public class PlanFileService {
 
         properties.setProperty("objects.count", Integer.toString(plan.objects().size()));
 
+        properties.setProperty("fenceJoints.count", Integer.toString(plan.fenceJoints().size()));
+        for (int index = 0; index < plan.fenceJoints().size(); index++) {
+            FenceJoint joint = plan.fenceJoints().get(index);
+            String prefix = "fenceJoint." + index + ".";
+            properties.setProperty(prefix + "id", joint.id());
+            properties.setProperty(prefix + "x", Double.toString(joint.position().x()));
+            properties.setProperty(prefix + "y", Double.toString(joint.position().y()));
+        }
+
         List<PlannerObject> objects = plan.objects();
         for (int index = 0; index < objects.size(); index++) {
             writeObject(properties, "object." + index + ".", objects.get(index));
@@ -254,6 +264,18 @@ public class PlanFileService {
             }
         }
 
+        int fenceJointCount = intValue(properties, "fenceJoints.count", 0);
+        for (int index = 0; index < fenceJointCount; index++) {
+            String prefix = "fenceJoint." + index + ".";
+            String id = properties.getProperty(prefix + "id", "");
+            if (!id.isBlank()) {
+                plan.addFenceJoint(new FenceJoint(id, new Position(
+                        doubleValue(properties, prefix + "x", 0),
+                        doubleValue(properties, prefix + "y", 0)
+                )));
+            }
+        }
+
         int objectCount = intValue(properties, "objects.count", 0);
         for (int index = 0; index < objectCount; index++) {
             plan.addObject(readObject(properties, "object." + index + "."));
@@ -271,6 +293,7 @@ public class PlanFileService {
             }
         }
         plan.clearInvalidEquipmentPowerAssignments();
+        plan.migrateLegacyFenceConnections();
 
         int hiddenGroupCount = intValue(properties, "hiddenGroups.count", 0);
         for (int index = 0; index < hiddenGroupCount; index++) {
@@ -739,7 +762,8 @@ public class PlanFileService {
         properties.setProperty(prefix + "rotationDegrees", Double.toString(fenceRow.rotationDegrees()));
         properties.setProperty(prefix + "colorHex", fenceRow.colorHex());
         properties.setProperty(prefix + "widthPixels", Double.toString(fenceRow.widthPixels()));
-        properties.setProperty(prefix + "connectedToFenceRowId", fenceRow.connectedToFenceRowId());
+        properties.setProperty(prefix + "startJointId", fenceRow.startJointId());
+        properties.setProperty(prefix + "endJointId", fenceRow.endJointId());
     }
 
     private PlannerObject readObject(Properties properties, String prefix) {
@@ -800,6 +824,11 @@ public class PlanFileService {
         fenceRow.setRotationDegrees(doubleValue(properties, prefix + "rotationDegrees", 0));
         fenceRow.setColorHex(properties.getProperty(prefix + "colorHex", FenceRow.DEFAULT_COLOR_HEX));
         fenceRow.setWidthPixels(doubleValue(properties, prefix + "widthPixels", FenceRow.DEFAULT_WIDTH_PIXELS));
+        String startJointId = properties.getProperty(prefix + "startJointId", "");
+        String endJointId = properties.getProperty(prefix + "endJointId", "");
+        if (!startJointId.isBlank() && !endJointId.isBlank() && !startJointId.equals(endJointId)) {
+            fenceRow.setJointIds(startJointId, endJointId);
+        }
         String connectedToFenceRowId = properties.getProperty(prefix + "connectedToFenceRowId", "");
         if (!connectedToFenceRowId.isBlank() && !connectedToFenceRowId.equals(fenceRow.id())) {
             fenceRow.connectStartTo(connectedToFenceRowId);
