@@ -21,8 +21,11 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 10. avaldada versioonitud paigalduspaketid GitHub Releasesis ning võimaldada nende leidmist rakendusest;
 11. lisada tulevase PA-planeerimise juurde mõõtude ja elektrivajadusega objektieelseadistused;
 12. lisada fikseeritud pikkusega lõikudest koosnev aedade planeerimise tööriist ja inventarikokkuvõte;
-13. uuendada rakenduse visuaalne keel ja vähendada JavaFX-i vaikekomponentide vananenud ilmet;
-14. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+13. kiirendada objektide omaduste muutmist rippvalikute, kaardilt valimise, ühtse rakendamisloogika ja klahvikombinatsioonidega;
+14. lisada kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog;
+15. lisada tehnikakihita korraldajavaade ning plaanipõhine kommenteerimine;
+16. uuendada rakenduse visuaalne keel ja vähendada JavaFX-i vaikekomponentide vananenud ilmet;
+17. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -398,7 +401,116 @@ Keeruliste kujude jaoks lisatakse generaatorid vähemalt sirgele reale, kaarele 
 - aiaridade salvestamine, avamine, undo/redo ja raportitesse lisamine säilitavad sama geomeetria ning inventarikoguse;
 - versioonita ning varasemate `.pplan` versioonide avamine jääb muutmata.
 
-## 14. Visuaalse kasutajaliidese uuendamine
+## 14. Kiirem objektitöö ja ühtne rakendamisloogika
+
+### Omaduste valimine
+
+- Grupi määramise tekstiväli asendatakse muudetava rippvalikuga, mis pakub plaanis juba kasutatavaid gruppe, kuid lubab sisestada ka uue grupi nime.
+- Vooluallika ja väljundi määramise juures lisatakse tegevus „Vali kaardilt”. See käivitab ajutise valikurežiimi, tõstab esile ainult sobivad elektrikapid ja alajaotuskilbid ning seob valitud allika pärast väljundi kinnitamist. `Escape` katkestab valiku muutust tegemata.
+- Läbipaistvuse liugur peab näitama tulemust kaardil kohe lohistamise ajal ning selle kõrval peab alati olema nähtav arvuline protsent. Üks lohistamine salvestatakse undo-ajaloos ühe muudatusena.
+- Kui nimesildid on üldiselt peidetud, kuvatakse valitud objekti nimesilt ajutiselt seni, kuni objekt on valitud. See ei muuda plaani ega kihi püsivat nähtavusseadet.
+
+### „Rakenda muudatused” reegel
+
+Praegune segane automaatse ja nupuga rakendamise kombinatsioon tuleb muuta järjekindlaks:
+
+- ühe väärtusega otsesed juhtelemendid, näiteks lukustus, nähtavus, värv ja läbipaistvus, annavad kaardil kohese eelvaate;
+- mitme omavahel seotud tekstiväljaga objektiandmed moodustavad ühe muutmistehingu ning kinnitatakse „Rakenda muudatused” tegevusega;
+- rakendamata muudatused tähistatakse vaates selgelt ning teise objekti valimisel küsitakse vajaduse korral, kas need rakendada või hüljata;
+- `Ctrl + Enter` rakendab aktiivse objektiandmete vaate muudatused;
+- `Escape` taastab rakendamata väljad viimati kinnitatud väärtustele;
+- sama omadus ei tohi mõnes vaates rakenduda kohe ja teises alles nupuga.
+
+### Klahvikombinatsioonid
+
+- `Ctrl + L` lülitab valitud objekti lukustuse sisse või välja.
+- `Ctrl + H` peidab valitud objekti või kuvab selle uuesti.
+- `Delete` kustutab valitud objekti, kasutades sama kinnitust ja seoste puhastamist nagu kontekstimenüü.
+- `Ctrl + Enter` rakendab aktiivses omaduste vaates tehtud muudatused.
+- `Ctrl + Shift + 1` alustab telgi lisamist.
+- `Ctrl + Shift + 2` alustab elektrikapi lisamist.
+- `Ctrl + Shift + 3` alustab alajaotuskilbi lisamist.
+- `Ctrl + Shift + 4` alustab üldobjekti lisamist.
+- `Ctrl + Shift + 5` alustab teksti lisamist.
+- `Ctrl + Shift + 6` alustab markeri lisamist.
+- `Ctrl + Shift + 7` alustab joone lisamist.
+- `Ctrl + Shift + 8` alustab ala lisamist.
+- `Ctrl + Shift + 9` reserveeritakse aedade tööriistale.
+
+Kõik lisamisotseteed peavad käivitama sama töövoo nagu tööriistariba ja kontekstimenüü. Vastavad kombinatsioonid kuvatakse menüüs ja kohtspikrites. Kui lisatavaid tüüpe tuleb üle üheksa, kasutatakse muudetavat keskset otseteede registrit, mitte raskesti meeldejäävaid mitmeastmelisi numbrikombinatsioone. Tekstiväljas kirjutamine ega modaalne dialoog ei tohi kaardi otseteid käivitada.
+
+### Vastuvõtukriteeriumid
+
+- olemasoleva grupi saab valida ning uue grupi saab samas väljas luua;
+- vooluallika saab valida kaardilt ilma sobimatut objekti kogemata ühendamata;
+- kohesed ja kinnitamist vajavad muudatused on enne kasutamist visuaalselt eristatavad;
+- kõik otseteed annavad sama tulemuse nagu vastav hiirega käivitatud tegevus;
+- läbipaistvuse lohistamine ja objekti kustutamine moodustavad kumbki ühe undo-sammu;
+- peidetud nimesilt ilmub ainult valitud objektile ega muuda salvestatud kihiseadeid.
+
+## 15. Kõrglahutusega ja joondatud aluskaardid
+
+Ekraanipildi tegemise asemel lisatakse aluskaardi hankimise töövoog, milles kasutaja märgib eelvaates soovitud ristkülikukujulise ala ning valib väljundi mõõdu või eraldusvõime. Hankimise etapp võib kasutada kaarditeenuse koordinaate ja projektsiooni, kuid Plaanisepp ühendab saadud paanid üheks rasterpildiks ning jätkab redaktoris olemasoleva pikslipõhise loogikaga. Valitud ala tegeliku ulatuse põhjal saab arvutada ja pakkuda ka pikslite arvu meetri kohta.
+
+Eelistatud andmeallikad on ametlikud WMS-, WMTS- või TMS-teenused, mis lubavad kindla ulatuse, projektsiooni, pildimõõdu ja kihi küsimist. Suure ala või teenuse pildimõõdu piirangu korral laaditakse ala paanidena ning ühendatakse kadudeta. Lahendus peab piirama mõistlikult lõpppildi mõõtmeid ja mälukasutust ning näitama enne allalaadimist hinnangulist failisuurust.
+
+Tartu või riikliku kaarditeenuse puhul peab saama sama täpse ruumilise ulatuse, projektsiooni ja pikslimõõduga hankida vähemalt:
+
+- ortofoto;
+- puhta alus- või tehnilise kaardi.
+
+Need salvestatakse eraldi, kuid täpselt kohakuti kaardikihtidena, mille vahel saab nähtavust vahetada. `.pplan` pakett säilitab kasutatud pildid ning võimaluse korral ka allika nime, kihi tunnuse, hankimise aja, ulatuse ja nõutud allikaviite. Tartu Geoarhiivi konkreetsete kihtide, teenuse otspunktide ja kasutustingimuste sobivus tuleb enne teostamist eraldi kinnitada.
+
+Google Mapsi ekraanipilte ega kaardipaanide kopeerimist ei kasutata selle töövoo alusena. Kui Google'i ametlikku staatilise kaardi teenust üldse toetada, tuleb arvestada selle pildimõõdu, autentimise, arvelduse, kuvamise ja säilitamise tingimustega. Esmane prototüüp tehakse avatuma ametliku WMS/WMTS teenusega.
+
+### Vastuvõtukriteeriumid
+
+- kasutaja saab eelvaates märkida soovitud ala ja näeb enne kinnitamist lõppresolutsiooni;
+- ortofoto ja tehniline kaart katavad piksel-piksli haaval identse ala;
+- imporditud plaan kasutab edasi praegust pikslipõhist joonistus- ja mõõtkavaloogikat;
+- suur ala laaditakse kontrollitult paanidena ning liiga suur väljund blokeeritakse selge teatega;
+- kaardi allikas ja nõutud viide on plaanis või ekspordis säilitatavad;
+- aluskaardid avanevad `.pplan` paketist ka internetiühenduseta.
+
+## 16. Korraldajavaade
+
+Korraldajavaade on sama plaani lihtsustatud kuvaprofiil kasutajatele, kes ei tegele elektri ega tehnikaga. See ei kustuta ega teisenda plaani andmeid.
+
+- külgpaneelilt peidetakse voolu kokkuvõte ning kaablite ja elektri omadused;
+- kaardil ei kuvata kaableid, elektrikappe, alajaotuskilpe ega muid ainult tehnikavaate kihte;
+- „Lisa” menüüst ja kiirklahvidest eemaldatakse tehnikaga seotud objektitüübid;
+- korraldajavaatest tavavaatesse naasmine taastab kõik tehnikaandmed ja nende varasema nähtavuse;
+- vaate aktiivsus on kasutaja eelistus või jagamisel valitav kuvaprofiil, mitte plaaniandmeid hävitav muudatus;
+- korraldajale tehtavates eksportides saab sama filtrit teadlikult kasutada.
+
+Enne teostamist tuleb koostada selge tüüpide loend: mis on alati korralduslik, mis alati tehniline ja millise objekti nähtavuse otsustab kasutaja. Üldobjekti ei tohi pelgalt voolutarbimise olemasolu tõttu automaatselt kaardilt eemaldada.
+
+## 17. Kommentaarid ja ülevaatus
+
+Plaanile lisatakse kommentaarikiht, mille kaudu saab küsimusi ja parandusi siduda täpse koha või objektiga.
+
+- objekti kontekstimenüüst lisatud kommentaar seotakse objekti püsiva ID-ga ning liigub koos objektiga;
+- kaardi tühjal kohal lisatud kommentaar salvestab oma asukoha ja kuvatakse väikese kommentaarimarkerina;
+- avatud kommentaariga objektil on selge, kuid kaarti mitte varjav märk või ümbris;
+- eraldi külgpaneel loetleb kõik avatud, lahendatud ja arhiveeritud kommentaarid ning valitud kommentaar viib vastava objekti või punktini;
+- kommentaari saab märkida tehtuks, mis muudab selle lahendatuks, ning seejärel arhiveerida;
+- kommentaarile saab vastata ning vastused kuvatakse ajaliselt järjestatud lõimena;
+- kommentaar säilitab teksti, loomise ja muutmise aja, oleku ning võimaluse korral kirjutaja nime;
+- kommentaaride markerite ja ümbriste nähtavust saab kihina sisse või välja lülitada;
+- lahendamine, vastamine ja asukoha muutmine peavad töötama undo/redo ning `.pplan` salvestamisega.
+
+Objekti kustutamisel ei tohi sellega seotud kommentaarid vaikides kaduda. Kasutajale pakutakse kas kommentaaride arhiveerimist või nende muutmist samas asukohas olevateks kaardikommentaarideks. Kommentaaride lisamine nõuab uut tagasiühilduvat `.pplan` vorminguversiooni; vanemates plaanides on kommentaaride loend tühi.
+
+### Vastuvõtukriteeriumid
+
+- kommentaari saab lisada nii objektile kui ka tühjale kaardikohale;
+- kommentaariloendi kirje viib alati õige objekti või asukohani;
+- vastused, tehtud olek ja arhiiv säilivad pärast salvestamist ja uuesti avamist;
+- tehnilise kihi peitmine ei peida sellele lisatud avatud kommentaari kommentaariloendist;
+- kommentaari visuaalne tähis on arusaadav ka värvieristuseta;
+- versioonita ning varasemate `.pplan` versioonide avamine jääb muutmata.
+
+## 18. Visuaalse kasutajaliidese uuendamine
 
 Rakendusele tuleb kujundada ühtne ja tänapäevane visuaalne keel. Praegused JavaFX-i vaikestiilid asendatakse järk-järgult Plaanisepa enda stiiliga, säilitades seejuures selguse, töökiiruse ja eri ekraanisuuruste toe.
 
@@ -427,7 +539,7 @@ FXML-vaateid saab visuaalselt kujundada Gluon Scene Builderiga ning IntelliJ IDE
 - visuaalne uuendus ei muuda plaaniandmeid, `.pplan` vormingut ega olemasolevaid töövooge;
 - enne suuremat ümberkujundamist säilitatakse võrdluspildid peamistest vaadetest.
 
-## 15. Arenduspõhimõtted
+## 19. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.
 - Domeeniarvutused jäävad `planner-core` moodulisse ja JavaFX-i esitlus `planner-gui` moodulisse.
