@@ -42,6 +42,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ColorPicker;
@@ -341,6 +342,7 @@ public class PlaaniseppApp extends Application {
     private boolean updatingDetailControls;
     private boolean detailSliderDragChanged;
     private boolean mapLayoutLocked;
+    private boolean objectEditDialogOpen;
     private Stage stage;
 
     @Override
@@ -488,7 +490,13 @@ public class PlaaniseppApp extends Application {
         if (selectedObject == null) {
             return;
         }
-        if (event.getCode() == KeyCode.L
+        if (event.getCode() == KeyCode.ENTER
+                && event.isAltDown()
+                && !event.isControlDown()
+                && !event.isShiftDown()) {
+            editObject(selectedObject);
+            event.consume();
+        } else if (event.getCode() == KeyCode.L
                 && event.isControlDown()
                 && !event.isAltDown()
                 && !event.isShiftDown()) {
@@ -4487,8 +4495,45 @@ public class PlaaniseppApp extends Application {
 
     private void editObject(PlannerObject object) {
         selectObject(object);
-        if (selectedObjectSection != null) {
-            selectedObjectSection.setExpanded(true);
+        if (selectedObjectSection == null || objectEditDialogOpen) {
+            return;
+        }
+        Node detailContent = selectedObjectSection.getContent();
+        if (detailContent == null) {
+            return;
+        }
+
+        boolean sectionExpanded = selectedObjectSection.isExpanded();
+        boolean detailContentVisible = detailContent.isVisible();
+        boolean detailContentManaged = detailContent.isManaged();
+        selectedObjectSection.setExpanded(true);
+        selectedObjectSection.setContent(new Label("Objekti andmed on avatud muutmisaknas."));
+        detailContent.setVisible(true);
+        detailContent.setManaged(true);
+        ScrollPane dialogScrollPane = new ScrollPane(detailContent);
+        dialogScrollPane.setFitToWidth(true);
+        dialogScrollPane.setPrefViewportWidth(620);
+        dialogScrollPane.setPrefViewportHeight(680);
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle("Muuda objekti");
+        dialog.getDialogPane().setHeaderText(object.name());
+        dialog.getDialogPane().setContent(dialogScrollPane);
+        dialog.getDialogPane().getButtonTypes().add(new ButtonType(
+                "Sulge", ButtonBar.ButtonData.CANCEL_CLOSE
+        ));
+        objectEditDialogOpen = true;
+        try {
+            dialog.showAndWait();
+        } finally {
+            objectEditDialogOpen = false;
+            dialogScrollPane.setContent(null);
+            detailContent.setVisible(detailContentVisible);
+            detailContent.setManaged(detailContentManaged);
+            selectedObjectSection.setContent(detailContent);
+            selectedObjectSection.setExpanded(sectionExpanded);
+            refreshDetails();
         }
     }
 

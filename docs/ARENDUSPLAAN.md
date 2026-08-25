@@ -44,6 +44,7 @@ Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d
 - Lisati piiratud undo/redo ajalugu ja plaani hetktõmmised. `Ctrl + Z` ning `Ctrl + Alt + Z` taastavad plaanimuudatusi, lohistamine moodustab ühe tervikliku ajalookirje ning tööriistariba nupud näitavad keelatud olekuga, kui tagasi- või edasiliikumine pole võimalik.
 - Arengukava täiendati visuaalse uuenduse, checklist'ide, aedade tööriista, versioonide allalaadimise, aluskaartide, korraldajavaate ja kommenteerimise ideedega.
 - Objekti grupi määramine muudeti redigeeritavaks rippmenüüks: valida saab olemasoleva grupi või sisestada uue grupinime.
+- Objekti paremklõpsu „Muuda” ja `Alt + Enter` avavad eraldi muutmisdialoogi, mis kasutab sama täielikku andmevaadet ja rakendusloogikat nagu külgpaneel.
 - Lisati valitud objekti kiirklahvid `Ctrl + L` lukustamiseks, `Ctrl + H` peitmiseks ja `Delete` kustutamiseks.
 - Objekti dubleerimise nupp asendati kopeerimise ja kleepimisega: töötavad `Ctrl + C`, `Ctrl + V` ning kaardi ja objekti paremklõpsumenüüd.
 - Objektitüüpide lisamiseks lisati kiirklahvid `Ctrl + Shift + 1…8`.
@@ -295,7 +296,7 @@ Objektil tehtud paremklõps ei tohi samal ajal avada kaardi tühja ala „Lisa�
 
 Kaardiobjekti ja objektide nimekirja kontekstimenüü „Muuda” ning „Kustuta” tegevused on teostatud. „Muuda” avab valitud objekti jaotise ning „Kustuta” kasutab olemasolevat lukustuse, kinnituse ja seoste puhastamise töövoogu.
 
-Edaspidi peab „Muuda” saama avada objekti andmed eraldi dialoogis, mis sisaldab sisuliselt samu välju ja tegevusi nagu praegune „Valitud objekt” jaotis. Nii saab kasutaja valida kompaktsema külgpaneeli töövoo ilma objekti muutmise võimalusi kaotamata. Dialoog ja külgpaneel peavad kasutama ühist rakendusloogikat, et valideerimine, elektriühendused ja muudatused ei hakkaks eri vaadetes erinevalt käituma. Valitud objekti muutmise dialoogi klahvikombinatsiooniks kavandatakse `Alt + Enter`.
+„Muuda” avab objekti andmed eraldi dialoogis ning sama tegevuse klahvikombinatsioon on `Alt + Enter`. Dialoog kasutab külgpaneeli „Valitud objekt” jaotisega sama andmevaadet ja rakendusloogikat, mistõttu nime, grupi, visuaalsete omaduste, elektriühenduste ning seadmete valideerimine ei saa kahes vaates lahkneda. Dialoogi sulgemisel taastub külgpaneeli varasem avatud või suletud olek.
 
 ### Kaabli kontekstimenüü
 
