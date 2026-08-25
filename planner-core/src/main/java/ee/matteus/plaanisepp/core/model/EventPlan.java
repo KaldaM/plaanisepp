@@ -440,6 +440,14 @@ public class EventPlan {
         }
     }
 
+    public boolean updateCableNotesForConnection(String connectionId, String cableNotes) {
+        return replacePowerConnection(connectionId, connection -> new PowerConnection(
+                connection.id(), connection.sourceId(), connection.consumerId(), connection.connectorType(),
+                connection.outletId(), cableNotes, connection.cableLengthNotes(), connection.routePoints(),
+                connection.customCableLabelPosition(), connection.cableLabelOffset(), connection.defaultForConsumer()
+        ));
+    }
+
     public void updateCableLengthNotes(String consumerId, String cableLengthNotes) {
         for (int index = 0; index < powerConnections.size(); index++) {
             PowerConnection connection = powerConnections.get(index);
@@ -460,6 +468,80 @@ public class EventPlan {
                 return;
             }
         }
+    }
+
+    public boolean updateCableLengthNotesForConnection(String connectionId, String cableLengthNotes) {
+        return replacePowerConnection(connectionId, connection -> new PowerConnection(
+                connection.id(), connection.sourceId(), connection.consumerId(), connection.connectorType(),
+                connection.outletId(), connection.cableNotes(), cableLengthNotes, connection.routePoints(),
+                connection.customCableLabelPosition(), connection.cableLabelOffset(), connection.defaultForConsumer()
+        ));
+    }
+
+    public boolean updatePowerConnection(
+            String connectionId,
+            String sourceId,
+            ConnectorType connectorType,
+            String outletId,
+            String cableNotes,
+            String cableLengthNotes
+    ) {
+        PowerConnection existing = findPowerConnection(connectionId).orElse(null);
+        if (existing == null || validatePowerConnection(
+                sourceId, existing.consumerId(), connectorType, outletId
+        ) != PowerConnectionValidationResult.VALID) {
+            return false;
+        }
+        PowerSource source = findObject(sourceId)
+                .filter(PowerSource.class::isInstance)
+                .map(PowerSource.class::cast)
+                .orElseThrow();
+        PowerOutlet outlet = selectOutlet(source, existing.consumerId(), connectorType, outletId).orElseThrow();
+        return replacePowerConnection(connectionId, connection -> new PowerConnection(
+                connection.id(), sourceId, connection.consumerId(), outlet.type(), outlet.id(),
+                cableNotes, cableLengthNotes, connection.routePoints(), connection.customCableLabelPosition(),
+                connection.cableLabelOffset(), connection.defaultForConsumer()
+        ));
+    }
+
+    public boolean makeDefaultPowerConnection(String connectionId) {
+        PowerConnection selected = findPowerConnection(connectionId).orElse(null);
+        if (selected == null) {
+            return false;
+        }
+        for (int index = 0; index < powerConnections.size(); index++) {
+            PowerConnection connection = powerConnections.get(index);
+            if (!connection.consumerId().equals(selected.consumerId())) {
+                continue;
+            }
+            boolean makeDefault = connection.id().equals(connectionId);
+            if (connection.defaultForConsumer() != makeDefault) {
+                powerConnections.set(index, new PowerConnection(
+                        connection.id(), connection.sourceId(), connection.consumerId(), connection.connectorType(),
+                        connection.outletId(), connection.cableNotes(), connection.cableLengthNotes(),
+                        connection.routePoints(), connection.customCableLabelPosition(), connection.cableLabelOffset(),
+                        makeDefault
+                ));
+            }
+        }
+        findEquipmentContainer(selected.consumerId()).ifPresent(container -> container.equipment().stream()
+                .filter(equipment -> equipment.powerConnectionId().equals(connectionId))
+                .forEach(Equipment::useDefaultPower));
+        return true;
+    }
+
+    private boolean replacePowerConnection(
+            String connectionId,
+            java.util.function.Function<PowerConnection, PowerConnection> replacement
+    ) {
+        for (int index = 0; index < powerConnections.size(); index++) {
+            PowerConnection connection = powerConnections.get(index);
+            if (connection.id().equals(connectionId)) {
+                powerConnections.set(index, replacement.apply(connection));
+                return true;
+            }
+        }
+        return false;
     }
 
     private String existingCableNotes(String consumerId) {
@@ -776,6 +858,14 @@ public class EventPlan {
         }
     }
 
+    public boolean resetCableLabelOffsetForConnection(String connectionId) {
+        return replacePowerConnection(connectionId, connection -> new PowerConnection(
+                connection.id(), connection.sourceId(), connection.consumerId(), connection.connectorType(),
+                connection.outletId(), connection.cableNotes(), connection.cableLengthNotes(),
+                connection.routePoints(), false, new Position(0, 0), connection.defaultForConsumer()
+        ));
+    }
+
     public void clearCableRoutePoints(String consumerId) {
         updateCableRoutePoints(consumerId, List.of());
     }
@@ -784,6 +874,12 @@ public class EventPlan {
         return powerConnections.stream()
                 .filter(connection -> connection.consumerId().equals(consumerId))
                 .filter(PowerConnection::defaultForConsumer)
+                .findFirst();
+    }
+
+    public Optional<PowerConnection> findPowerConnection(String connectionId) {
+        return powerConnections.stream()
+                .filter(connection -> connection.id().equals(connectionId))
                 .findFirst();
     }
 
