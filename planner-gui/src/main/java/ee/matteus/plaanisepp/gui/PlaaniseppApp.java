@@ -386,6 +386,10 @@ public class PlaaniseppApp extends Application {
                     return;
                 }
             }
+            handleSelectedObjectShortcut(event, scene);
+            if (event.isConsumed()) {
+                return;
+            }
             handleDoubleShift(event, scene);
         });
         scene.addEventFilter(KeyEvent.KEY_RELEASED, event -> {
@@ -475,6 +479,46 @@ public class PlaaniseppApp extends Application {
             undoPlanChange();
         }
         event.consume();
+    }
+
+    private void handleSelectedObjectShortcut(KeyEvent event, Scene scene) {
+        if (event.getCode() == KeyCode.ENTER
+                && event.isControlDown()
+                && !event.isAltDown()
+                && !event.isShiftDown()) {
+            if (selectedObject != null) {
+                applyDetails();
+                event.consume();
+            }
+            return;
+        }
+        if (scene.getFocusOwner() instanceof TextInputControl
+                || selectedObject == null
+                || isPlacementPending()
+                || addingCablePoint
+                || measuringActive) {
+            return;
+        }
+        if (event.getCode() == KeyCode.L
+                && event.isControlDown()
+                && !event.isAltDown()
+                && !event.isShiftDown()) {
+            lockedCheckBox.setSelected(!selectedObject.locked());
+            updateSelectedLock();
+            event.consume();
+        } else if (event.getCode() == KeyCode.H
+                && event.isControlDown()
+                && !event.isAltDown()
+                && !event.isShiftDown()) {
+            setObjectHidden(selectedObject, !selectedObject.hidden());
+            event.consume();
+        } else if (event.getCode() == KeyCode.DELETE
+                && !event.isControlDown()
+                && !event.isAltDown()
+                && !event.isShiftDown()) {
+            deleteSelectedObject();
+            event.consume();
+        }
     }
 
     private void undoPlanChange() {
@@ -1642,6 +1686,7 @@ public class PlaaniseppApp extends Application {
         groupField.setEditable(true);
         groupField.setMaxWidth(Double.MAX_VALUE);
         lockedCheckBox = new CheckBox("Lukus");
+        lockedCheckBox.setTooltip(new Tooltip("Lülita valitud objekti lukustust (Ctrl+L)"));
         lockedCheckBox.setOnAction(event -> updateSelectedLock());
         showMapLabelCheckBox = new CheckBox("Näita nime");
         showMapLabelCheckBox.setTooltip(new Tooltip("Peidab või näitab ainult kaardil olevat nime, mitte objekti ennast"));
@@ -1829,12 +1874,14 @@ public class PlaaniseppApp extends Application {
         notesForm.addRow(0, new Label("Märkmed"), notesArea);
 
         Button applyButton = new Button("Rakenda muudatused");
+        applyButton.setTooltip(new Tooltip("Rakenda valitud objekti muudatused (Ctrl+Enter)"));
         applyButton.setOnAction(event -> applyDetails());
         choosePowerSourceButton = new Button("Vali kapp kaardilt");
         choosePowerSourceButton.setOnAction(event -> startPowerSourceSelectionFromMap());
         duplicateObjectButton = new Button("Dubleeri objekt");
         duplicateObjectButton.setOnAction(event -> duplicateSelectedObject());
         deleteObjectButton = new Button("Kustuta objekt");
+        deleteObjectButton.setTooltip(new Tooltip("Kustuta valitud objekt (Delete)"));
         deleteObjectButton.setOnAction(event -> deleteSelectedObject());
 
         equipmentPanel = new VBox(
@@ -4402,7 +4449,7 @@ public class PlaaniseppApp extends Application {
         deleteObjectButton.setDisable(!hasSelection || lockedSelection);
         deleteObjectButton.setTooltip(lockedSelection
                 ? new Tooltip("Lukustatud objekti kustutamiseks eemalda enne lukustus")
-                : null);
+                : new Tooltip("Kustuta valitud objekt (Delete)"));
         customObjectShapeComboBox.setDisable(!customObjectSelected);
         customObjectColorPicker.setDisable(!customObjectSelected);
         customObjectOpacitySlider.setDisable(!customObjectSelected);
