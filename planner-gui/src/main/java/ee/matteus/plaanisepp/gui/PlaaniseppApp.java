@@ -387,6 +387,10 @@ public class PlaaniseppApp extends Application {
                     return;
                 }
             }
+            handlePlacementShortcut(event, scene);
+            if (event.isConsumed()) {
+                return;
+            }
             handleSelectedObjectShortcut(event, scene);
             if (event.isConsumed()) {
                 return;
@@ -539,6 +543,38 @@ public class PlaaniseppApp extends Application {
         }
     }
 
+    private void handlePlacementShortcut(KeyEvent event, Scene scene) {
+        if (!event.isControlDown()
+                || !event.isShiftDown()
+                || event.isAltDown()
+                || scene.getFocusOwner() instanceof TextInputControl
+                || isPlacementPending()
+                || addingCablePoint
+                || measuringActive) {
+            return;
+        }
+        PlacementType placementType = placementTypeForShortcut(event.getCode());
+        if (placementType == null) {
+            return;
+        }
+        startPlacement(placementType);
+        event.consume();
+    }
+
+    private PlacementType placementTypeForShortcut(KeyCode keyCode) {
+        return switch (keyCode) {
+            case DIGIT1, NUMPAD1 -> PlacementType.TENT;
+            case DIGIT2, NUMPAD2 -> PlacementType.POWER_SOURCE;
+            case DIGIT3, NUMPAD3 -> PlacementType.DISTRIBUTION_PANEL;
+            case DIGIT4, NUMPAD4 -> PlacementType.CUSTOM_OBJECT;
+            case DIGIT5, NUMPAD5 -> PlacementType.TEXT_OBJECT;
+            case DIGIT6, NUMPAD6 -> PlacementType.MARKER_OBJECT;
+            case DIGIT7, NUMPAD7 -> PlacementType.LINE_OBJECT;
+            case DIGIT8, NUMPAD8 -> PlacementType.AREA_OBJECT;
+            default -> null;
+        };
+    }
+
     private void undoPlanChange() {
         planHistory.undo().ifPresent(this::restorePlanSnapshot);
     }
@@ -682,7 +718,9 @@ public class PlaaniseppApp extends Application {
         placementTypeComboBox.setPrefWidth(120);
 
         addPlacementButton = new Button("Lisa");
-        addPlacementButton.setTooltip(new Tooltip("Vali tüüp ja vajuta kaardile, kuhu objekt lisada"));
+        addPlacementButton.setTooltip(new Tooltip(
+                "Vali tüüp ja vajuta kaardile, kuhu objekt lisada (kiirvalikud Ctrl+Shift+1…8)"
+        ));
         addPlacementButton.setOnAction(event -> toggleSelectedPlacement());
 
         Button saveButton = new Button("Salvesta");
