@@ -64,6 +64,7 @@ Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d
 - `.pplan` failivormingu versioon 5 salvestab ühendusepõhise kaablisildi nähtavuse ning vanemad plaanid jäävad avatavaks.
 - Alajaotuskilbi koormus jõuab ülesvoolu kapi konkreetse väljundi ja kapi kogukoormuse arvestusse.
 - Plaanipõhine kasutaja checklist võimaldab lisada vabatekstilisi ülesandeid, märkida neid tehtuks, ümber nimetada, järjestada ja kustutada. Kirjed osalevad undo/redo ajaloos ning säilivad `.pplan` versioon 6 failis; vanemate plaanide checklist on vaikimisi tühi.
+- Checklist'i soovituste loendis on tavapärased ürituse osad, mille saab märkida tehtuks või ebaoluliseks. Soovituste olek säilib `.pplan` versioon 7 failis ja osaleb undo/redo ajaloos.
 
 ## 1. Rakenduse nimi
 
@@ -359,7 +360,7 @@ Tööriistaribal on hiirega kasutatavad undo- ja redo-nupud koos klahvikombinats
 
 ### Kasutaja checklist
 
-Iga plaan saab kasutaja hallatava kontrollnimekirja, kuhu saab lisada vabatekstilisi ülesandeid, neid ümber nimetada, järjestada, tehtuks märkida ja kustutada. Checklist, kirjete järjestus ja tehtud olek kuuluvad plaaniandmete hulka ning peavad `.pplan` failis säilima. Vormingu järgmise versiooni lisamisel säilib versioonita ning versioon 1–5 plaanide avamine; vanades plaanides on checklist vaikimisi tühi.
+Iga plaan saab kasutaja hallatava kontrollnimekirja, kuhu saab lisada vabatekstilisi ülesandeid, neid ümber nimetada, järjestada, tehtuks märkida ja kustutada. Checklist, kirjete järjestus ja tehtud olek kuuluvad plaaniandmete hulka ning peavad `.pplan` failis säilima. Vormingu järgmise versiooni lisamisel säilib versioonita ning versioon 1–6 plaanide avamine; vanades plaanides on checklist vaikimisi tühi.
 
 Kasutaja checklist on teostatud külgpaneeli järjestatava jaotisena. Kirjeid saab lisada tekstiväljalt, tehtud olekut muuta linnukesega ning ümbernimetamist, järjestamist ja kustutamist hallata kirje paremklõpsumenüüst. Andmed salvestatakse `.pplan` versioon 6 vormingus ja osalevad olemasolevas undo/redo ajaloos. Soovituste checklist jääb eraldi järgmiseks etapiks.
 
@@ -377,6 +378,8 @@ Eraldi soovituste loend aitab kontrollida, kas tavapärased alaplaani osad on l�
 - Esmaabi.
 
 Soovituse saab märkida tehtuks või ebaoluliseks. Kui soovitus vastab olemasolevale objektieelseadistusele, saab selle juurest alustada objekti lisamist, kuid rakendus ei tohi ainult nime sarnasuse põhjal automaatselt väita, et soovitus on täidetud. Soovitusloend peab tulevikus toetama eri üritusetüüpide malle.
+
+Soovituste põhiloend ning tehtud ja ebaolulise oleku plaanipõhine salvestamine on teostatud. Objektieelseadistusest lisamise alustamine ja eri üritusetüüpide soovitusmallid jäävad hilisemaks etapiks.
 
 ## 11. Versioonitud paigalduspaketid ja vanade versioonide allalaadimine
 

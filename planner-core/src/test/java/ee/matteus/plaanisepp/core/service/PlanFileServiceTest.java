@@ -2,6 +2,7 @@ package ee.matteus.plaanisepp.core.service;
 
 import ee.matteus.plaanisepp.core.model.AreaObject;
 import ee.matteus.plaanisepp.core.model.ChecklistItem;
+import ee.matteus.plaanisepp.core.model.ChecklistSuggestionStatus;
 import ee.matteus.plaanisepp.core.model.ConnectorType;
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.DistributionPanel;
@@ -112,13 +113,31 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(6, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(7, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
         assertEquals("Kontrolli elektrit", loadedPlan.checklistItems().getFirst().text());
         assertTrue(loadedPlan.checklistItems().getFirst().completed());
         assertFalse(loadedPlan.checklistItems().getLast().completed());
+    }
+
+    @Test
+    void savesAndLoadsChecklistSuggestionStatuses() throws IOException {
+        EventPlan plan = new EventPlan("Soovitused");
+        plan.setChecklistSuggestionStatus("technical_tent", ChecklistSuggestionStatus.COMPLETED);
+        plan.setChecklistSuggestionStatus("merch", ChecklistSuggestionStatus.IRRELEVANT);
+        Path file = tempDirectory.resolve("checklist-suggestions.pplan");
+
+        service.save(plan, file);
+        EventPlan loadedPlan = service.load(file);
+
+        assertEquals(
+                ChecklistSuggestionStatus.COMPLETED,
+                loadedPlan.checklistSuggestionStatus("technical_tent")
+        );
+        assertEquals(ChecklistSuggestionStatus.IRRELEVANT, loadedPlan.checklistSuggestionStatus("merch"));
+        assertEquals(ChecklistSuggestionStatus.PENDING, loadedPlan.checklistSuggestionStatus("first_aid"));
     }
 
     @Test
@@ -580,7 +599,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(6, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(7, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

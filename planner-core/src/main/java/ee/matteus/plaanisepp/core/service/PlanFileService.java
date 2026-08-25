@@ -2,6 +2,7 @@ package ee.matteus.plaanisepp.core.service;
 
 import ee.matteus.plaanisepp.core.model.ConnectorType;
 import ee.matteus.plaanisepp.core.model.ChecklistItem;
+import ee.matteus.plaanisepp.core.model.ChecklistSuggestionStatus;
 import ee.matteus.plaanisepp.core.model.AreaObject;
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.CustomObjectShape;
@@ -45,7 +46,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 6;
+    public static final int CURRENT_FORMAT_VERSION = 7;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -133,6 +134,18 @@ public class PlanFileService {
             properties.setProperty(prefix + "completed", Boolean.toString(item.completed()));
         }
 
+        properties.setProperty(
+                "checklistSuggestions.count",
+                Integer.toString(plan.checklistSuggestionStatuses().size())
+        );
+        int suggestionIndex = 0;
+        for (var entry : plan.checklistSuggestionStatuses().entrySet()) {
+            String prefix = "checklistSuggestion." + suggestionIndex + ".";
+            properties.setProperty(prefix + "id", entry.getKey());
+            properties.setProperty(prefix + "status", entry.getValue().name());
+            suggestionIndex++;
+        }
+
         int hiddenGroupIndex = 0;
         for (String hiddenGroup : plan.hiddenGroups()) {
             properties.setProperty("hiddenGroup." + hiddenGroupIndex, hiddenGroup);
@@ -218,6 +231,25 @@ public class PlanFileService {
                         text,
                         booleanValue(properties, prefix + "completed", false)
                 ));
+            }
+        }
+
+
+        int suggestionCount = intValue(properties, "checklistSuggestions.count", 0);
+        for (int index = 0; index < suggestionCount; index++) {
+            String prefix = "checklistSuggestion." + index + ".";
+            String suggestionId = properties.getProperty(prefix + "id", "");
+            if (!suggestionId.isBlank()) {
+                try {
+                    plan.setChecklistSuggestionStatus(
+                            suggestionId,
+                            ChecklistSuggestionStatus.valueOf(properties.getProperty(
+                                    prefix + "status", ChecklistSuggestionStatus.PENDING.name()
+                            ))
+                    );
+                } catch (IllegalArgumentException ignored) {
+                    plan.setChecklistSuggestionStatus(suggestionId, ChecklistSuggestionStatus.PENDING);
+                }
             }
         }
 

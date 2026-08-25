@@ -2,6 +2,7 @@ package ee.matteus.plaanisepp.core.service;
 
 import ee.matteus.plaanisepp.core.model.ConnectorType;
 import ee.matteus.plaanisepp.core.model.ChecklistItem;
+import ee.matteus.plaanisepp.core.model.ChecklistSuggestionStatus;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.Position;
@@ -24,6 +25,7 @@ class PlanSnapshotServiceTest {
         original.setPackagedMapImage("map/map.png", new byte[]{1, 2, 3, 4});
         ChecklistItem checklistItem = original.addChecklistItem("Kontrolli elektrit");
         checklistItem.setCompleted(true);
+        original.setChecklistSuggestionStatus("technical_tent", ChecklistSuggestionStatus.COMPLETED);
 
         PowerSource source = new PowerSource("source", "Kapp", new Position(10, 20));
         source.addOutlet(new PowerOutlet("outlet", "Pesa", ConnectorType.SCHUKO_230V, 3500));
@@ -54,6 +56,10 @@ class PlanSnapshotServiceTest {
         assertEquals(1, restored.powerConnections().size());
         assertEquals("Kontrolli elektrit", restored.checklistItems().getFirst().text());
         assertTrue(restored.checklistItems().getFirst().completed());
+        assertEquals(
+                ChecklistSuggestionStatus.COMPLETED,
+                restored.checklistSuggestionStatus("technical_tent")
+        );
         assertArrayEquals(new byte[]{1, 2, 3, 4}, restored.packagedMapImage());
     }
 

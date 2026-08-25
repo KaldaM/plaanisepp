@@ -32,4 +32,16 @@ class EventPlanChecklistTest {
 
         assertThrows(IllegalArgumentException.class, () -> plan.addChecklistItem("  "));
     }
+
+    @Test
+    void storesOnlyNonPendingSuggestionStatuses() {
+        EventPlan plan = new EventPlan("Test");
+
+        plan.setChecklistSuggestionStatus("technical_tent", ChecklistSuggestionStatus.COMPLETED);
+        assertEquals(ChecklistSuggestionStatus.COMPLETED, plan.checklistSuggestionStatus("technical_tent"));
+
+        plan.setChecklistSuggestionStatus("technical_tent", ChecklistSuggestionStatus.PENDING);
+        assertEquals(ChecklistSuggestionStatus.PENDING, plan.checklistSuggestionStatus("technical_tent"));
+        assertTrue(plan.checklistSuggestionStatuses().isEmpty());
+    }
 }

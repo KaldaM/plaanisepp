@@ -2,6 +2,7 @@ package ee.matteus.plaanisepp.gui;
 
 import ee.matteus.plaanisepp.core.model.ConnectorType;
 import ee.matteus.plaanisepp.core.model.ChecklistItem;
+import ee.matteus.plaanisepp.core.model.ChecklistSuggestionStatus;
 import ee.matteus.plaanisepp.core.model.AreaObject;
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.CustomObjectShape;
@@ -160,6 +161,16 @@ public class PlaaniseppApp extends Application {
     private static final String OBJECT_LIST_HEIGHT_PREFERENCE = "objectListHeight";
     private static final long DOUBLE_SHIFT_INTERVAL_NANOS = 500_000_000L;
     private static final int MAX_PLAN_HISTORY_STEPS = 50;
+    private static final List<ChecklistSuggestion> CHECKLIST_SUGGESTIONS = List.of(
+            new ChecklistSuggestion("technical_tent", "Tehnikatelk"),
+            new ChecklistSuggestion("info_tent", "Infotelk"),
+            new ChecklistSuggestion("merch", "Merch"),
+            new ChecklistSuggestion("emergency_exit", "Emergency exit"),
+            new ChecklistSuggestion("pa", "PA"),
+            new ChecklistSuggestion("redla_car", "Redla auto"),
+            new ChecklistSuggestion("participant_tent", "Osalejate telk"),
+            new ChecklistSuggestion("first_aid", "Esmaabi")
+    );
 
     private final PlanFactory planFactory = new PlanFactory();
     private final PowerSummaryService powerSummaryService = new PowerSummaryService();
@@ -229,6 +240,7 @@ public class PlaaniseppApp extends Application {
     private TextField objectSearchField;
     private ListView<ObjectListEntry> objectList;
     private ListView<ChecklistItem> checklistList;
+    private ListView<ChecklistSuggestion> checklistSuggestionList;
     private TextField checklistItemField;
     private Button revealObjectButton;
     private TitledPane objectListSection;
@@ -1551,8 +1563,102 @@ public class PlaaniseppApp extends Application {
         addButton.setOnAction(event -> addChecklistItem());
         HBox addRow = new HBox(8, checklistItemField, addButton);
         HBox.setHgrow(checklistItemField, Priority.ALWAYS);
+
+        checklistSuggestionList = createChecklistSuggestionList();
+        TitledPane suggestionsPane = new TitledPane("Soovitused", checklistSuggestionList);
+        suggestionsPane.setExpanded(true);
         refreshChecklist();
-        return new VBox(8, checklistList, addRow);
+        return new VBox(8, new Label("Minu ülesanded"), checklistList, addRow, suggestionsPane);
+    }
+
+    private ListView<ChecklistSuggestion> createChecklistSuggestionList() {
+        ListView<ChecklistSuggestion> list = new ListView<>();
+        list.setMinHeight(170);
+        list.setPrefHeight(220);
+        list.setCellFactory(ignored -> new ListCell<>() {
+            @Override
+            protected void updateItem(ChecklistSuggestion suggestion, boolean empty) {
+                super.updateItem(suggestion, empty);
+                setText(null);
+                setGraphic(null);
+                setOnContextMenuRequested(null);
+                if (empty || suggestion == null) {
+                    return;
+                }
+                ChecklistSuggestionStatus status = plan.checklistSuggestionStatus(suggestion.id());
+                CheckBox completedCheckBox = new CheckBox();
+                completedCheckBox.setSelected(status == ChecklistSuggestionStatus.COMPLETED);
+                completedCheckBox.setTooltip(new Tooltip(status == ChecklistSuggestionStatus.COMPLETED
+                        ? "Märgi uuesti ootel"
+                        : "Märgi tehtuks"));
+                Label textLabel = new Label(suggestion.text());
+                Label statusLabel = new Label(status == ChecklistSuggestionStatus.IRRELEVANT
+                        ? "Ebaoluline"
+                        : status == ChecklistSuggestionStatus.COMPLETED ? "Tehtud" : "");
+                statusLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 11;");
+                if (status == ChecklistSuggestionStatus.COMPLETED) {
+                    textLabel.setStyle("-fx-text-fill: #6b7280; -fx-strikethrough: true;");
+                } else if (status == ChecklistSuggestionStatus.IRRELEVANT) {
+                    textLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-style: italic;");
+                }
+                VBox labels = new VBox(1, textLabel, statusLabel);
+                HBox row = new HBox(8, completedCheckBox, labels);
+                row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                setGraphic(row);
+                completedCheckBox.setOnAction(event -> setChecklistSuggestionStatus(
+                        suggestion,
+                        status == ChecklistSuggestionStatus.COMPLETED
+                                ? ChecklistSuggestionStatus.PENDING
+                                : ChecklistSuggestionStatus.COMPLETED
+                ));
+                setOnContextMenuRequested(event -> {
+                    showChecklistSuggestionContextMenu(suggestion, event.getScreenX(), event.getScreenY());
+                    event.consume();
+                });
+            }
+        });
+        return list;
+    }
+
+    private void showChecklistSuggestionContextMenu(
+            ChecklistSuggestion suggestion,
+            double screenX,
+            double screenY
+    ) {
+        ChecklistSuggestionStatus status = plan.checklistSuggestionStatus(suggestion.id());
+        MenuItem completedItem = new MenuItem(status == ChecklistSuggestionStatus.COMPLETED
+                ? "Märgi uuesti ootel"
+                : "Märgi tehtuks");
+        completedItem.setOnAction(event -> setChecklistSuggestionStatus(
+                suggestion,
+                status == ChecklistSuggestionStatus.COMPLETED
+                        ? ChecklistSuggestionStatus.PENDING
+                        : ChecklistSuggestionStatus.COMPLETED
+        ));
+        MenuItem irrelevantItem = new MenuItem(status == ChecklistSuggestionStatus.IRRELEVANT
+                ? "Märgi uuesti ootel"
+                : "Märgi ebaoluliseks");
+        irrelevantItem.setOnAction(event -> setChecklistSuggestionStatus(
+                suggestion,
+                status == ChecklistSuggestionStatus.IRRELEVANT
+                        ? ChecklistSuggestionStatus.PENDING
+                        : ChecklistSuggestionStatus.IRRELEVANT
+        ));
+        showContextMenu(
+                new ContextMenu(completedItem, irrelevantItem),
+                checklistSuggestionList,
+                screenX,
+                screenY
+        );
+    }
+
+    private void setChecklistSuggestionStatus(
+            ChecklistSuggestion suggestion,
+            ChecklistSuggestionStatus status
+    ) {
+        plan.setChecklistSuggestionStatus(suggestion.id(), status);
+        refreshChecklist();
+        markDirty();
     }
 
     private void addChecklistItem() {
@@ -1621,6 +1727,10 @@ public class PlaaniseppApp extends Application {
             return;
         }
         checklistList.getItems().setAll(plan.checklistItems());
+        if (checklistSuggestionList != null) {
+            checklistSuggestionList.getItems().setAll(CHECKLIST_SUGGESTIONS);
+            checklistSuggestionList.refresh();
+        }
     }
 
     private void handleQuickObjectSearchKey(KeyEvent event) {
@@ -8184,6 +8294,9 @@ public class PlaaniseppApp extends Application {
                     capacityWatts <= 0 ? 0.0 : (double) usedWatts * 100 / capacityWatts
             );
         }
+    }
+
+    private record ChecklistSuggestion(String id, String text) {
     }
 
     private static class Delta {

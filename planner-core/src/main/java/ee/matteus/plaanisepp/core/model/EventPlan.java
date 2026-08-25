@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -24,6 +26,7 @@ public class EventPlan {
     private final List<PlannerObject> objects = new ArrayList<>();
     private final List<PowerConnection> powerConnections = new ArrayList<>();
     private final List<ChecklistItem> checklistItems = new ArrayList<>();
+    private final Map<String, ChecklistSuggestionStatus> checklistSuggestionStatuses = new TreeMap<>();
     private final Set<String> hiddenGroups = new HashSet<>();
     private final Set<String> hiddenCableLabelConnectionIds = new HashSet<>();
     private boolean showCables = true;
@@ -172,6 +175,28 @@ public class EventPlan {
         ChecklistItem item = checklistItems.remove(currentIndex);
         checklistItems.add(targetIndex, item);
         return true;
+    }
+
+    public ChecklistSuggestionStatus checklistSuggestionStatus(String suggestionId) {
+        return checklistSuggestionStatuses.getOrDefault(suggestionId, ChecklistSuggestionStatus.PENDING);
+    }
+
+    public void setChecklistSuggestionStatus(String suggestionId, ChecklistSuggestionStatus status) {
+        if (suggestionId == null || suggestionId.isBlank()) {
+            throw new IllegalArgumentException("Checklist'i soovituse tunnus ei tohi olla tühi.");
+        }
+        ChecklistSuggestionStatus selectedStatus = status == null
+                ? ChecklistSuggestionStatus.PENDING
+                : status;
+        if (selectedStatus == ChecklistSuggestionStatus.PENDING) {
+            checklistSuggestionStatuses.remove(suggestionId);
+        } else {
+            checklistSuggestionStatuses.put(suggestionId, selectedStatus);
+        }
+    }
+
+    public Map<String, ChecklistSuggestionStatus> checklistSuggestionStatuses() {
+        return Collections.unmodifiableMap(checklistSuggestionStatuses);
     }
 
     public List<PowerSource> powerSources() {
