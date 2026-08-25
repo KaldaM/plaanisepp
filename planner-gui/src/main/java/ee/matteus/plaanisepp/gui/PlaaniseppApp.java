@@ -179,6 +179,8 @@ public class PlaaniseppApp extends Application {
     private Button zoomPercentButton;
     private Button undoButton;
     private Button redoButton;
+    private MenuItem undoMenuItem;
+    private MenuItem redoMenuItem;
     private double mapWidth = MIN_MAP_WIDTH;
     private double mapHeight = MIN_MAP_HEIGHT;
     private double objectListHeight;
@@ -574,6 +576,12 @@ public class PlaaniseppApp extends Application {
         if (redoButton != null) {
             redoButton.setDisable(!planHistory.canRedo());
         }
+        if (undoMenuItem != null) {
+            undoMenuItem.setDisable(!planHistory.canUndo());
+        }
+        if (redoMenuItem != null) {
+            redoMenuItem.setDisable(!planHistory.canRedo());
+        }
     }
 
     private void restorePlanSnapshot(PlanSnapshot snapshot) {
@@ -751,7 +759,70 @@ public class PlaaniseppApp extends Application {
                 new SeparatorMenuItem(),
                 planSettingsItem
         );
-        return new MenuBar(fileMenu);
+
+        undoMenuItem = new MenuItem("Võta tagasi (Ctrl+Z)");
+        undoMenuItem.setOnAction(event -> undoPlanChange());
+        redoMenuItem = new MenuItem("Tee uuesti (Ctrl+Alt+Z)");
+        redoMenuItem.setOnAction(event -> redoPlanChange());
+        MenuItem editObjectItem = new MenuItem("Muuda objekti (Alt+Enter)");
+        editObjectItem.setOnAction(event -> {
+            if (selectedObject != null) {
+                editObject(selectedObject);
+            }
+        });
+        MenuItem copyObjectItem = new MenuItem("Kopeeri objekt (Ctrl+C)");
+        copyObjectItem.setOnAction(event -> copySelectedObject());
+        MenuItem pasteObjectItem = new MenuItem("Kleebi objekt (Ctrl+V)");
+        pasteObjectItem.setOnAction(event -> pasteCopiedObjectWithOffset());
+        MenuItem lockObjectItem = new MenuItem();
+        lockObjectItem.setOnAction(event -> {
+            if (selectedObject != null) {
+                lockedCheckBox.setSelected(!selectedObject.locked());
+                updateSelectedLock();
+            }
+        });
+        MenuItem visibilityItem = new MenuItem();
+        visibilityItem.setOnAction(event -> {
+            if (selectedObject != null) {
+                setObjectHidden(selectedObject, !selectedObject.hidden());
+            }
+        });
+        MenuItem deleteObjectItem = new MenuItem("Kustuta objekt (Delete)");
+        deleteObjectItem.setOnAction(event -> deleteSelectedObject());
+
+        Menu editMenu = new Menu("Redigeeri");
+        editMenu.getItems().addAll(
+                undoMenuItem,
+                redoMenuItem,
+                new SeparatorMenuItem(),
+                editObjectItem,
+                copyObjectItem,
+                pasteObjectItem,
+                new SeparatorMenuItem(),
+                lockObjectItem,
+                visibilityItem,
+                deleteObjectItem
+        );
+        editMenu.setOnShowing(event -> {
+            updatePlanHistoryButtons();
+            boolean objectSelected = selectedObject != null;
+            editObjectItem.setDisable(!objectSelected);
+            copyObjectItem.setDisable(!objectSelected);
+            pasteObjectItem.setDisable(copiedObject == null || mapLayoutLocked);
+            lockObjectItem.setDisable(!objectSelected);
+            visibilityItem.setDisable(!objectSelected);
+            deleteObjectItem.setDisable(!objectSelected || mapLayoutLocked
+                    || selectedObject != null && selectedObject.locked());
+            lockObjectItem.setText(objectSelected && selectedObject.locked()
+                    ? "Eemalda objekti lukustus (Ctrl+L)"
+                    : "Lukusta objekt (Ctrl+L)");
+            visibilityItem.setText(objectSelected && selectedObject.hidden()
+                    ? "Kuva objekt (Ctrl+H)"
+                    : "Peida objekt (Ctrl+H)");
+        });
+
+        updatePlanHistoryButtons();
+        return new MenuBar(fileMenu, editMenu);
     }
 
     private ToolBar createToolbar() {

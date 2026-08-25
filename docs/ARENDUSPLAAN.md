@@ -36,6 +36,7 @@ Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d
 
 - Külgpaneeli põhijaotiste järjestust saab paremklõpsumenüüst muuta, vaikejärjestuse taastada ja kasutaja eelistustes säilitada.
 - Rakendusele lisati laiendatav menüüriba. Uue plaani loomine, avamine, salvestamine, „Salvesta kui”, ekspordid ja plaani andmed viidi tööriistaribalt „Fail” menüüsse; senised klahvikombinatsioonid säilisid.
+- Menüüriba „Redigeeri” menüü koondab undo/redo ning valitud objekti muutmise, kopeerimise, kleepimise, lukustamise, peitmise ja kustutamise. Menüü tegevuste tekst ja lubatud olek arvestavad aktiivset objekti, lõikelauda, ajalugu ning paigutuslukku.
 - Kaabli trajektoori saab kaabli paremklõpsumenüüst muutma hakata, punkte lisada ja lohistada ning muutmise selgelt lõpetada.
 - Objektide kiirotsing avaneb kahe kiire `Shift`-vajutusega, saab kohe klaviatuurifookuse ning toetab valimist, tsentreerimist, esiletõstmist ja korrektset katkestamist.
 - Suumimiseks lisati liugur ja `Alt + hiirerull`; hiirega suumimisel jääb kursori all olev kaardipunkt paigale.
