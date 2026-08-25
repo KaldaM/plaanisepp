@@ -1,6 +1,7 @@
 package ee.matteus.plaanisepp.core.service;
 
 import ee.matteus.plaanisepp.core.model.ConnectorType;
+import ee.matteus.plaanisepp.core.model.ChecklistItem;
 import ee.matteus.plaanisepp.core.model.AreaObject;
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.CustomObjectShape;
@@ -44,7 +45,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 5;
+    public static final int CURRENT_FORMAT_VERSION = 6;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -123,6 +124,15 @@ public class PlanFileService {
         properties.setProperty("layers.showLineObjects", Boolean.toString(plan.showLineObjects()));
         properties.setProperty("hiddenGroups.count", Integer.toString(plan.hiddenGroups().size()));
 
+        properties.setProperty("checklist.count", Integer.toString(plan.checklistItems().size()));
+        for (int index = 0; index < plan.checklistItems().size(); index++) {
+            ChecklistItem item = plan.checklistItems().get(index);
+            String prefix = "checklist." + index + ".";
+            properties.setProperty(prefix + "id", item.id());
+            properties.setProperty(prefix + "text", item.text());
+            properties.setProperty(prefix + "completed", Boolean.toString(item.completed()));
+        }
+
         int hiddenGroupIndex = 0;
         for (String hiddenGroup : plan.hiddenGroups()) {
             properties.setProperty("hiddenGroup." + hiddenGroupIndex, hiddenGroup);
@@ -197,6 +207,19 @@ public class PlanFileService {
         plan.setShowMarkerObjects(booleanValue(properties, "layers.showMarkerObjects", true));
         plan.setShowAreaObjects(booleanValue(properties, "layers.showAreaObjects", true));
         plan.setShowLineObjects(booleanValue(properties, "layers.showLineObjects", true));
+
+        int checklistCount = intValue(properties, "checklist.count", 0);
+        for (int index = 0; index < checklistCount; index++) {
+            String prefix = "checklist." + index + ".";
+            String text = properties.getProperty(prefix + "text", "");
+            if (!text.isBlank()) {
+                plan.addChecklistItem(new ChecklistItem(
+                        properties.getProperty(prefix + "id", java.util.UUID.randomUUID().toString()),
+                        text,
+                        booleanValue(properties, prefix + "completed", false)
+                ));
+            }
+        }
 
         int objectCount = intValue(properties, "objects.count", 0);
         for (int index = 0; index < objectCount; index++) {

@@ -1,6 +1,7 @@
 package ee.matteus.plaanisepp.core.service;
 
 import ee.matteus.plaanisepp.core.model.AreaObject;
+import ee.matteus.plaanisepp.core.model.ChecklistItem;
 import ee.matteus.plaanisepp.core.model.ConnectorType;
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.DistributionPanel;
@@ -96,6 +97,28 @@ class PlanFileServiceTest {
         EventPlan loadedPlan = service.load(file);
 
         assertEquals("Versioon 1 plaan", loadedPlan.name());
+        assertTrue(loadedPlan.checklistItems().isEmpty());
+    }
+
+    @Test
+    void savesAndLoadsChecklistItemsInTheirCurrentOrder() throws IOException {
+        EventPlan plan = new EventPlan("Checklist");
+        ChecklistItem first = plan.addChecklistItem("Telli aiad");
+        ChecklistItem second = plan.addChecklistItem("Kontrolli elektrit");
+        second.setCompleted(true);
+        plan.moveChecklistItem(second.id(), -1);
+        Path file = tempDirectory.resolve("checklist.pplan");
+
+        service.save(plan, file);
+        EventPlan loadedPlan = service.load(file);
+
+        assertEquals(6, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
+                .map(ChecklistItem::id)
+                .toList());
+        assertEquals("Kontrolli elektrit", loadedPlan.checklistItems().getFirst().text());
+        assertTrue(loadedPlan.checklistItems().getFirst().completed());
+        assertFalse(loadedPlan.checklistItems().getLast().completed());
     }
 
     @Test
@@ -557,7 +580,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(5, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(6, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

@@ -1,6 +1,7 @@
 package ee.matteus.plaanisepp.gui;
 
 import ee.matteus.plaanisepp.core.model.ConnectorType;
+import ee.matteus.plaanisepp.core.model.ChecklistItem;
 import ee.matteus.plaanisepp.core.model.AreaObject;
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.CustomObjectShape;
@@ -128,6 +129,7 @@ public class PlaaniseppApp extends Application {
     private static final String APPLICATION_ICON_PATH = "/icons/plaanisepp.png";
     private static final String SELECTED_OBJECT_SECTION = "selectedObject";
     private static final String OBJECT_LIST_SECTION = "objectList";
+    private static final String CHECKLIST_SECTION = "checklist";
     private static final String MAP_LAYERS_SECTION = "mapLayers";
     private static final String SUMMARY_SECTION = "summary";
     private static final String EQUIPMENT_SECTION = "equipment";
@@ -137,6 +139,7 @@ public class PlaaniseppApp extends Application {
     private static final String MAP_LAYOUT_LOCKED_PREFERENCE = "mapLayoutLocked";
     private static final List<String> DEFAULT_SIDEBAR_SECTION_ORDER = List.of(
             OBJECT_LIST_SECTION,
+            CHECKLIST_SECTION,
             SELECTED_OBJECT_SECTION,
             MAP_LAYERS_SECTION,
             SUMMARY_SECTION
@@ -225,6 +228,8 @@ public class PlaaniseppApp extends Application {
     private Label saveStatusLabel;
     private TextField objectSearchField;
     private ListView<ObjectListEntry> objectList;
+    private ListView<ChecklistItem> checklistList;
+    private TextField checklistItemField;
     private Button revealObjectButton;
     private TitledPane objectListSection;
     private TitledPane selectedObjectSection;
@@ -618,6 +623,7 @@ public class PlaaniseppApp extends Application {
         updateMapToolStatus();
         refreshGroupFilters();
         refreshObjectList();
+        refreshChecklist();
         redrawMap();
         refreshSummary();
         refreshDetails();
@@ -1240,6 +1246,9 @@ public class PlaaniseppApp extends Application {
         sidebar = new VBox(10);
         sidebar.setPadding(new Insets(12));
         objectListSection = collapsibleSection(OBJECT_LIST_SECTION, "Objektid", createObjectListPanel(), false);
+        TitledPane checklistSection = collapsibleSection(
+                CHECKLIST_SECTION, "Checklist", createChecklistPanel(), false
+        );
         selectedObjectSection = collapsibleSection(
                 SELECTED_OBJECT_SECTION, "Valitud objekt", createDetailPanel(), true
         );
@@ -1352,6 +1361,7 @@ public class PlaaniseppApp extends Application {
                 true
         );
         registerSidebarSection(OBJECT_LIST_SECTION, objectListSection);
+        registerSidebarSection(CHECKLIST_SECTION, checklistSection);
         registerSidebarSection(SELECTED_OBJECT_SECTION, selectedObjectSection);
         registerSidebarSection(MAP_LAYERS_SECTION, mapLayersSection);
         registerSidebarSection(SUMMARY_SECTION, powerSummarySection);
@@ -1493,6 +1503,124 @@ public class PlaaniseppApp extends Application {
         updateRevealObjectButton();
         refreshObjectList();
         return new VBox(8, objectSearchField, objectList, createObjectListResizeHandle(), revealObjectButton);
+    }
+
+    private VBox createChecklistPanel() {
+        checklistList = new ListView<>();
+        checklistList.setMinHeight(120);
+        checklistList.setPrefHeight(190);
+        checklistList.setPlaceholder(new Label("Checklist on tühi"));
+        checklistList.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(ChecklistItem item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                setGraphic(null);
+                setOnContextMenuRequested(null);
+                if (empty || item == null) {
+                    return;
+                }
+                CheckBox completedCheckBox = new CheckBox();
+                completedCheckBox.setSelected(item.completed());
+                completedCheckBox.setTooltip(new Tooltip(item.completed() ? "Märgi tegemata" : "Märgi tehtuks"));
+                Label textLabel = new Label(item.text());
+                textLabel.setWrapText(true);
+                textLabel.setStyle(item.completed()
+                        ? "-fx-text-fill: #6b7280; -fx-strikethrough: true;"
+                        : "");
+                HBox row = new HBox(8, completedCheckBox, textLabel);
+                row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                HBox.setHgrow(textLabel, Priority.ALWAYS);
+                setGraphic(row);
+                completedCheckBox.setOnAction(event -> {
+                    item.setCompleted(completedCheckBox.isSelected());
+                    refreshChecklist();
+                    markDirty();
+                });
+                setOnContextMenuRequested(event -> {
+                    showChecklistItemContextMenu(item, event.getScreenX(), event.getScreenY());
+                    event.consume();
+                });
+            }
+        });
+
+        checklistItemField = new TextField();
+        checklistItemField.setPromptText("Uus ülesanne");
+        checklistItemField.setOnAction(event -> addChecklistItem());
+        Button addButton = new Button("Lisa");
+        addButton.setOnAction(event -> addChecklistItem());
+        HBox addRow = new HBox(8, checklistItemField, addButton);
+        HBox.setHgrow(checklistItemField, Priority.ALWAYS);
+        refreshChecklist();
+        return new VBox(8, checklistList, addRow);
+    }
+
+    private void addChecklistItem() {
+        String text = checklistItemField == null ? "" : checklistItemField.getText().trim();
+        if (text.isBlank()) {
+            return;
+        }
+        plan.addChecklistItem(text);
+        checklistItemField.clear();
+        refreshChecklist();
+        checklistList.scrollTo(checklistList.getItems().size() - 1);
+        markDirty();
+    }
+
+    private void showChecklistItemContextMenu(ChecklistItem item, double screenX, double screenY) {
+        MenuItem renameItem = new MenuItem("Nimeta ümber");
+        renameItem.setOnAction(event -> renameChecklistItem(item));
+        MenuItem moveUpItem = new MenuItem("Liiguta üles");
+        moveUpItem.setDisable(plan.checklistItems().indexOf(item) <= 0);
+        moveUpItem.setOnAction(event -> moveChecklistItem(item, -1));
+        MenuItem moveDownItem = new MenuItem("Liiguta alla");
+        int itemIndex = plan.checklistItems().indexOf(item);
+        moveDownItem.setDisable(itemIndex < 0 || itemIndex >= plan.checklistItems().size() - 1);
+        moveDownItem.setOnAction(event -> moveChecklistItem(item, 1));
+        MenuItem deleteItem = new MenuItem("Kustuta");
+        deleteItem.setOnAction(event -> {
+            if (plan.removeChecklistItem(item.id())) {
+                refreshChecklist();
+                markDirty();
+            }
+        });
+        showContextMenu(
+                new ContextMenu(renameItem, moveUpItem, moveDownItem, new SeparatorMenuItem(), deleteItem),
+                checklistList,
+                screenX,
+                screenY
+        );
+    }
+
+    private void renameChecklistItem(ChecklistItem item) {
+        TextInputDialog dialog = new TextInputDialog(item.text());
+        dialog.initOwner(stage);
+        dialog.setTitle("Checklist'i kirje");
+        dialog.setHeaderText("Nimeta ülesanne ümber");
+        dialog.setContentText("Ülesanne");
+        String text = dialog.showAndWait().orElse("").trim();
+        if (text.isBlank() || text.equals(item.text())) {
+            return;
+        }
+        item.rename(text);
+        refreshChecklist();
+        markDirty();
+    }
+
+    private void moveChecklistItem(ChecklistItem item, int offset) {
+        if (plan.moveChecklistItem(item.id(), offset)) {
+            refreshChecklist();
+            checklistList.getSelectionModel().select(item);
+            checklistList.scrollTo(item);
+            markDirty();
+        }
+    }
+
+    private void refreshChecklist() {
+        if (checklistList == null || plan == null) {
+            return;
+        }
+        checklistList.getItems().setAll(plan.checklistItems());
     }
 
     private void handleQuickObjectSearchKey(KeyEvent event) {
@@ -3150,6 +3278,7 @@ public class PlaaniseppApp extends Application {
         updateMapToolStatus();
         refreshGroupFilters();
         refreshObjectList();
+        refreshChecklist();
         redrawMap();
         refreshSummary();
         refreshDetails();

@@ -1,6 +1,7 @@
 package ee.matteus.plaanisepp.core.service;
 
 import ee.matteus.plaanisepp.core.model.ConnectorType;
+import ee.matteus.plaanisepp.core.model.ChecklistItem;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.Position;
@@ -21,6 +22,8 @@ class PlanSnapshotServiceTest {
         EventPlan original = new EventPlan("Testplaan");
         original.setPixelsPerMeter(30);
         original.setPackagedMapImage("map/map.png", new byte[]{1, 2, 3, 4});
+        ChecklistItem checklistItem = original.addChecklistItem("Kontrolli elektrit");
+        checklistItem.setCompleted(true);
 
         PowerSource source = new PowerSource("source", "Kapp", new Position(10, 20));
         source.addOutlet(new PowerOutlet("outlet", "Pesa", ConnectorType.SCHUKO_230V, 3500));
@@ -38,6 +41,7 @@ class PlanSnapshotServiceTest {
         tent.rename("Muudetud telk");
         tent.equipment().getFirst().setRequiredWatts(900);
         original.rename("Muudetud plaan");
+        checklistItem.rename("Muudetud ülesanne");
 
         EventPlan restored = service.restore(snapshot);
 
@@ -48,6 +52,8 @@ class PlanSnapshotServiceTest {
         Tent restoredTent = (Tent) restored.findObject("tent").orElseThrow();
         assertEquals(1800, restoredTent.equipment().getFirst().requiredWatts());
         assertEquals(1, restored.powerConnections().size());
+        assertEquals("Kontrolli elektrit", restored.checklistItems().getFirst().text());
+        assertTrue(restored.checklistItems().getFirst().completed());
         assertArrayEquals(new byte[]{1, 2, 3, 4}, restored.packagedMapImage());
     }
 

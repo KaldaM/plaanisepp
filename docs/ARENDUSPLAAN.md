@@ -63,6 +63,7 @@ Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d
 - Kaablisildi nähtavust saab määrata iga ühenduse kohta eraldi ja valitud kaabli silt jääb nähtavaks ka peidetud siltide korral. Kaabli vähem kasutatavad andmed asuvad vaikimisi suletud „Kaabli lisainfo” jaotises.
 - `.pplan` failivormingu versioon 5 salvestab ühendusepõhise kaablisildi nähtavuse ning vanemad plaanid jäävad avatavaks.
 - Alajaotuskilbi koormus jõuab ülesvoolu kapi konkreetse väljundi ja kapi kogukoormuse arvestusse.
+- Plaanipõhine kasutaja checklist võimaldab lisada vabatekstilisi ülesandeid, märkida neid tehtuks, ümber nimetada, järjestada ja kustutada. Kirjed osalevad undo/redo ajaloos ning säilivad `.pplan` versioon 6 failis; vanemate plaanide checklist on vaikimisi tühi.
 
 ## 1. Rakenduse nimi
 
@@ -358,7 +359,9 @@ Tööriistaribal on hiirega kasutatavad undo- ja redo-nupud koos klahvikombinats
 
 ### Kasutaja checklist
 
-Iga plaan saab kasutaja hallatava kontrollnimekirja, kuhu saab lisada vabatekstilisi ülesandeid, neid ümber nimetada, järjestada, tehtuks märkida ja kustutada. Checklist, kirjete järjestus ja tehtud olek kuuluvad plaaniandmete hulka ning peavad `.pplan` failis säilima. Vormingu järgmise versiooni lisamisel säilib versioonita ning versioon 1–4 plaanide avamine; vanades plaanides on checklist vaikimisi tühi.
+Iga plaan saab kasutaja hallatava kontrollnimekirja, kuhu saab lisada vabatekstilisi ülesandeid, neid ümber nimetada, järjestada, tehtuks märkida ja kustutada. Checklist, kirjete järjestus ja tehtud olek kuuluvad plaaniandmete hulka ning peavad `.pplan` failis säilima. Vormingu järgmise versiooni lisamisel säilib versioonita ning versioon 1–5 plaanide avamine; vanades plaanides on checklist vaikimisi tühi.
+
+Kasutaja checklist on teostatud külgpaneeli järjestatava jaotisena. Kirjeid saab lisada tekstiväljalt, tehtud olekut muuta linnukesega ning ümbernimetamist, järjestamist ja kustutamist hallata kirje paremklõpsumenüüst. Andmed salvestatakse `.pplan` versioon 6 vormingus ja osalevad olemasolevas undo/redo ajaloos. Soovituste checklist jääb eraldi järgmiseks etapiks.
 
 ### Soovituste checklist
 

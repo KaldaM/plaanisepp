@@ -23,6 +23,7 @@ public class EventPlan {
     private double cableLabelFontSize = DEFAULT_CABLE_LABEL_FONT_SIZE;
     private final List<PlannerObject> objects = new ArrayList<>();
     private final List<PowerConnection> powerConnections = new ArrayList<>();
+    private final List<ChecklistItem> checklistItems = new ArrayList<>();
     private final Set<String> hiddenGroups = new HashSet<>();
     private final Set<String> hiddenCableLabelConnectionIds = new HashSet<>();
     private boolean showCables = true;
@@ -136,6 +137,41 @@ public class EventPlan {
 
     public List<PlannerObject> objects() {
         return Collections.unmodifiableList(objects);
+    }
+
+    public List<ChecklistItem> checklistItems() {
+        return Collections.unmodifiableList(checklistItems);
+    }
+
+    public ChecklistItem addChecklistItem(String text) {
+        ChecklistItem item = new ChecklistItem(text);
+        checklistItems.add(item);
+        return item;
+    }
+
+    public void addChecklistItem(ChecklistItem item) {
+        checklistItems.add(item);
+    }
+
+    public boolean removeChecklistItem(String itemId) {
+        return checklistItems.removeIf(item -> item.id().equals(itemId));
+    }
+
+    public boolean moveChecklistItem(String itemId, int offset) {
+        int currentIndex = -1;
+        for (int index = 0; index < checklistItems.size(); index++) {
+            if (checklistItems.get(index).id().equals(itemId)) {
+                currentIndex = index;
+                break;
+            }
+        }
+        int targetIndex = currentIndex + offset;
+        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= checklistItems.size()) {
+            return false;
+        }
+        ChecklistItem item = checklistItems.remove(currentIndex);
+        checklistItems.add(targetIndex, item);
+        return true;
     }
 
     public List<PowerSource> powerSources() {
