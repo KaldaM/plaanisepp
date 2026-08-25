@@ -318,6 +318,10 @@ public class PlaaniseppApp extends Application {
     private ToggleButton measureButton;
     private ToggleButton addCablePointButton;
     private Button clearCableRouteButton;
+    private VBox cableLayersPanel;
+    private CheckMenuItem cablesLayerMenuItem;
+    private CheckMenuItem cableLabelsLayerMenuItem;
+    private CheckMenuItem powerSourcesLayerMenuItem;
     private ToggleButton showCablesButton;
     private ToggleButton showCableLabelsButton;
     private ToggleButton show230VCablesButton;
@@ -362,6 +366,7 @@ public class PlaaniseppApp extends Application {
     private boolean updatingDetailControls;
     private boolean detailSliderDragChanged;
     private boolean mapLayoutLocked;
+    private boolean organizerView;
     private boolean objectEditDialogOpen;
     private Stage stage;
 
@@ -848,10 +853,10 @@ public class PlaaniseppApp extends Application {
             setMapLayoutLocked(layoutLockItem.isSelected());
         });
         CheckMenuItem objectLabelsItem = mapLayerMenuItem("Objektide nimed", () -> showObjectLabelsButton);
-        CheckMenuItem cablesItem = mapLayerMenuItem("Kaablid", () -> showCablesButton);
-        CheckMenuItem cableLabelsItem = mapLayerMenuItem("Kaablisildid", () -> showCableLabelsButton);
+        cablesLayerMenuItem = mapLayerMenuItem("Kaablid", () -> showCablesButton);
+        cableLabelsLayerMenuItem = mapLayerMenuItem("Kaablisildid", () -> showCableLabelsButton);
         CheckMenuItem tentsItem = mapLayerMenuItem("Telgid", () -> showTentsButton);
-        CheckMenuItem powerSourcesItem = mapLayerMenuItem("Elektrikapid", () -> showPowerSourcesButton);
+        powerSourcesLayerMenuItem = mapLayerMenuItem("Elektrikapid", () -> showPowerSourcesButton);
         CheckMenuItem customObjectsItem = mapLayerMenuItem("Objektid", () -> showCustomObjectsButton);
         CheckMenuItem textObjectsItem = mapLayerMenuItem("Tekstid", () -> showTextObjectsButton);
         CheckMenuItem markerObjectsItem = mapLayerMenuItem("Markerid", () -> showMarkerObjectsButton);
@@ -860,26 +865,35 @@ public class PlaaniseppApp extends Application {
         Menu layersMenu = new Menu("Kaardi kihid");
         layersMenu.getItems().addAll(
                 objectLabelsItem,
-                cablesItem,
-                cableLabelsItem,
+                cablesLayerMenuItem,
+                cableLabelsLayerMenuItem,
                 new SeparatorMenuItem(),
                 tentsItem,
-                powerSourcesItem,
+                powerSourcesLayerMenuItem,
                 customObjectsItem,
                 textObjectsItem,
                 markerObjectsItem,
                 areaObjectsItem,
                 lineObjectsItem
         );
+        CheckMenuItem organizerViewItem = new CheckMenuItem("Korraldajavaade");
+        organizerViewItem.setOnAction(event -> setOrganizerView(organizerViewItem.isSelected()));
         Menu viewMenu = new Menu("Vaade");
-        viewMenu.getItems().addAll(resetZoomItem, layoutLockItem, new SeparatorMenuItem(), layersMenu);
+        viewMenu.getItems().addAll(
+                resetZoomItem,
+                layoutLockItem,
+                organizerViewItem,
+                new SeparatorMenuItem(),
+                layersMenu
+        );
         viewMenu.setOnShowing(event -> {
             layoutLockItem.setSelected(mapLayoutLocked);
+            organizerViewItem.setSelected(organizerView);
             objectLabelsItem.setSelected(showObjectLabelsButton.isSelected());
-            cablesItem.setSelected(showCablesButton.isSelected());
-            cableLabelsItem.setSelected(showCableLabelsButton.isSelected());
+            cablesLayerMenuItem.setSelected(showCablesButton.isSelected());
+            cableLabelsLayerMenuItem.setSelected(showCableLabelsButton.isSelected());
             tentsItem.setSelected(showTentsButton.isSelected());
-            powerSourcesItem.setSelected(showPowerSourcesButton.isSelected());
+            powerSourcesLayerMenuItem.setSelected(showPowerSourcesButton.isSelected());
             customObjectsItem.setSelected(showCustomObjectsButton.isSelected());
             textObjectsItem.setSelected(showTextObjectsButton.isSelected());
             markerObjectsItem.setSelected(showMarkerObjectsButton.isSelected());
@@ -1100,6 +1114,66 @@ public class PlaaniseppApp extends Application {
         refreshPlacementButtons();
         refreshDetails();
         redrawMap();
+    }
+
+    private void setOrganizerView(boolean enabled) {
+        if (organizerView == enabled) {
+            return;
+        }
+        organizerView = enabled;
+        if (enabled) {
+            if (pendingPowerSourcePlacement || pendingPowerSourceConsumer != null || addingCablePoint) {
+                cancelPlacement();
+                pendingPowerSourceConsumer = null;
+                finishEditingCableRoute();
+            }
+            if (selectedObject instanceof PowerSource) {
+                selectedObject = null;
+            }
+        }
+        refreshOrganizerViewControls();
+        refreshPlacementButtons();
+        updateMapToolStatus();
+        refreshObjectList();
+        refreshDetails();
+        refreshSummary();
+        redrawMap();
+    }
+
+    private void refreshOrganizerViewControls() {
+        if (placementTypeComboBox != null) {
+            PlacementType selectedType = placementTypeComboBox.getSelectionModel().getSelectedItem();
+            List<PlacementType> availableTypes = organizerView
+                    ? List.of(
+                            PlacementType.TENT,
+                            PlacementType.CUSTOM_OBJECT,
+                            PlacementType.TEXT_OBJECT,
+                            PlacementType.MARKER_OBJECT,
+                            PlacementType.LINE_OBJECT,
+                            PlacementType.AREA_OBJECT
+                    )
+                    : List.of(PlacementType.values());
+            placementTypeComboBox.getItems().setAll(availableTypes);
+            if (selectedType != null && availableTypes.contains(selectedType)) {
+                placementTypeComboBox.getSelectionModel().select(selectedType);
+            } else {
+                placementTypeComboBox.getSelectionModel().select(PlacementType.TENT);
+            }
+        }
+        setSectionVisible(powerSummarySection, !organizerView);
+        setSectionVisible(cableLayersPanel, !organizerView);
+        setSectionVisible(showPowerSourcesButton, !organizerView);
+        setSectionVisible(addCablePointButton, !organizerView);
+        setSectionVisible(clearCableRouteButton, !organizerView);
+        if (cablesLayerMenuItem != null) {
+            cablesLayerMenuItem.setVisible(!organizerView);
+        }
+        if (cableLabelsLayerMenuItem != null) {
+            cableLabelsLayerMenuItem.setVisible(!organizerView);
+        }
+        if (powerSourcesLayerMenuItem != null) {
+            powerSourcesLayerMenuItem.setVisible(!organizerView);
+        }
     }
 
     private void showMapLayoutLockedMessage() {
@@ -1861,12 +1935,11 @@ public class PlaaniseppApp extends Application {
                 showAreaObjectsButton,
                 showLineObjectsButton
         );
+        cableLayersPanel = new VBox(8, new Label("Kaablid"), cableVisibilityRow, cableTypeRow);
         return new VBox(
                 8,
                 bulkActionsRow,
-                new Label("Kaablid"),
-                cableVisibilityRow,
-                cableTypeRow,
+                cableLayersPanel,
                 new Label("Objektid"),
                 objectTypeRow
         );
@@ -1896,6 +1969,7 @@ public class PlaaniseppApp extends Application {
         }
         String query = objectSearchField == null ? "" : objectSearchField.getText().trim().toLowerCase();
         List<ObjectListItem> objectItems = plan.objects().stream()
+                .filter(object -> !organizerView || !(object instanceof PowerSource))
                 .map(object -> new ObjectListItem(
                         object,
                         objectTypeName(object),
@@ -2772,6 +2846,9 @@ public class PlaaniseppApp extends Application {
             showMapLayoutLockedMessage();
             return false;
         }
+        if (organizerView && isTechnicalPlacementType(selectedType)) {
+            return false;
+        }
 
         PlacementDetails placementDetails = askPlacementDetails(selectedType);
         if (placementDetails == null) {
@@ -2809,6 +2886,9 @@ public class PlaaniseppApp extends Application {
         Menu addMenu = new Menu("Lisa");
         addMenu.setDisable(mapLayoutLocked);
         for (PlacementType placementType : PlacementType.values()) {
+            if (organizerView && isTechnicalPlacementType(placementType)) {
+                continue;
+            }
             MenuItem addItem = new MenuItem(placementType.toString());
             addItem.setOnAction(event -> startPlacementAt(placementType, position));
             addMenu.getItems().add(addItem);
@@ -2831,6 +2911,11 @@ public class PlaaniseppApp extends Application {
             case MARKER_OBJECT -> placeMarkerObject(position);
             case LINE_OBJECT, AREA_OBJECT -> addPendingShapePoint(position);
         }
+    }
+
+    private boolean isTechnicalPlacementType(PlacementType placementType) {
+        return placementType == PlacementType.POWER_SOURCE
+                || placementType == PlacementType.DISTRIBUTION_PANEL;
     }
 
     private PlacementDetails askPlacementDetails(PlacementType placementType) {
@@ -3521,7 +3606,9 @@ public class PlaaniseppApp extends Application {
             mapToolStatusLabel.setText("Mõõdulint aktiivne");
             return;
         }
-        mapToolStatusLabel.setText("Vali tööriist või objekt");
+        mapToolStatusLabel.setText(organizerView
+                ? "Korraldajavaade"
+                : "Vali tööriist või objekt");
     }
 
     private boolean confirmDiscardUnsavedChanges() {
@@ -3621,7 +3708,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean showCables() {
-        return showCablesButton == null || showCablesButton.isSelected();
+        return !organizerView && (showCablesButton == null || showCablesButton.isSelected());
     }
 
     private boolean showCableLabels() {
@@ -5149,7 +5236,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean isObjectVisibleOnMap(PlannerObject object) {
-        return !object.hidden() && isGroupVisible(object) && isObjectTypeVisible(object);
+        return (!organizerView || !(object instanceof PowerSource))
+                && !object.hidden()
+                && isGroupVisible(object)
+                && isObjectTypeVisible(object);
     }
 
     private String groupNameForFilter(PlannerObject object) {
@@ -5329,10 +5419,10 @@ public class PlaaniseppApp extends Application {
         setSectionVisible(areaPanel, areaSelected);
         setSectionVisible(linePanel, lineSelected);
         setSectionVisible(tentPanel, tentSelected);
-        setSectionVisible(powerConnectionPanel, powerConsumerSelected);
-        setSectionVisible(equipmentSection, equipmentContainerSelected);
-        setSectionVisible(outletSection, powerSourceSelected);
-        setSectionVisible(choosePowerSourceButton, powerConsumerSelected);
+        setSectionVisible(powerConnectionPanel, powerConsumerSelected && !organizerView);
+        setSectionVisible(equipmentSection, equipmentContainerSelected && !organizerView);
+        setSectionVisible(outletSection, powerSourceSelected && !organizerView);
+        setSectionVisible(choosePowerSourceButton, powerConsumerSelected && !organizerView);
         setSectionVisible(deleteObjectButton, hasSelection);
 
         if (!hasSelection) {
@@ -7493,6 +7583,9 @@ public class PlaaniseppApp extends Application {
 
     private void refreshSummary() {
         summaryList.getItems().clear();
+        if (organizerView) {
+            return;
+        }
         if (showPowerSummary()) {
             for (PowerSummary summary : powerSummaryService.summaries(plan)) {
                 String hierarchyKey = powerSourceSummaryKey(summary.sourceId());

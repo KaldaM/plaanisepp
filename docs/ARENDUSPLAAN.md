@@ -66,6 +66,10 @@ Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d
 - Plaanipõhine kasutaja checklist võimaldab lisada vabatekstilisi ülesandeid, märkida neid tehtuks, ümber nimetada, järjestada ja kustutada. Kirjed osalevad undo/redo ajaloos ning säilivad `.pplan` versioon 6 failis; vanemate plaanide checklist on vaikimisi tühi.
 - Checklist'i soovituste loendis on tavapärased ürituse osad, mille saab märkida tehtuks või ebaoluliseks. Soovituste olek säilib `.pplan` versioon 7 failis ja osaleb undo/redo ajaloos.
 
+## Teostatud 26. augustil 2026
+
+- Lisati „Vaade” menüüst lülitatav korraldajavaade. See peidab kaablid, elektrikapid ja alajaotuskilbid kaardilt, elektriandmed külgpaneelilt ning tehnilised objektitüübid lisamisvalikutest, muutmata plaaniandmeid või varasemaid kihivalikuid.
+
 ## 1. Rakenduse nimi
 
 ### Nimeotsus
@@ -560,7 +564,7 @@ Korraldajavaade on sama plaani lihtsustatud kuvaprofiil kasutajatele, kes ei teg
 - vaate aktiivsus on kasutaja eelistus või jagamisel valitav kuvaprofiil, mitte plaaniandmeid hävitav muudatus;
 - korraldajale tehtavates eksportides saab sama filtrit teadlikult kasutada.
 
-Enne teostamist tuleb koostada selge tüüpide loend: mis on alati korralduslik, mis alati tehniline ja millise objekti nähtavuse otsustab kasutaja. Üldobjekti ei tohi pelgalt voolutarbimise olemasolu tõttu automaatselt kaardilt eemaldada.
+Korraldajavaate esimene etapp on teostatud ajutise kuvarežiimina. Alati tehnilisteks loetakse praegu kaablid, elektrikapid ja alajaotuskilbid; telgid ja muud üldobjektid jäävad nähtavaks ka siis, kui neil on elektriandmed. Režiim ei salvesta plaani ega muuda kihtide varasemaid valikuid. Kuvaprofiili püsiv eelistus, kasutaja täpsustatav tüübiloend ja ekspordi eraldi korraldajaprofiil jäävad hilisemaks.
 
 ## 18. Kommentaarid ja ülevaatus
 
