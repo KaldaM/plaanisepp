@@ -8,6 +8,7 @@ import ee.matteus.plaanisepp.core.model.TextObject;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -30,6 +31,7 @@ final class PlacementDetailsDialog {
             Stage owner,
             PlacementType placementType,
             List<String> existingGroupNames,
+            boolean initialShowMapLabel,
             double minimumFontSize,
             double maximumFontSize
     ) {
@@ -38,6 +40,8 @@ final class PlacementDetailsDialog {
         groupComboBox.setEditable(true);
         groupComboBox.getItems().addAll(existingGroupNames);
         groupComboBox.getSelectionModel().select("Määramata");
+        CheckBox showMapLabelCheckBox = new CheckBox("Näita nime kaardil");
+        showMapLabelCheckBox.setSelected(initialShowMapLabel);
         ColorPicker colorPicker = new ColorPicker(Color.web(placementType.defaultColorHex()));
         TextField tentWidthField = new TextField("3");
         TextField tentHeightField = new TextField("3");
@@ -90,6 +94,9 @@ final class PlacementDetailsDialog {
                 fontSizeSlider,
                 markerTypeComboBox
         );
+        if (placementType != PlacementType.TEXT_OBJECT) {
+            form.addRow(form.getRowCount(), new Label("Nimesilt"), showMapLabelCheckBox);
+        }
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
         dialog.initOwner(owner);
         dialog.setTitle("Lisa objekt");
@@ -113,7 +120,8 @@ final class PlacementDetailsDialog {
                 opacitySlider,
                 lineWidthSlider,
                 fontSizeSlider,
-                markerTypeComboBox
+                markerTypeComboBox,
+                showMapLabelCheckBox
         );
     }
 
@@ -244,7 +252,8 @@ final class PlacementDetailsDialog {
             Slider opacitySlider,
             Slider lineWidthSlider,
             Slider fontSizeSlider,
-            ComboBox<MarkerType> markerTypeComboBox
+            ComboBox<MarkerType> markerTypeComboBox,
+            CheckBox showMapLabelCheckBox
     ) {
         String groupName = groupComboBox.getEditor().getText().trim();
         if (groupName.isBlank()) {
@@ -284,7 +293,8 @@ final class PlacementDetailsDialog {
                 lineWidthSlider.getValue(),
                 fontSizeSlider.getValue(),
                 dimensions.shape(),
-                markerType
+                markerType,
+                showMapLabelCheckBox.isSelected()
         ));
     }
 
@@ -505,7 +515,8 @@ record PlacementDetails(
         double lineWidthPixels,
         double fontSizePixels,
         CustomObjectShape shape,
-        MarkerType markerType
+        MarkerType markerType,
+        boolean showMapLabel
 ) {
 }
 

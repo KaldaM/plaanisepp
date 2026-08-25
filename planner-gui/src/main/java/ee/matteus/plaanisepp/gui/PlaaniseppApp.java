@@ -128,6 +128,7 @@ public class PlaaniseppApp extends Application {
     private static final String EQUIPMENT_SECTION = "equipment";
     private static final String OUTLET_SECTION = "outlet";
     private static final String SIDEBAR_SECTION_ORDER_PREFERENCE = "sidebarSectionOrder";
+    private static final String PLACEMENT_SHOW_MAP_LABEL_PREFERENCE = "placementShowMapLabel";
     private static final List<String> DEFAULT_SIDEBAR_SECTION_ORDER = List.of(
             OBJECT_LIST_SECTION,
             SELECTED_OBJECT_SECTION,
@@ -318,6 +319,7 @@ public class PlaaniseppApp extends Application {
     private Double pendingPlacementOpacity;
     private Double pendingPlacementLineWidthPixels;
     private Double pendingPlacementFontSizePixels;
+    private Boolean pendingPlacementShowMapLabel;
     private CustomObjectShape pendingPlacementShape;
     private boolean pendingTentPlacement;
     private boolean pendingPowerSourcePlacement;
@@ -2221,6 +2223,8 @@ public class PlaaniseppApp extends Application {
         pendingPlacementFontSizePixels = placementDetails.fontSizePixels();
         pendingPlacementShape = placementDetails.shape();
         pendingPlacementMarkerType = placementDetails.markerType();
+        pendingPlacementShowMapLabel = placementDetails.showMapLabel();
+        preferences.putBoolean(PLACEMENT_SHOW_MAP_LABEL_PREFERENCE, placementDetails.showMapLabel());
 
         switch (selectedType) {
             case TENT -> addTent();
@@ -2269,6 +2273,7 @@ public class PlaaniseppApp extends Application {
                 stage,
                 placementType,
                 existingGroupNames(),
+                preferences.getBoolean(PLACEMENT_SHOW_MAP_LABEL_PREFERENCE, true),
                 MIN_FONT_SIZE_PIXELS,
                 MAX_FONT_SIZE_PIXELS
         ).orElse(null);
@@ -2309,6 +2314,7 @@ public class PlaaniseppApp extends Application {
     private void placeTent(Position position) {
         Tent tent = new Tent(planFactory.newId(), placementNameOrDefault(PlacementType.TENT), position);
         tent.setGroupName(placementGroupNameOrDefault());
+        tent.setShowMapLabel(pendingPlacementShowMapLabelOrDefault());
         tent.setColorHex(placementColorHexOrDefault(PlacementType.TENT));
         tent.setOpacity(pendingTentOpacityOrDefault());
         tent.setSizeMeters(pendingPlacementWidthMetersOrDefault(), pendingPlacementHeightMetersOrDefault());
@@ -2350,6 +2356,7 @@ public class PlaaniseppApp extends Application {
                 ConnectorType.SCHUKO_230V.defaultCapacityWatts()
         ));
         source.setGroupName(placementGroupNameOrDefault());
+        source.setShowMapLabel(pendingPlacementShowMapLabelOrDefault());
         plan.addObject(source);
         clearPendingPlacementDetails();
         pendingPowerSourcePlacement = false;
@@ -2378,6 +2385,7 @@ public class PlaaniseppApp extends Application {
     private void placeCustomObject(Position position) {
         CustomObject object = new CustomObject(planFactory.newId(), placementNameOrDefault(PlacementType.CUSTOM_OBJECT), position);
         object.setGroupName(placementGroupNameOrDefault());
+        object.setShowMapLabel(pendingPlacementShowMapLabelOrDefault());
         object.setColorHex(placementColorHexOrDefault(PlacementType.CUSTOM_OBJECT));
         object.setOpacity(pendingCustomObjectOpacityOrDefault());
         object.setShape(placementShapeOrDefault());
@@ -2412,6 +2420,7 @@ public class PlaaniseppApp extends Application {
     private void placeTextObject(Position position) {
         TextObject object = new TextObject(planFactory.newId(), placementNameOrDefault(PlacementType.TEXT_OBJECT), position);
         object.setGroupName(placementGroupNameOrDefault());
+        object.setShowMapLabel(pendingPlacementShowMapLabelOrDefault());
         object.setColorHex(placementColorHexOrDefault(PlacementType.TEXT_OBJECT));
         object.setFontSize(pendingPlacementFontSizePixelsOrDefault());
         plan.addObject(object);
@@ -2441,6 +2450,7 @@ public class PlaaniseppApp extends Application {
     private void placeMarkerObject(Position position) {
         MarkerObject object = new MarkerObject(planFactory.newId(), placementNameOrDefault(PlacementType.MARKER_OBJECT), position);
         object.setGroupName(placementGroupNameOrDefault());
+        object.setShowMapLabel(pendingPlacementShowMapLabelOrDefault());
         object.setColorHex(placementColorHexOrDefault(PlacementType.MARKER_OBJECT));
         object.setMarkerType(placementMarkerTypeOrDefault());
         plan.addObject(object);
@@ -2472,6 +2482,7 @@ public class PlaaniseppApp extends Application {
     private void placeLineObject(List<Position> points) {
         LineObject object = new LineObject(planFactory.newId(), placementNameOrDefault(PlacementType.LINE_OBJECT), points.getFirst());
         object.setGroupName(placementGroupNameOrDefault());
+        object.setShowMapLabel(pendingPlacementShowMapLabelOrDefault());
         object.setColorHex(placementColorHexOrDefault(PlacementType.LINE_OBJECT));
         object.setWidthPixels(pendingLineWidthPixelsOrDefault());
         object.setPoints(points);
@@ -2505,6 +2516,7 @@ public class PlaaniseppApp extends Application {
     private void placeAreaObject(List<Position> points) {
         AreaObject object = new AreaObject(planFactory.newId(), placementNameOrDefault(PlacementType.AREA_OBJECT), points.getFirst());
         object.setGroupName(placementGroupNameOrDefault());
+        object.setShowMapLabel(pendingPlacementShowMapLabelOrDefault());
         object.setColorHex(placementColorHexOrDefault(PlacementType.AREA_OBJECT));
         object.setOpacity(pendingPlacementOpacityOrDefault());
         object.setPoints(points);
@@ -2618,6 +2630,10 @@ public class PlaaniseppApp extends Application {
         return pendingPlacementMarkerType == null ? MarkerType.WC : pendingPlacementMarkerType;
     }
 
+    private boolean pendingPlacementShowMapLabelOrDefault() {
+        return pendingPlacementShowMapLabel == null || pendingPlacementShowMapLabel;
+    }
+
     private void clearPendingPlacementDetails() {
         pendingPlacementName = null;
         pendingPlacementGroupName = null;
@@ -2629,6 +2645,7 @@ public class PlaaniseppApp extends Application {
         pendingPlacementFontSizePixels = null;
         pendingPlacementShape = null;
         pendingPlacementMarkerType = null;
+        pendingPlacementShowMapLabel = null;
         pendingPowerSourcePlacementType = null;
         pendingShapePoints.clear();
     }
@@ -4105,7 +4122,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void addMapLabel(PlannerObject object, double x, double y) {
-        if (!showObjectLabels() || !object.showMapLabel()) {
+        if (!isSelected(object) && (!showObjectLabels() || !object.showMapLabel())) {
             return;
         }
         double labelX = object.customMapLabelPosition() ? x + object.mapLabelOffset().x() : x;
