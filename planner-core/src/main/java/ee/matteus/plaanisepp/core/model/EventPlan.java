@@ -24,6 +24,7 @@ public class EventPlan {
     private final List<PlannerObject> objects = new ArrayList<>();
     private final List<PowerConnection> powerConnections = new ArrayList<>();
     private final Set<String> hiddenGroups = new HashSet<>();
+    private final Set<String> hiddenCableLabelConnectionIds = new HashSet<>();
     private boolean showCables = true;
     private boolean showCableLabels = true;
     private boolean show230VCables = true;
@@ -617,6 +618,18 @@ public class EventPlan {
         return connectionExists;
     }
 
+    public boolean showCableLabel(String connectionId) {
+        return !hiddenCableLabelConnectionIds.contains(connectionId);
+    }
+
+    public void setShowCableLabel(String connectionId, boolean visible) {
+        if (visible) {
+            hiddenCableLabelConnectionIds.remove(connectionId);
+        } else if (findPowerConnection(connectionId).isPresent()) {
+            hiddenCableLabelConnectionIds.add(connectionId);
+        }
+    }
+
     public EquipmentPowerAssignmentResult assignEquipmentToPowerConnection(
             String containerId,
             String equipmentId,
@@ -680,6 +693,7 @@ public class EventPlan {
                 .map(PowerConnection::id)
                 .collect(Collectors.toSet());
         powerConnections.removeIf(predicate);
+        hiddenCableLabelConnectionIds.removeAll(removedConnectionIds);
         if (removedConnectionIds.isEmpty()) {
             return;
         }

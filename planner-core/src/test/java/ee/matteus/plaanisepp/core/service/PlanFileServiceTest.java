@@ -132,7 +132,7 @@ class PlanFileServiceTest {
     @Test
     void rejectsPlanFromNewerFormatVersion() throws IOException {
         Path file = tempDirectory.resolve("future-plan.pplan");
-        writePackage(file, 5, null, null);
+        writePackage(file, PlanFileService.CURRENT_FORMAT_VERSION + 1, null, null);
 
         IOException exception = assertThrows(IOException.class, () -> service.load(file));
 
@@ -550,13 +550,14 @@ class PlanFileServiceTest {
         plan.updateCableRoutePointsForConnection(
                 alternativeConnection.id(), List.of(new Position(30, 40), new Position(50, 60)));
         plan.updateCableLabelOffsetForConnection(alternativeConnection.id(), new Position(7, 8));
+        plan.setShowCableLabel(alternativeConnection.id(), false);
         plan.assignEquipmentToPowerConnection(tent.id(), fridge.id(), alternativeConnection.id());
         Path file = tempDirectory.resolve("multiple-power-connections.pplan");
 
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(4, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(5, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()
@@ -567,6 +568,7 @@ class PlanFileServiceTest {
         assertFalse(loadedAlternative.defaultForConsumer());
         assertEquals(List.of(new Position(30, 40), new Position(50, 60)), loadedAlternative.routePoints());
         assertEquals(new Position(7, 8), loadedAlternative.cableLabelOffset());
+        assertFalse(loadedPlan.showCableLabel(loadedAlternative.id()));
         Tent loadedTent = (Tent) loadedPlan.findObject(tent.id()).orElseThrow();
         assertEquals(alternativeConnection.id(), loadedTent.equipment().get(1).powerConnectionId());
         assertEquals(1200, new PowerSummaryService().summaries(loadedPlan).get(0).usedWatts());

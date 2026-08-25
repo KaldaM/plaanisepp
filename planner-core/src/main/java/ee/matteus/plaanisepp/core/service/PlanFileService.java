@@ -44,7 +44,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 4;
+    public static final int CURRENT_FORMAT_VERSION = 5;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -148,6 +148,7 @@ public class PlanFileService {
             properties.setProperty(prefix + "outletId", connection.outletId());
             properties.setProperty(prefix + "cableNotes", connection.cableNotes());
             properties.setProperty(prefix + "cableLengthNotes", connection.cableLengthNotes());
+            properties.setProperty(prefix + "showCableLabel", Boolean.toString(plan.showCableLabel(connection.id())));
             properties.setProperty(prefix + "customCableLabelPosition", Boolean.toString(connection.customCableLabelPosition()));
             properties.setProperty(prefix + "cableLabelOffsetX", Double.toString(connection.cableLabelOffset().x()));
             properties.setProperty(prefix + "cableLabelOffsetY", Double.toString(connection.cableLabelOffset().y()));
@@ -245,6 +246,8 @@ public class PlanFileService {
                         sourceId, consumerId, connectorType, outletId, cableNotes, cableLengthNotes, connectionId);
         loadedConnection.ifPresent(connection -> plan.updateCableRoutePointsForConnection(
                 connection.id(), readRoutePoints(properties, prefix)));
+        loadedConnection.ifPresent(connection -> plan.setShowCableLabel(
+                connection.id(), booleanValue(properties, prefix + "showCableLabel", true)));
         if (loadedConnection.isPresent()
                 && Boolean.parseBoolean(properties.getProperty(prefix + "customCableLabelPosition", "false"))) {
             plan.updateCableLabelOffsetForConnection(
