@@ -22,10 +22,11 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 11. lisada tulevase PA-planeerimise juurde mõõtude ja elektrivajadusega objektieelseadistused;
 12. lisada fikseeritud pikkusega lõikudest koosnev aedade planeerimise tööriist ja inventarikokkuvõte;
 13. kiirendada objektide omaduste muutmist rippvalikute, kaardilt valimise, ühtse rakendamisloogika ja klahvikombinatsioonidega;
-14. lisada kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog;
-15. lisada tehnikakihita korraldajavaade ning plaanipõhine kommenteerimine;
-16. uuendada rakenduse visuaalne keel ja vähendada JavaFX-i vaikekomponentide vananenud ilmet;
-17. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+14. lisada kogu kaardi geomeetriat kaitsev paigutuslukustus;
+15. lisada kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog;
+16. lisada tehnikakihita korraldajavaade ning plaanipõhine kommenteerimine;
+17. uuendada rakenduse visuaalne keel ja vähendada JavaFX-i vaikekomponentide vananenud ilmet;
+18. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -448,7 +449,41 @@ Kõik lisamisotseteed peavad käivitama sama töövoo nagu tööriistariba ja ko
 - läbipaistvuse lohistamine ja objekti kustutamine moodustavad kumbki ühe undo-sammu;
 - peidetud nimesilt ilmub ainult valitud objektile ega muuda salvestatud kihiseadeid.
 
-## 15. Kõrglahutusega ja joondatud aluskaardid
+## 15. Paigutuslukustus ehk turvaline vaatamisrežiim
+
+Rakendusse lisatakse kogu kaardi paigutust kaitsev lüliti. See on objekti enda lukustusest kõrgema taseme ajutine töörežiim, mille eesmärk on võimaldada plaani turvaliselt uurida ja andmeid parandada ilma geomeetriat kogemata muutmata.
+
+Paigutuslukustuse ajal jääb võimalikuks:
+
+- objektide valimine kaardilt ja külgpaneelilt;
+- nime, grupi, märkmete, värvi, läbipaistvuse, seadmete ja muude mittegeomeetriliste andmete muutmine;
+- kihtide, gruppide, objektide ja nimesiltide nähtavuse muutmine;
+- otsing, kokkuvõtete kasutamine, suumimine, kerimine ja eksport;
+- kommentaaride lugemine ning tulevikus nendele vastamine.
+
+Paigutuslukustuse ajal blokeeritakse vähemalt:
+
+- objektide lohistamine;
+- nimesiltide ja kaablisiltide lohistamine;
+- joone-, ala- ja tulevaste aiapunktide lisamine, eemaldamine ning lohistamine;
+- kaablipunktide lisamine, eemaldamine ja lohistamine;
+- objektide, kaablite ja kujude lisamine, kleepimine ning kustutamine;
+- kaabli trajektoori ja muu kaardigeomeetria muutmise režiimid.
+
+Režiim peab olema tööriistaribal selgelt nähtav ning selle aktiivsus ei tohi sõltuda sellest, milline objekt on valitud. Blokeeritud tegevus ei tohi vaikselt ebaõnnestuda: keelatud nupud, menüükirjed ja hiirekursor peavad näitama, et paigutus on kaitstud. Objektide olemasolevad individuaalsed lukud säilivad eraldi ning neid ei kirjutata režiimi sisse- või väljalülitamisel üle.
+
+Eelistatud on hoida paigutuslukku kasutaja rakenduseelistusena, mitte plaani püsiva omadusena. Nii ei muuda turvalise vaatamise sisselülitamine `.pplan` faili ega tekita salvestamata muudatust. Enne teostamist tuleb otsustada, kas rakendus taastab lukustatud režiimi ka järgmisel käivitamisel; turvalisem vaikevalik on see taastada.
+
+### Vastuvõtukriteeriumid
+
+- lukustatud paigutusega saab kaardil objekte valida ilma neid ühegi piksligi võrra liigutamata;
+- külgpaneelil saab muuta valitud objekti teksti-, värvi- ja muid mittegeomeetrilisi andmeid;
+- ükski geomeetriat muutev nupp, kontekstimenüü, kiirklahv ega hiiretoiming ei lähe lukust mööda;
+- kaardi suumimine, kerimine, otsing ja objektile liikumine töötavad edasi;
+- režiimi väljalülitamisel taastuvad kõik muutmistööriistad ja objektide individuaalsed lukud endises olekus;
+- režiimi lülitamine ei muuda plaani ega lisa undo-sammu.
+
+## 16. Kõrglahutusega ja joondatud aluskaardid
 
 Ekraanipildi tegemise asemel lisatakse aluskaardi hankimise töövoog, milles kasutaja märgib eelvaates soovitud ristkülikukujulise ala ning valib väljundi mõõdu või eraldusvõime. Hankimise etapp võib kasutada kaarditeenuse koordinaate ja projektsiooni, kuid Plaanisepp ühendab saadud paanid üheks rasterpildiks ning jätkab redaktoris olemasoleva pikslipõhise loogikaga. Valitud ala tegeliku ulatuse põhjal saab arvutada ja pakkuda ka pikslite arvu meetri kohta.
 
@@ -472,7 +507,7 @@ Google Mapsi ekraanipilte ega kaardipaanide kopeerimist ei kasutata selle tööv
 - kaardi allikas ja nõutud viide on plaanis või ekspordis säilitatavad;
 - aluskaardid avanevad `.pplan` paketist ka internetiühenduseta.
 
-## 16. Korraldajavaade
+## 17. Korraldajavaade
 
 Korraldajavaade on sama plaani lihtsustatud kuvaprofiil kasutajatele, kes ei tegele elektri ega tehnikaga. See ei kustuta ega teisenda plaani andmeid.
 
@@ -485,7 +520,7 @@ Korraldajavaade on sama plaani lihtsustatud kuvaprofiil kasutajatele, kes ei teg
 
 Enne teostamist tuleb koostada selge tüüpide loend: mis on alati korralduslik, mis alati tehniline ja millise objekti nähtavuse otsustab kasutaja. Üldobjekti ei tohi pelgalt voolutarbimise olemasolu tõttu automaatselt kaardilt eemaldada.
 
-## 17. Kommentaarid ja ülevaatus
+## 18. Kommentaarid ja ülevaatus
 
 Plaanile lisatakse kommentaarikiht, mille kaudu saab küsimusi ja parandusi siduda täpse koha või objektiga.
 
@@ -510,7 +545,7 @@ Objekti kustutamisel ei tohi sellega seotud kommentaarid vaikides kaduda. Kasuta
 - kommentaari visuaalne tähis on arusaadav ka värvieristuseta;
 - versioonita ning varasemate `.pplan` versioonide avamine jääb muutmata.
 
-## 18. Visuaalse kasutajaliidese uuendamine
+## 19. Visuaalse kasutajaliidese uuendamine
 
 Rakendusele tuleb kujundada ühtne ja tänapäevane visuaalne keel. Praegused JavaFX-i vaikestiilid asendatakse järk-järgult Plaanisepa enda stiiliga, säilitades seejuures selguse, töökiiruse ja eri ekraanisuuruste toe.
 
@@ -539,7 +574,7 @@ FXML-vaateid saab visuaalselt kujundada Gluon Scene Builderiga ning IntelliJ IDE
 - visuaalne uuendus ei muuda plaaniandmeid, `.pplan` vormingut ega olemasolevaid töövooge;
 - enne suuremat ümberkujundamist säilitatakse võrdluspildid peamistest vaadetest.
 
-## 19. Arenduspõhimõtted
+## 20. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.
 - Domeeniarvutused jäävad `planner-core` moodulisse ja JavaFX-i esitlus `planner-gui` moodulisse.

@@ -129,6 +129,7 @@ public class PlaaniseppApp extends Application {
     private static final String OUTLET_SECTION = "outlet";
     private static final String SIDEBAR_SECTION_ORDER_PREFERENCE = "sidebarSectionOrder";
     private static final String PLACEMENT_SHOW_MAP_LABEL_PREFERENCE = "placementShowMapLabel";
+    private static final String MAP_LAYOUT_LOCKED_PREFERENCE = "mapLayoutLocked";
     private static final List<String> DEFAULT_SIDEBAR_SECTION_ORDER = List.of(
             OBJECT_LIST_SECTION,
             SELECTED_OBJECT_SECTION,
@@ -290,6 +291,7 @@ public class PlaaniseppApp extends Application {
     private VBox outletPanel;
     private Button deleteObjectButton;
     private Button choosePowerSourceButton;
+    private ToggleButton mapLayoutLockButton;
     private ToggleButton measureButton;
     private ToggleButton addCablePointButton;
     private Button clearCableRouteButton;
@@ -334,6 +336,7 @@ public class PlaaniseppApp extends Application {
     private int keyboardPasteCount;
     private boolean updatingOpacityControls;
     private boolean opacityDragChanged;
+    private boolean mapLayoutLocked;
     private Stage stage;
 
     @Override
@@ -552,6 +555,7 @@ public class PlaaniseppApp extends Application {
                 || !event.isShiftDown()
                 || event.isAltDown()
                 || scene.getFocusOwner() instanceof TextInputControl
+                || mapLayoutLocked
                 || isPlacementPending()
                 || addingCablePoint
                 || measuringActive) {
@@ -808,6 +812,14 @@ public class PlaaniseppApp extends Application {
         clearCableRouteButton.setTooltip(new Tooltip("Eemaldab valitud objekti voolukaabli vahepunktid"));
         clearCableRouteButton.setOnAction(event -> clearSelectedCableRoute());
 
+        mapLayoutLocked = preferences.getBoolean(MAP_LAYOUT_LOCKED_PREFERENCE, false);
+        mapLayoutLockButton = new ToggleButton("Paigutus lukus");
+        mapLayoutLockButton.setSelected(mapLayoutLocked);
+        mapLayoutLockButton.setTooltip(new Tooltip(
+                "Takistab objektide, siltide, kaablite ja kujupunktide kogemata liigutamist"
+        ));
+        mapLayoutLockButton.setOnAction(event -> setMapLayoutLocked(mapLayoutLockButton.isSelected()));
+
         mapToolStatusLabel = new Label();
         mapToolStatusLabel.setStyle("-fx-text-fill: #374151;");
         updateMapToolStatus();
@@ -834,6 +846,7 @@ public class PlaaniseppApp extends Application {
                 new Separator(),
                 zoomSlider,
                 zoomPercentButton,
+                mapLayoutLockButton,
                 measureButton,
                 clearMeasurementsButton,
                 addCablePointButton,
@@ -852,6 +865,25 @@ public class PlaaniseppApp extends Application {
         button.setTooltip(new Tooltip("Näitab või peidab kaardil %s kaablid".formatted(CableDisplayHelper.shortTypeName(connectorType))));
         button.setOnAction(event -> updateMapLayerVisibility());
         return button;
+    }
+
+    private void setMapLayoutLocked(boolean locked) {
+        mapLayoutLocked = locked;
+        preferences.putBoolean(MAP_LAYOUT_LOCKED_PREFERENCE, locked);
+        if (locked) {
+            cancelPlacement();
+            finishEditingCableRoute();
+        }
+        refreshPlacementButtons();
+        refreshDetails();
+        redrawMap();
+    }
+
+    private void showMapLayoutLockedMessage() {
+        showError(
+                "Paigutus on lukus",
+                "Lülita tööriistaribal „Paigutus lukus” välja, et kaardi geomeetriat muuta."
+        );
     }
 
     private ToggleButton objectTypeToggle(String text, String tooltip) {
@@ -2208,6 +2240,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean startPlacement(PlacementType selectedType) {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return false;
+        }
 
         PlacementDetails placementDetails = askPlacementDetails(selectedType);
         if (placementDetails == null) {
@@ -2243,13 +2279,14 @@ public class PlaaniseppApp extends Application {
             return;
         }
         Menu addMenu = new Menu("Lisa");
+        addMenu.setDisable(mapLayoutLocked);
         for (PlacementType placementType : PlacementType.values()) {
             MenuItem addItem = new MenuItem(placementType.toString());
             addItem.setOnAction(event -> startPlacementAt(placementType, position));
             addMenu.getItems().add(addItem);
         }
         MenuItem pasteItem = new MenuItem("Kleebi");
-        pasteItem.setDisable(copiedObject == null);
+        pasteItem.setDisable(copiedObject == null || mapLayoutLocked);
         pasteItem.setOnAction(event -> pasteCopiedObject(position));
         showContextMenu(new ContextMenu(addMenu, pasteItem), mapPane, screenX, screenY);
     }
@@ -3179,7 +3216,7 @@ public class PlaaniseppApp extends Application {
             makeCableLabelDraggable(distanceLabel, cable);
             mapPane.getChildren().add(distanceLabel);
         }
-        if (selectedCable) {
+        if (selectedCable && !mapLayoutLocked) {
             for (int index = 0; index < cable.connection().routePoints().size(); index++) {
                 Position routePoint = cable.connection().routePoints().get(index);
                 Circle marker = new Circle(routePoint.x(), routePoint.y(), 4);
@@ -3312,6 +3349,7 @@ public class PlaaniseppApp extends Application {
         MenuItem routeItem = new MenuItem(editingThisCable
                 ? "Lõpeta trajektoori muutmine"
                 : "Muuda trajektoori");
+        routeItem.setDisable(mapLayoutLocked);
         routeItem.setOnAction(event -> {
             if (editingThisCable) {
                 finishEditingCableRoute();
@@ -3323,6 +3361,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private void startEditingCableRoute(PowerCableView cable) {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
         selectObject(cable.consumer());
         editingCableConnectionId = cable.connection().id();
         if (addCablePointButton != null) {
@@ -3344,7 +3386,7 @@ public class PlaaniseppApp extends Application {
         final Delta dragDelta = new Delta();
         final boolean[] dragged = {false};
         label.setOnMousePressed(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked) {
                 event.consume();
                 return;
             }
@@ -3357,7 +3399,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         label.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked) {
                 event.consume();
                 return;
             }
@@ -3395,7 +3437,7 @@ public class PlaaniseppApp extends Application {
     ) {
         final boolean[] dragged = {false};
         marker.setOnMousePressed(event -> {
-            if (measuringActive || !canDragCableRoutePoint(cable)) {
+            if (measuringActive || mapLayoutLocked || !canDragCableRoutePoint(cable)) {
                 event.consume();
                 return;
             }
@@ -3403,7 +3445,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || !canDragCableRoutePoint(cable)) {
+            if (measuringActive || mapLayoutLocked || !canDragCableRoutePoint(cable)) {
                 event.consume();
                 return;
             }
@@ -3464,7 +3506,7 @@ public class PlaaniseppApp extends Application {
     ) {
         final boolean[] dragged = {false};
         marker.setOnMousePressed(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked) {
                 event.consume();
                 return;
             }
@@ -3472,7 +3514,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked) {
                 event.consume();
                 return;
             }
@@ -3524,11 +3566,16 @@ public class PlaaniseppApp extends Application {
             double screenY
     ) {
         MenuItem resetItem = new MenuItem("Lähtesta ühenduspunkt");
+        resetItem.setDisable(mapLayoutLocked);
         resetItem.setOnAction(event -> resetPowerConnectionAnchor(cable.consumer()));
         showContextMenu(new ContextMenu(resetItem), marker, screenX, screenY);
     }
 
     private void resetPowerConnectionAnchor(PlannerObject consumer) {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
         if (!(consumer instanceof PowerConnectable connectable)) {
             return;
         }
@@ -3546,6 +3593,7 @@ public class PlaaniseppApp extends Application {
             double screenY
     ) {
         MenuItem removePointItem = new MenuItem("Eemalda punkt");
+        removePointItem.setDisable(mapLayoutLocked);
         removePointItem.setOnAction(event -> removeCableRoutePoint(cable, routePointIndex));
 
         ContextMenu contextMenu = new ContextMenu(removePointItem);
@@ -3553,6 +3601,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private void removeCableRoutePoint(PowerCableView cable, int routePointIndex) {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
         if (!CableRouteEditor.removePoint(plan, cable.connection().id(), routePointIndex)) {
             return;
         }
@@ -3698,7 +3750,7 @@ public class PlaaniseppApp extends Application {
         mapPane.getChildren().add(polygon);
         Position labelPosition = averagePosition(object.points());
         addMapLabel(object, labelPosition.x() + 8, labelPosition.y() + 8);
-        if (isSelected(object)) {
+        if (isSelected(object) && !mapLayoutLocked) {
             addAreaMidpointHandles(object, polygon);
             addAreaPointHandles(object, polygon);
         }
@@ -3720,7 +3772,7 @@ public class PlaaniseppApp extends Application {
         mapPane.getChildren().add(polyline);
         Position labelPosition = averagePosition(object.points());
         addMapLabel(object, labelPosition.x() + 8, labelPosition.y() + 8);
-        if (isSelected(object)) {
+        if (isSelected(object) && !mapLayoutLocked) {
             addLineMidpointHandles(object, polyline);
             addLinePointHandles(object, polyline);
         }
@@ -3796,7 +3848,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
                 event.consume();
                 return;
             }
@@ -3830,7 +3882,7 @@ public class PlaaniseppApp extends Application {
         final boolean[] inserted = {false};
         final boolean[] dragged = {false};
         marker.setOnMousePressed(event -> {
-            if (measuringActive || addingCablePoint || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
                 event.consume();
                 return;
             }
@@ -3839,7 +3891,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
                 event.consume();
                 return;
             }
@@ -3879,7 +3931,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
                 event.consume();
                 return;
             }
@@ -3913,7 +3965,7 @@ public class PlaaniseppApp extends Application {
         final boolean[] inserted = {false};
         final boolean[] dragged = {false};
         marker.setOnMousePressed(event -> {
-            if (measuringActive || addingCablePoint || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
                 event.consume();
                 return;
             }
@@ -3922,7 +3974,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
                 event.consume();
                 return;
             }
@@ -3960,7 +4012,7 @@ public class PlaaniseppApp extends Application {
     ) {
         MenuItem removePointItem = new MenuItem("Eemalda punkt");
         removePointItem.setOnAction(event -> removeAreaPoint(object, pointIndex));
-        removePointItem.setDisable(object.locked() || object.points().size() <= 3);
+        removePointItem.setDisable(mapLayoutLocked || object.locked() || object.points().size() <= 3);
 
         ContextMenu contextMenu = new ContextMenu(removePointItem);
         showContextMenu(contextMenu, marker, screenX, screenY);
@@ -3975,13 +4027,17 @@ public class PlaaniseppApp extends Application {
     ) {
         MenuItem removePointItem = new MenuItem("Eemalda punkt");
         removePointItem.setOnAction(event -> removeLinePoint(object, pointIndex));
-        removePointItem.setDisable(object.locked() || object.points().size() <= 2);
+        removePointItem.setDisable(mapLayoutLocked || object.locked() || object.points().size() <= 2);
 
         ContextMenu contextMenu = new ContextMenu(removePointItem);
         showContextMenu(contextMenu, marker, screenX, screenY);
     }
 
     private void removeAreaPoint(AreaObject object, int pointIndex) {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
         if (object.points().size() <= 3) {
             return;
         }
@@ -3990,6 +4046,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private void removeLinePoint(LineObject object, int pointIndex) {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
         if (object.points().size() <= 2) {
             return;
         }
@@ -4148,7 +4208,7 @@ public class PlaaniseppApp extends Application {
     private void makeMapLabelDraggable(Label label, PlannerObject object, double defaultX, double defaultY) {
         final Delta dragDelta = new Delta();
         label.setOnMousePressed(event -> {
-            if (event.getButton() != MouseButton.PRIMARY || measuringActive || addingCablePoint) {
+            if (event.getButton() != MouseButton.PRIMARY || measuringActive || addingCablePoint || mapLayoutLocked) {
                 return;
             }
             selectedObject = object;
@@ -4160,7 +4220,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         label.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked) {
                 return;
             }
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
@@ -4264,6 +4324,10 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             selectObject(object);
+            if (mapLayoutLocked) {
+                event.consume();
+                return;
+            }
             beginPlanDrag();
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
             dragDelta.x = mapPoint.getX() - object.position().x();
@@ -4271,7 +4335,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         node.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked) {
                 return;
             }
             if (object.locked()) {
@@ -4295,6 +4359,7 @@ public class PlaaniseppApp extends Application {
         MenuItem visibilityItem = new MenuItem(object.hidden() ? "Kuva" : "Peida");
         visibilityItem.setOnAction(event -> setObjectHidden(object, !object.hidden()));
         MenuItem deleteItem = new MenuItem("Kustuta");
+        deleteItem.setDisable(mapLayoutLocked);
         deleteItem.setOnAction(event -> deleteObject(object));
         showContextMenu(
                 new ContextMenu(editItem, copyItem, visibilityItem, deleteItem),
@@ -4568,11 +4633,13 @@ public class PlaaniseppApp extends Application {
         lockedCheckBox.setDisable(!hasSelection);
         showMapLabelCheckBox.setDisable(!hasSelection || textObjectSelected);
         boolean customMapLabelPosition = hasSelection && !textObjectSelected && selectedObject.customMapLabelPosition();
-        resetMapLabelButton.setDisable(!customMapLabelPosition);
+        resetMapLabelButton.setDisable(!customMapLabelPosition || mapLayoutLocked);
         resetMapLabelButton.setTooltip(new Tooltip(mapLabelResetTooltip(hasSelection, textObjectSelected, customMapLabelPosition)));
         boolean lockedSelection = selectedObject != null && selectedObject.locked();
-        deleteObjectButton.setDisable(!hasSelection || lockedSelection);
-        deleteObjectButton.setTooltip(lockedSelection
+        deleteObjectButton.setDisable(!hasSelection || lockedSelection || mapLayoutLocked);
+        deleteObjectButton.setTooltip(mapLayoutLocked
+                ? new Tooltip("Paigutuse muutmiseks eemalda tööriistaribal paigutuslukk")
+                : lockedSelection
                 ? new Tooltip("Lukustatud objekti kustutamiseks eemalda enne lukustus")
                 : new Tooltip("Kustuta valitud objekt (Delete)"));
         customObjectShapeComboBox.setDisable(!customObjectSelected);
@@ -4602,7 +4669,7 @@ public class PlaaniseppApp extends Application {
                 && plan.findPowerConnectionForConsumer(selectedObject.id())
                 .map(PowerConnection::customCableLabelPosition)
                 .orElse(false);
-        resetCableLabelButton.setDisable(!customCableLabelPosition);
+        resetCableLabelButton.setDisable(!customCableLabelPosition || mapLayoutLocked);
         resetCableLabelButton.setTooltip(new Tooltip(cableLabelResetTooltip(
                 powerConsumerSelected,
                 consumerHasPowerConnection,
@@ -4625,7 +4692,7 @@ public class PlaaniseppApp extends Application {
         removeOutletButton.setDisable(!outletSelected);
         choosePowerSourceButton.setDisable(!powerConsumerSelected);
         if (addCablePointButton != null) {
-            addCablePointButton.setDisable(!consumerHasPowerConnection);
+            addCablePointButton.setDisable(!consumerHasPowerConnection || mapLayoutLocked);
             addCablePointButton.setText(editingCableConnectionId != null
                     ? "Lõpeta trajektoor"
                     : addingCablePoint ? "Lõpeta kaabli punktid" : "Kaabli punkt");
@@ -4637,7 +4704,7 @@ public class PlaaniseppApp extends Application {
             }
         }
         if (clearCableRouteButton != null) {
-            clearCableRouteButton.setDisable(!consumerHasPowerConnection);
+            clearCableRouteButton.setDisable(!consumerHasPowerConnection || mapLayoutLocked);
         }
         boolean selectingPowerSourceForThisConsumer = powerConsumerSelected
                 && pendingPowerSourceConsumer != null
@@ -4940,6 +5007,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private void resetSelectedMapLabelPosition() {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
         if (selectedObject == null || selectedObject instanceof TextObject) {
             return;
         }
@@ -4950,6 +5021,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private void resetSelectedCableLabelPosition() {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
         if (!(selectedObject instanceof PowerConsumer)) {
             return;
         }
@@ -5134,6 +5209,10 @@ public class PlaaniseppApp extends Application {
         if (copiedObject == null) {
             return;
         }
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
 
         PlannerObject copy = copyObjectAt(copiedObject, position, duplicateName(copiedObject));
         if (copy == null) {
@@ -5244,6 +5323,10 @@ public class PlaaniseppApp extends Application {
 
     private void deleteSelectedObject() {
         if (selectedObject == null) {
+            return;
+        }
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
             return;
         }
         if (selectedObject.locked()) {
@@ -5411,6 +5494,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private void clearSelectedCableRoute() {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
         if (!(selectedObject instanceof PowerConsumer)) {
             return;
         }
@@ -5428,7 +5515,7 @@ public class PlaaniseppApp extends Application {
     private void refreshPlacementButtons() {
         boolean placementPending = isPlacementPending();
         if (placementTypeComboBox != null) {
-            placementTypeComboBox.setDisable(placementPending);
+            placementTypeComboBox.setDisable(placementPending || mapLayoutLocked);
             if (pendingTentPlacement) {
                 placementTypeComboBox.getSelectionModel().select(PlacementType.TENT);
             } else if (pendingPowerSourcePlacement) {
@@ -5447,6 +5534,7 @@ public class PlaaniseppApp extends Application {
         }
         if (addPlacementButton != null) {
             addPlacementButton.setText(placementButtonText(placementPending));
+            addPlacementButton.setDisable(mapLayoutLocked);
         }
     }
 
