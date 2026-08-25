@@ -69,6 +69,7 @@ Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d
 ## Teostatud 26. augustil 2026
 
 - Lisati „Vaade” menüüst lülitatav korraldajavaade. See peidab kaablid, elektrikapid ja alajaotuskilbid kaardilt, elektriandmed külgpaneelilt ning tehnilised objektitüübid lisamisvalikutest, muutmata plaaniandmeid või varasemaid kihivalikuid.
+- Lisati aiaridade esimene etapp: kahe kaardipunktiga saab luua sirge rea, mis ümardatakse lähima täisarvu 3,5 m aialõikudeni. Kaart, külgpaneeli kokkuvõte ning TXT-raport kuvavad vajalike aedade arvu ja `.pplan` versioon 8 säilitab rea füüsilise geomeetria.
 
 ## 1. Rakenduse nimi
 
@@ -431,6 +432,8 @@ Eelseadistused peavad kasutama sama objektide, seadmete ja elektriühenduste mud
 - undo/redo käsitleb ühte lohistamist, ühendamist või lahtiühendamist ühe tegevusena.
 
 Keeruliste kujude jaoks lisatakse generaatorid vähemalt sirgele reale, kaarele ja ringile. Ringi puhul sisestab kasutaja raadiuse ning vajaduse korral sissepääsuava laiuse ja asukoha. Näiteks kastironimise jaoks saab luua **8 m raadiusega** aiaringi, milles on määratud kohas osalejate sissepääsuava. Kuna 3,5 m sirged aiad ainult lähendavad ringjoont, peab rakendus enne loomist näitama lõikude arvu, tekkiva hulknurga tegelikku kuju ja kõrvalekallet soovitud raadiusest.
+
+Esimene sirge aiaraja etapp on teostatud. Aiarida on tavalise joone asemel omaette plaaniobjekt, mis säilitab lõikude arvu, ühe lõigu pikkuse, suuna ja alguspunkti. Kahe kaardiklõpsu vaheline pikkus ümardatakse lähima täisarvu 3,5 m lõikudeni; rida saab tervikuna liigutada ning lõikude piirid kuvatakse kaardil. Üksiklõikude ühendamine, lahtiühendamine ja rea otspunktide pikkust säilitav muutmine jäävad järgmisse etappi.
 
 ### Inventarikokkuvõte
 

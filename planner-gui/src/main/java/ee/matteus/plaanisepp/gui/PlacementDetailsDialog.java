@@ -218,7 +218,7 @@ final class PlacementDetailsDialog {
             form.addRow(2, new Label("Marker"), markerTypeComboBox);
         } else if (placementType == PlacementType.AREA_OBJECT) {
             form.addRow(2, new Label("Läbipaistvus"), opacityControl(opacitySlider));
-        } else if (placementType == PlacementType.LINE_OBJECT) {
+        } else if (placementType == PlacementType.LINE_OBJECT || placementType == PlacementType.FENCE_ROW) {
             form.addRow(2, new Label("Paksus"), pixelControl(lineWidthSlider));
         } else if (placementType == PlacementType.TEXT_OBJECT) {
             form.addRow(2, new Label("Suurus"), pixelControl(fontSizeSlider));
@@ -233,7 +233,7 @@ final class PlacementDetailsDialog {
         return switch (placementType) {
             case TENT -> 5;
             case CUSTOM_OBJECT -> 6;
-            case MARKER_OBJECT, AREA_OBJECT, LINE_OBJECT, TEXT_OBJECT -> 3;
+            case MARKER_OBJECT, AREA_OBJECT, LINE_OBJECT, FENCE_ROW, TEXT_OBJECT -> 3;
             case POWER_SOURCE, DISTRIBUTION_PANEL -> 2;
         };
     }
@@ -528,6 +528,7 @@ enum PlacementType {
     TEXT_OBJECT("Tekst", "Uus tekst", "#111827", true),
     MARKER_OBJECT("Marker", "Uus marker", MarkerType.WC.defaultColorHex(), true),
     LINE_OBJECT("Joon", "Uus joon", "#0f766e", true),
+    FENCE_ROW("Aiarida", "Uus aiarida", "#64748b", true),
     AREA_OBJECT("Ala", "Uus ala", "#f59e0b", true);
 
     private final String label;

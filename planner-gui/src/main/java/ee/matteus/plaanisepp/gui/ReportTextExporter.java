@@ -5,6 +5,7 @@ import ee.matteus.plaanisepp.core.model.AreaObject;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EquipmentContainer;
 import ee.matteus.plaanisepp.core.model.EventPlan;
+import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
@@ -60,8 +61,35 @@ final class ReportTextExporter {
         if (includeGroups) {
             appendGroupReport(builder, plan, lineSeparator);
         }
+        appendFenceReport(builder, plan, lineSeparator);
         appendTextObjectReport(builder, plan, lineSeparator);
         return builder.toString();
+    }
+
+    private void appendFenceReport(StringBuilder builder, EventPlan plan, String lineSeparator) {
+        List<FenceRow> fenceRows = plan.objects().stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .toList();
+        if (fenceRows.isEmpty()) {
+            return;
+        }
+        builder.append("Aiad").append(lineSeparator);
+        for (FenceRow fenceRow : fenceRows) {
+            builder.append("  - ")
+                    .append(fenceRow.name())
+                    .append(": ")
+                    .append(fenceRow.segmentCount())
+                    .append(" × ")
+                    .append(formatMeters(fenceRow.segmentLengthMeters()))
+                    .append(" m = ")
+                    .append(formatMeters(fenceRow.totalLengthMeters()))
+                    .append(" m")
+                    .append(lineSeparator);
+        }
+        int totalFenceCount = fenceRows.stream().mapToInt(FenceRow::segmentCount).sum();
+        builder.append("Kokku: ").append(totalFenceCount).append(" aeda").append(lineSeparator);
+        builder.append(lineSeparator);
     }
 
     private void appendPlanInfoReport(StringBuilder builder, EventPlan plan, String lineSeparator) {
@@ -458,6 +486,9 @@ final class ReportTextExporter {
         }
         if (object instanceof AreaObject) {
             return "Ala";
+        }
+        if (object instanceof FenceRow) {
+            return "Aiarida";
         }
         if (object instanceof LineObject) {
             return "Joon";

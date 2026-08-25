@@ -5,6 +5,7 @@ import ee.matteus.plaanisepp.core.model.ConnectorType;
 import ee.matteus.plaanisepp.core.model.DistributionPanel;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EventPlan;
+import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.Position;
 import ee.matteus.plaanisepp.core.model.PowerConnection;
@@ -17,6 +18,29 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReportTextExporterTest {
+    @Test
+    void includesFenceInventory() {
+        EventPlan plan = new EventPlan("Test");
+        FenceRow first = new FenceRow("fence-1", "Peasissepääs", new Position(0, 0));
+        first.setSegmentCount(4);
+        FenceRow second = new FenceRow("fence-2", "Lava külg", new Position(100, 0));
+        second.setSegmentCount(3);
+        plan.addObject(first);
+        plan.addObject(second);
+
+        String report = new ReportTextExporter(new PowerSummaryService()).export(
+                plan,
+                ReportExportScope.COMPACT,
+                false,
+                false,
+                false
+        );
+
+        assertTrue(report.contains("Peasissepääs: 4 × 3.50 m = 14 m"));
+        assertTrue(report.contains("Lava külg: 3 × 3.50 m = 10.50 m"));
+        assertTrue(report.contains("Kokku: 7 aeda"));
+    }
+
     @Test
     void includesEquipmentPowerExceptionInPowerAndCableReports() {
         EventPlan plan = new EventPlan("Test");

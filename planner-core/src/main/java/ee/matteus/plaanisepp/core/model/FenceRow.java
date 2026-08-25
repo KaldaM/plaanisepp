@@ -1,0 +1,83 @@
+package ee.matteus.plaanisepp.core.model;
+
+public class FenceRow extends PlannerObject {
+    public static final double DEFAULT_SEGMENT_LENGTH_METERS = 3.5;
+    public static final String DEFAULT_COLOR_HEX = "#64748b";
+    public static final double DEFAULT_WIDTH_PIXELS = 5.0;
+
+    private int segmentCount;
+    private double segmentLengthMeters;
+    private double rotationDegrees;
+    private String colorHex;
+    private double widthPixels;
+
+    public FenceRow(String id, String name, Position position) {
+        super(id, name, position);
+        segmentCount = 1;
+        segmentLengthMeters = DEFAULT_SEGMENT_LENGTH_METERS;
+        colorHex = DEFAULT_COLOR_HEX;
+        widthPixels = DEFAULT_WIDTH_PIXELS;
+    }
+
+    public int segmentCount() {
+        return segmentCount;
+    }
+
+    public void setSegmentCount(int segmentCount) {
+        if (segmentCount < 1) {
+            throw new IllegalArgumentException("Aiarida peab sisaldama vähemalt ühte aeda.");
+        }
+        this.segmentCount = segmentCount;
+    }
+
+    public double segmentLengthMeters() {
+        return segmentLengthMeters;
+    }
+
+    public void setSegmentLengthMeters(double segmentLengthMeters) {
+        if (segmentLengthMeters <= 0) {
+            throw new IllegalArgumentException("Aialõigu pikkus peab olema positiivne.");
+        }
+        this.segmentLengthMeters = segmentLengthMeters;
+    }
+
+    public double totalLengthMeters() {
+        return segmentCount * segmentLengthMeters;
+    }
+
+    public double rotationDegrees() {
+        return rotationDegrees;
+    }
+
+    public void setRotationDegrees(double rotationDegrees) {
+        this.rotationDegrees = rotationDegrees;
+    }
+
+    public String colorHex() {
+        return colorHex;
+    }
+
+    public void setColorHex(String colorHex) {
+        this.colorHex = colorHex == null || colorHex.isBlank() ? DEFAULT_COLOR_HEX : colorHex;
+    }
+
+    public double widthPixels() {
+        return widthPixels;
+    }
+
+    public void setWidthPixels(double widthPixels) {
+        if (widthPixels <= 0) {
+            throw new IllegalArgumentException("Aia joone laius peab olema positiivne.");
+        }
+        this.widthPixels = widthPixels;
+    }
+
+    public Position endPosition(double pixelsPerMeter) {
+        double angleRadians = Math.toRadians(rotationDegrees);
+        double lengthPixels = totalLengthMeters() * pixelsPerMeter;
+        return new Position(
+                position().x() + Math.cos(angleRadians) * lengthPixels,
+                position().y() + Math.sin(angleRadians) * lengthPixels
+        );
+    }
+}

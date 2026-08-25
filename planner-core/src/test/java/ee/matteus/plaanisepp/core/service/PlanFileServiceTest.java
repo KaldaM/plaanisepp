@@ -8,6 +8,7 @@ import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.DistributionPanel;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EventPlan;
+import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.Position;
@@ -113,7 +114,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(7, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(8, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -138,6 +139,29 @@ class PlanFileServiceTest {
         );
         assertEquals(ChecklistSuggestionStatus.IRRELEVANT, loadedPlan.checklistSuggestionStatus("merch"));
         assertEquals(ChecklistSuggestionStatus.PENDING, loadedPlan.checklistSuggestionStatus("first_aid"));
+    }
+
+    @Test
+    void savesAndLoadsFenceRowGeometry() throws IOException {
+        EventPlan plan = new EventPlan("Aiad");
+        FenceRow fenceRow = new FenceRow("fence-1", "Peasissepääsu aiad", new Position(12, 34));
+        fenceRow.setSegmentCount(7);
+        fenceRow.setSegmentLengthMeters(3.5);
+        fenceRow.setRotationDegrees(42);
+        fenceRow.setColorHex("#334155");
+        fenceRow.setWidthPixels(6);
+        plan.addObject(fenceRow);
+        Path file = tempDirectory.resolve("fence-row.pplan");
+
+        service.save(plan, file);
+        EventPlan loadedPlan = service.load(file);
+
+        FenceRow loadedRow = (FenceRow) loadedPlan.findObject("fence-1").orElseThrow();
+        assertEquals(7, loadedRow.segmentCount());
+        assertEquals(3.5, loadedRow.segmentLengthMeters());
+        assertEquals(42, loadedRow.rotationDegrees());
+        assertEquals("#334155", loadedRow.colorHex());
+        assertEquals(6, loadedRow.widthPixels());
     }
 
     @Test
@@ -599,7 +623,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(7, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(8, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

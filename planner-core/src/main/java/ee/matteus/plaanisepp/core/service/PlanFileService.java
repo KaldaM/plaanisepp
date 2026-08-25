@@ -10,6 +10,7 @@ import ee.matteus.plaanisepp.core.model.DistributionPanel;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EquipmentContainer;
 import ee.matteus.plaanisepp.core.model.EventPlan;
+import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.MarkerType;
@@ -46,7 +47,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 7;
+    public static final int CURRENT_FORMAT_VERSION = 8;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -652,6 +653,8 @@ public class PlanFileService {
             writeTextObject(properties, prefix, textObject);
         } else if (object instanceof AreaObject areaObject) {
             writeAreaObject(properties, prefix, areaObject);
+        } else if (object instanceof FenceRow fenceRow) {
+            writeFenceRow(properties, prefix, fenceRow);
         } else if (object instanceof LineObject lineObject) {
             writeLineObject(properties, prefix, lineObject);
         } else if (object instanceof CustomObject customObject) {
@@ -729,6 +732,15 @@ public class PlanFileService {
         writeEquipment(properties, prefix, object);
     }
 
+    private void writeFenceRow(Properties properties, String prefix, FenceRow fenceRow) {
+        properties.setProperty(prefix + "type", "FENCE_ROW");
+        properties.setProperty(prefix + "segmentCount", Integer.toString(fenceRow.segmentCount()));
+        properties.setProperty(prefix + "segmentLengthMeters", Double.toString(fenceRow.segmentLengthMeters()));
+        properties.setProperty(prefix + "rotationDegrees", Double.toString(fenceRow.rotationDegrees()));
+        properties.setProperty(prefix + "colorHex", fenceRow.colorHex());
+        properties.setProperty(prefix + "widthPixels", Double.toString(fenceRow.widthPixels()));
+    }
+
     private PlannerObject readObject(Properties properties, String prefix) {
         String type = properties.getProperty(prefix + "type", "TENT");
         PlannerObject object;
@@ -742,6 +754,8 @@ public class PlanFileService {
             object = readTextObject(properties, prefix);
         } else if ("AREA_OBJECT".equals(type)) {
             object = readAreaObject(properties, prefix);
+        } else if ("FENCE_ROW".equals(type)) {
+            object = readFenceRow(properties, prefix);
         } else if ("LINE_OBJECT".equals(type)) {
             object = readLineObject(properties, prefix);
         } else if ("CUSTOM_OBJECT".equals(type)) {
@@ -768,6 +782,24 @@ public class PlanFileService {
             ));
         }
         return object;
+    }
+
+    private FenceRow readFenceRow(Properties properties, String prefix) {
+        FenceRow fenceRow = new FenceRow(
+                properties.getProperty(prefix + "id", ""),
+                properties.getProperty(prefix + "name", "Aiarida"),
+                readPosition(properties, prefix)
+        );
+        fenceRow.setSegmentCount(intValue(properties, prefix + "segmentCount", 1));
+        fenceRow.setSegmentLengthMeters(doubleValue(
+                properties,
+                prefix + "segmentLengthMeters",
+                FenceRow.DEFAULT_SEGMENT_LENGTH_METERS
+        ));
+        fenceRow.setRotationDegrees(doubleValue(properties, prefix + "rotationDegrees", 0));
+        fenceRow.setColorHex(properties.getProperty(prefix + "colorHex", FenceRow.DEFAULT_COLOR_HEX));
+        fenceRow.setWidthPixels(doubleValue(properties, prefix + "widthPixels", FenceRow.DEFAULT_WIDTH_PIXELS));
+        return fenceRow;
     }
 
     private Tent readTent(Properties properties, String prefix) {
