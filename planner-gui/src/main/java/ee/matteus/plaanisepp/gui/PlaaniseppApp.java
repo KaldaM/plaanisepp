@@ -1808,6 +1808,8 @@ public class PlaaniseppApp extends Application {
             }
         });
         powerSourceComboBox = new ComboBox<>();
+        powerSourceComboBox.setCellFactory(list -> createPowerSourceChoiceCell());
+        powerSourceComboBox.setButtonCell(createPowerSourceChoiceCell());
         connectionOutletComboBox = new ComboBox<>();
         connectionOutletComboBox.setCellFactory(list -> createOutletChoiceCell());
         connectionOutletComboBox.setButtonCell(createOutletChoiceCell());
@@ -1849,7 +1851,7 @@ public class PlaaniseppApp extends Application {
             }
         });
         equipmentList = new ListView<>();
-        equipmentList.setPrefHeight(120);
+        equipmentList.setPrefHeight(220);
         equipmentList.setCellFactory(list -> createEquipmentListCell());
         addEquipmentButton = new Button("Lisa seade");
         addEquipmentButton.setOnAction(event -> showEquipmentDialog(null));
@@ -1954,10 +1956,13 @@ public class PlaaniseppApp extends Application {
         powerConnectionForm.addRow(0, new Label("Muudetav ühendus"), powerConnectionComboBox);
         powerConnectionForm.addRow(1, new Label("Vooluallikas"), powerSourceSelection);
         powerConnectionForm.addRow(2, new Label("Väljund"), connectionOutletComboBox);
-        powerConnectionForm.addRow(3, new Label("Kaabli tükid"), cableLengthNotesField);
-        powerConnectionForm.addRow(4, new Label("Kaabli märkmed"), cableNotesField);
-        powerConnectionForm.addRow(5, new Label("Kaablisilt"), showSelectedCableLabelCheckBox);
-        powerConnectionForm.addRow(6, new Label("Sildi asukoht"), resetCableLabelButton);
+        GridPane cableDetailsForm = detailGrid();
+        cableDetailsForm.addRow(0, new Label("Kaabli tükid"), cableLengthNotesField);
+        cableDetailsForm.addRow(1, new Label("Kaabli märkmed"), cableNotesField);
+        cableDetailsForm.addRow(2, new Label("Kaablisilt"), showSelectedCableLabelCheckBox);
+        cableDetailsForm.addRow(3, new Label("Sildi asukoht"), resetCableLabelButton);
+        TitledPane cableDetailsPane = new TitledPane("Kaabli lisainfo", cableDetailsForm);
+        cableDetailsPane.setExpanded(false);
         HBox powerConnectionActions = new HBox(
                 8, addAlternativePowerConnectionButton, makeDefaultPowerConnectionButton, removePowerConnectionButton
         );
@@ -1965,6 +1970,7 @@ public class PlaaniseppApp extends Application {
                 8,
                 sectionLabel("Vool"),
                 powerConnectionForm,
+                cableDetailsPane,
                 powerConnectionActions
         );
 
@@ -6060,11 +6066,19 @@ public class PlaaniseppApp extends Application {
     private void refreshPowerSourceChoices() {
         powerSourceComboBox.getItems().clear();
         powerSourceComboBox.getItems().add(PowerSourceChoice.none());
+        Map<String, PowerSummary> summariesBySource = powerSummaryService.summaries(plan).stream()
+                .collect(java.util.stream.Collectors.toMap(PowerSummary::sourceId, summary -> summary));
         for (PowerSource source : plan.powerSources()) {
             if (selectedObject != null && source.id().equals(selectedObject.id())) {
                 continue;
             }
-            powerSourceComboBox.getItems().add(new PowerSourceChoice(source.id(), source.name()));
+            PowerSummary summary = summariesBySource.get(source.id());
+            powerSourceComboBox.getItems().add(new PowerSourceChoice(
+                    source.id(),
+                    source.name(),
+                    summary == null ? 0 : summary.usedWatts(),
+                    summary == null ? 0 : summary.capacityWatts()
+            ));
         }
 
         powerSourceComboBox.getSelectionModel().selectFirst();
@@ -6080,6 +6094,33 @@ public class PlaaniseppApp extends Application {
                     .ifPresent(choice -> powerSourceComboBox.getSelectionModel().select(choice));
             refreshConnectionOutletChoices(connection.outletId());
         });
+    }
+
+    private ListCell<PowerSourceChoice> createPowerSourceChoiceCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(PowerSourceChoice choice, boolean empty) {
+                super.updateItem(choice, empty);
+                setText(null);
+                setGraphic(null);
+                if (empty || choice == null) {
+                    return;
+                }
+                if (choice.isNone()) {
+                    setText(choice.name());
+                    return;
+                }
+                PowerLoadLevel loadLevel = PowerLoadLevel.from(choice.usedWatts(), choice.capacityWatts());
+                Label label = new Label(choice.displayText());
+                label.setStyle(loadLevel == PowerLoadLevel.OVERLOADED
+                        ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
+                        : "-fx-text-fill: #1f2937;");
+                ProgressBar bar = new ProgressBar(choice.progress());
+                bar.setMaxWidth(Double.MAX_VALUE);
+                bar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
+                setGraphic(new VBox(3, label, bar));
+            }
+        };
     }
 
     private void refreshPowerConnectionChoices(String preferredConnectionId) {
@@ -6330,11 +6371,38 @@ public class PlaaniseppApp extends Application {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                setText(empty ? null : item);
+                setText(null);
+                setGraphic(null);
                 if (empty) {
                     setContextMenu(null);
                     return;
                 }
+                Label equipmentLabel = new Label(item);
+                equipmentAt(getIndex())
+                        .flatMap(PlaaniseppApp.this::equipmentPowerConnection)
+                        .flatMap(connection -> plan.findObject(connection.sourceId())
+                                .filter(PowerSource.class::isInstance)
+                                .map(PowerSource.class::cast)
+                                .flatMap(source -> source.outlets().stream()
+                                        .filter(outlet -> outlet.id().equals(connection.outletId()))
+                                        .findFirst()
+                                        .map(outlet -> new EquipmentSupplyView(
+                                                powerConnectionDisplayName(connection),
+                                                usedWatts(outlet.id()),
+                                                outlet.capacityWatts()
+                                        ))))
+                        .ifPresentOrElse(supply -> {
+                            PowerLoadLevel loadLevel = PowerLoadLevel.from(
+                                    supply.usedWatts(), supply.capacityWatts());
+                            Label supplyLabel = new Label(supply.displayText());
+                            supplyLabel.setStyle(loadLevel == PowerLoadLevel.OVERLOADED
+                                    ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
+                                    : "-fx-text-fill: #4b5563;");
+                            ProgressBar bar = new ProgressBar(supply.progress());
+                            bar.setMaxWidth(Double.MAX_VALUE);
+                            bar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
+                            setGraphic(new VBox(3, equipmentLabel, supplyLabel, bar));
+                        }, () -> setGraphic(equipmentLabel));
                 MenuItem editItem = new MenuItem("Muuda");
                 editItem.setOnAction(event -> equipmentAt(getIndex()).ifPresent(equipment -> {
                     equipmentList.getSelectionModel().select(getIndex());
@@ -6345,6 +6413,16 @@ public class PlaaniseppApp extends Application {
                 setContextMenu(new ContextMenu(editItem, removeItem));
             }
         };
+    }
+
+    private Optional<PowerConnection> equipmentPowerConnection(Equipment equipment) {
+        if (selectedObject == null) {
+            return Optional.empty();
+        }
+        if (equipment.usesDefaultPower()) {
+            return plan.findPowerConnectionForConsumer(selectedObject.id());
+        }
+        return plan.findPowerConnection(equipment.powerConnectionId());
     }
 
     private Optional<Equipment> equipmentAt(int index) {
@@ -6884,7 +6962,9 @@ public class PlaaniseppApp extends Application {
 
     private String equipmentPowerDisplayName(Equipment equipment) {
         if (equipment.usesDefaultPower()) {
-            return "vaiketoide";
+            return equipmentPowerConnection(equipment)
+                    .map(connection -> "vaiketoide — " + powerConnectionDisplayName(connection))
+                    .orElse("vaiketoide (määramata)");
         }
         return plan.powerConnections().stream()
                 .filter(connection -> connection.id().equals(equipment.powerConnectionId()))
@@ -7589,13 +7669,35 @@ public class PlaaniseppApp extends Application {
         }
     }
 
-    private record PowerSourceChoice(String sourceId, String name) {
+    private record PowerSourceChoice(String sourceId, String name, int usedWatts, int capacityWatts) {
         private static PowerSourceChoice none() {
-            return new PowerSourceChoice("", "Määramata");
+            return new PowerSourceChoice("", "Määramata", 0, 0);
         }
 
         private boolean isNone() {
             return sourceId.isBlank();
+        }
+
+        private double progress() {
+            if (capacityWatts <= 0) {
+                return usedWatts > 0 ? 1.0 : 0.0;
+            }
+            return Math.clamp((double) usedWatts / capacityWatts, 0.0, 1.0);
+        }
+
+        private String displayText() {
+            int remainingWatts = capacityWatts - usedWatts;
+            String remainingText = capacityWatts <= 0
+                    ? "võimsus määramata"
+                    : remainingWatts < 0
+                    ? "ÜLEKOORMUS %d W".formatted(Math.abs(remainingWatts))
+                    : "%d W alles".formatted(remainingWatts);
+            return "%s — %d W kasutusel, %s · %.0f%%".formatted(
+                    name,
+                    usedWatts,
+                    remainingText,
+                    capacityWatts <= 0 ? 0.0 : (double) usedWatts * 100 / capacityWatts
+            );
         }
 
         @Override
@@ -7676,6 +7778,28 @@ public class PlaaniseppApp extends Application {
         }
     }
 
+    private record EquipmentSupplyView(String name, int usedWatts, int capacityWatts) {
+        private double progress() {
+            if (capacityWatts <= 0) {
+                return usedWatts > 0 ? 1.0 : 0.0;
+            }
+            return Math.clamp((double) usedWatts / capacityWatts, 0.0, 1.0);
+        }
+
+        private String displayText() {
+            int remainingWatts = capacityWatts - usedWatts;
+            String remainingText = capacityWatts <= 0
+                    ? "võimsus määramata"
+                    : remainingWatts < 0
+                    ? "ÜLEKOORMUS %d W".formatted(Math.abs(remainingWatts))
+                    : "%d W alles".formatted(remainingWatts);
+            return "%s — %s · %.0f%%".formatted(
+                    name,
+                    remainingText,
+                    capacityWatts <= 0 ? 0.0 : (double) usedWatts * 100 / capacityWatts
+            );
+        }
+    }
 
     private static class Delta {
         private double x;
