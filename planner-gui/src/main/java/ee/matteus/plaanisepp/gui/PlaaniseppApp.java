@@ -1947,8 +1947,14 @@ public class PlaaniseppApp extends Application {
         tentForm.addRow(4, new Label("Läbipaistvus"), opacityControl(tentOpacitySlider));
         tentPanel = new VBox(8, sectionLabel("Telk"), tentForm);
 
+        choosePowerSourceButton = new Button("Vali kapp kaardilt");
+        choosePowerSourceButton.setOnAction(event -> startPowerSourceSelectionFromMap());
+        powerSourceComboBox.setMaxWidth(Double.MAX_VALUE);
+        HBox powerSourceSelection = new HBox(8, powerSourceComboBox, choosePowerSourceButton);
+        HBox.setHgrow(powerSourceComboBox, Priority.ALWAYS);
+
         GridPane powerConnectionForm = detailGrid();
-        powerConnectionForm.addRow(0, new Label("Vooluallikas"), powerSourceComboBox);
+        powerConnectionForm.addRow(0, new Label("Vooluallikas"), powerSourceSelection);
         powerConnectionForm.addRow(1, new Label("Ühenduse tüüp"), connectionTypeComboBox);
         powerConnectionForm.addRow(2, new Label("Väljund"), connectionOutletComboBox);
         powerConnectionForm.addRow(3, new Label("Kaabli tükid"), cableLengthNotesField);
@@ -1964,8 +1970,6 @@ public class PlaaniseppApp extends Application {
         GridPane notesForm = detailGrid();
         notesForm.addRow(0, new Label("Märkmed"), notesArea);
 
-        choosePowerSourceButton = new Button("Vali kapp kaardilt");
-        choosePowerSourceButton.setOnAction(event -> startPowerSourceSelectionFromMap());
         deleteObjectButton = new Button("Kustuta objekt");
         deleteObjectButton.setTooltip(new Tooltip("Kustuta valitud objekt (Delete)"));
         deleteObjectButton.setOnAction(event -> deleteSelectedObject());
@@ -2008,7 +2012,6 @@ public class PlaaniseppApp extends Application {
                 equipmentSection,
                 outletSection,
                 new VBox(8, sectionLabel("Märkmed"), notesForm),
-                choosePowerSourceButton,
                 deleteObjectButton
         );
         detailPanel.setPadding(new Insets(0, 0, 12, 0));
@@ -5082,14 +5085,34 @@ public class PlaaniseppApp extends Application {
         if (!(consumer instanceof PowerConsumer)) {
             return;
         }
-        PowerConnectionValidationResult validationResult = plan.validatePowerConnection(
-                source.id(), consumer.id(), selectedConnectionType(), ""
-        );
-        if (validationResult != PowerConnectionValidationResult.VALID) {
+
+        ConnectorType preferredType = selectedConnectionType();
+        List<PowerOutlet> candidateOutlets = source.outlets().stream()
+                .sorted(Comparator.comparing(outlet -> outlet.type() != preferredType))
+                .toList();
+        PowerOutlet selectedOutlet = candidateOutlets.stream()
+                .filter(outlet -> plan.validatePowerConnection(
+                        source.id(), consumer.id(), outlet.type(), outlet.id()
+                ) == PowerConnectionValidationResult.VALID)
+                .findFirst()
+                .orElse(null);
+        if (selectedOutlet == null) {
+            PowerConnectionValidationResult validationResult = candidateOutlets.isEmpty()
+                    ? plan.validatePowerConnection(source.id(), consumer.id(), preferredType, "")
+                    : plan.validatePowerConnection(
+                            source.id(), consumer.id(), candidateOutlets.getFirst().type(), candidateOutlets.getFirst().id()
+                    );
             showError("Vooluallikat ei valitud", powerConnectionValidationMessage(validationResult));
             return;
         }
-        if (plan.connectToPower(source.id(), consumer.id(), selectedConnectionType()).isEmpty()) {
+        if (plan.connectToPower(
+                source.id(),
+                consumer.id(),
+                selectedOutlet.type(),
+                selectedOutlet.id(),
+                cableNotesField.getText(),
+                cableLengthNotesField.getText()
+        ).isEmpty()) {
             showError("Vooluallikat ei valitud", "Vooluühendust ei õnnestunud luua.");
             return;
         }
