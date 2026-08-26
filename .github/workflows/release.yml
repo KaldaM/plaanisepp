@@ -118,12 +118,14 @@ jobs:
       - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release-files/* --clobber
+          if gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-files/* --clobber --repo "$RELEASE_REPOSITORY"
           else
             gh release create "$RELEASE_TAG" release-files/* \
+              --repo "$RELEASE_REPOSITORY" \
               --title "Plaanisepp $RELEASE_TAG" \
               --generate-notes
           fi
