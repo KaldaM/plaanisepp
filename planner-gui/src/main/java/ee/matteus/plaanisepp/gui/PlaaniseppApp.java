@@ -224,6 +224,8 @@ public class PlaaniseppApp extends Application {
     private boolean planDragRecorded;
     private boolean synchronizingSidebarSelection;
     private boolean preservingSidebarMultiSelection;
+    private Position selectionBoxStart;
+    private Rectangle selectionBox;
     private boolean startupPlanFileProvided;
     private boolean quickObjectSearchActive;
     private boolean shiftKeyPressed;
@@ -1530,8 +1532,24 @@ public class PlaaniseppApp extends Application {
             mapDraggedSincePress = false;
             mapPressSceneX = event.getSceneX();
             mapPressSceneY = event.getSceneY();
+            if (canStartSelectionBox(event)) {
+                startSelectionBox(event);
+                event.consume();
+            }
         });
-        mapPane.setOnMouseDragged(event -> updateMapDragState(event.getSceneX(), event.getSceneY()));
+        mapPane.setOnMouseDragged(event -> {
+            updateMapDragState(event.getSceneX(), event.getSceneY());
+            if (selectionBox != null) {
+                updateSelectionBox(event);
+                event.consume();
+            }
+        });
+        mapPane.setOnMouseReleased(event -> {
+            if (selectionBox != null) {
+                finishSelectionBox();
+                event.consume();
+            }
+        });
         mapPane.setOnContextMenuRequested(event -> {
             if (event.getTarget() != mapPane && event.getTarget() != mapImageView) {
                 return;
@@ -1740,6 +1758,77 @@ public class PlaaniseppApp extends Application {
         SplitPane splitPane = new SplitPane(mapScrollPane, sidebarScrollPane);
         splitPane.setDividerPositions(0.72);
         return splitPane;
+    }
+
+    private boolean canStartSelectionBox(MouseEvent event) {
+        return event.getButton() == MouseButton.PRIMARY
+                && event.isControlDown()
+                && (event.getTarget() == mapPane || event.getTarget() == mapImageView)
+                && !isPlacementPending()
+                && !addingCablePoint
+                && !measuringActive
+                && pendingPowerSourceConsumer == null
+                && rotatingObjectId == null;
+    }
+
+    private void startSelectionBox(MouseEvent event) {
+        Point2D point = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+        selectionBoxStart = new Position(point.getX(), point.getY());
+        selectionBox = new Rectangle(point.getX(), point.getY(), 0, 0);
+        selectionBox.setFill(Color.web("#2563eb", 0.12));
+        selectionBox.setStroke(Color.web("#2563eb"));
+        selectionBox.setStrokeWidth(1.5 / Math.max(zoomLevel, 0.1));
+        selectionBox.getStrokeDashArray().addAll(6.0 / Math.max(zoomLevel, 0.1), 4.0 / Math.max(zoomLevel, 0.1));
+        selectionBox.setMouseTransparent(true);
+        mapPane.getChildren().add(selectionBox);
+        mapScrollPane.setPannable(false);
+    }
+
+    private void updateSelectionBox(MouseEvent event) {
+        Point2D point = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+        double minX = Math.min(selectionBoxStart.x(), point.getX());
+        double minY = Math.min(selectionBoxStart.y(), point.getY());
+        selectionBox.setX(minX);
+        selectionBox.setY(minY);
+        selectionBox.setWidth(Math.abs(point.getX() - selectionBoxStart.x()));
+        selectionBox.setHeight(Math.abs(point.getY() - selectionBoxStart.y()));
+        selectionBox.toFront();
+    }
+
+    private void finishSelectionBox() {
+        Rectangle completedBox = selectionBox;
+        selectionBox = null;
+        selectionBoxStart = null;
+        mapPane.getChildren().remove(completedBox);
+        mapScrollPane.setPannable(true);
+        if (completedBox.getWidth() < MAP_CLICK_DRAG_TOLERANCE_PX / Math.max(zoomLevel, 0.1)
+                && completedBox.getHeight() < MAP_CLICK_DRAG_TOLERANCE_PX / Math.max(zoomLevel, 0.1)) {
+            return;
+        }
+
+        List<PlannerObject> intersectingObjects = plan.objects().stream()
+                .filter(this::isObjectVisibleOnMap)
+                .filter(object -> selectionBoxIntersectsObject(completedBox, object))
+                .toList();
+        if (intersectingObjects.isEmpty()) {
+            return;
+        }
+        if (selectedObject != null && !updatingDetailControls) {
+            commitPendingDetailFieldsBeforeSelectionChange();
+        }
+        intersectingObjects.forEach(object -> selectedObjectIds.addAll(logicalObjectIds(object)));
+        if (selectedObject == null) {
+            selectedObject = intersectingObjects.getFirst();
+        }
+        refreshDetails();
+        refreshObjectList();
+        revealObjectInPowerSummary(selectedObject);
+        redrawMap();
+    }
+
+    private boolean selectionBoxIntersectsObject(Rectangle box, PlannerObject object) {
+        Node node = mapObjectNodes.get(object.id());
+        return node != null && box.getBoundsInParent().intersects(node.getBoundsInParent());
     }
 
     private VBox createObjectListPanel() {
