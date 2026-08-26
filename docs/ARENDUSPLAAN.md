@@ -26,7 +26,8 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 15. lisada kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog;
 16. lisada tehnikakihita korraldajavaade ning plaanipõhine kommenteerimine;
 17. uuendada rakenduse visuaalne keel ja vähendada JavaFX-i vaikekomponentide vananenud ilmet;
-18. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+18. lisada loomulikum objekti pööramine ning mitme objekti valimine ja ühistoimingud;
+19. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -635,3 +636,39 @@ FXML-vaateid saab visuaalselt kujundada Gluon Scene Builderiga ning IntelliJ IDE
 - Kasutajaliidese muudatus ei tohi vaikimisi muuta plaani salvestatud andmeid.
 - Automaatkontrollid tehakse taustal; graafiline käsitsi kontroll antakse kasutajale lühikese kontrollnimekirjana.
 - Pärast iga sammu käivitatakse `./gradlew clean test` ja `git diff --check`.
+
+## 21. Objekti pööramine ja mitme objekti valimine
+
+### Interaktiivne pööramine
+
+Objekti või objektirea kontekstimenüüst „Pööra” alustades kuvatakse objekti kõrval lohistatav pööramispunkt. Pööramispunkti liigutamine muudab objekti nurka hiire asukoha järgi ning jätab objekti keskpunkti paigale. Sama töövoog peab olema kättesaadav ka objektide külgpaneeli kontekstimenüüst. Pööramise lõpetab hiirenupu vabastamine või `Escape`; pööramise alustamiseks lisatakse kiirklahv `Ctrl + R`, kui see ei ole mõne olemasoleva tegevusega vastuolus.
+
+Pööramispunkt peab skaleeruma koos kaardiga, olema piisavalt nähtav ka väikese mõõtkava korral ning mitte muutuma objekti püsivaks eraldi alamobjektiks. Üks pööramisliigutus moodustab ühe undo-sammu. Paigutuslukustus või objekti enda lukustus blokeerib pööramise, kuid ei tohi takistada objekti valimist ega andmete muutmist.
+
+### Mitme objekti valimine
+
+`Ctrl`-klahvi all hoides kaardil või objektide külgpaneelil tehtud klõps lisab objekti valikusse või eemaldab selle sealt. Tavaline klõps alustab uue ühe objekti valiku. Mitme valiku korral on ühistoimingud vähemalt kopeerimine, kleepimine, kustutamine, lukustamine või lukustusest vabastamine, peitmine või kuvamine, nimesildi nähtavuse muutmine ja ühise grupi määramine.
+
+Ühistoiming peab arvestama objektitüüpi ja lukustust:
+
+- lukustatud objekte ei kustutata ega muudeta enne nende teadlikku lukustusest vabastamist;
+- geomeetriat muutvad tegevused peavad kas rakenduma ainult sobivatele valitud objektidele või olema selgelt keelatud, mitte osaliselt ja vaikides;
+- eri tüüpi objektide puhul kuvatakse ainult omadused, millel on kõigile valitutele sama tähendus;
+- kopeerimine loob igast valitud objektist eraldi koopia ning säilitab nende omavahelise suhtelise paigutuse;
+- mitme objekti valik on kasutajaliidese olek ega muuda `.pplan` vormingut.
+
+### Valikukast
+
+Kui kasutaja hoiab `Ctrl`-i all ja lohistab kaardil vasaku hiirenupuga, kuvatakse valikukast. Kastiga lõikuvad või täielikult kaetud nähtavad objektid lisatakse valikusse; täpne reegel tuleb valida nii, et aiaridade ja teiste väikeste objektide valimine oleks etteaimatav. Valikukast ei tohi käivituda aktiivse lisamis-, mõõtmis-, kaabli- või pööramistööriista ajal ning tavaline hiirega kaardi lohistamine peab säilitama senise käitumise.
+
+Valitud objektid peavad olema kaardil ja külgpaneelil ühtemoodi märgatavad. `Escape` tühistab poolelioleva valikukasti ning mitme valiku tühistamiseks saab teha tavalise klõpsu tühjal kaardialal. Kõik valikupõhised tegevused peavad olema kasutatavad ka klaviatuurita hiirega ning nende olekud peavad olema nähtavad.
+
+### Vastuvõtukriteeriumid
+
+- pööramispunkt muudab valitud objekti nurka loomulikult ja jätab keskpunkti paigale;
+- pööramine töötab nii kaardil kui ka külgpaneeli kontekstimenüüst alustades;
+- `Ctrl`-klõpsuga saab valida ja valikust eemaldada eri tüüpi objekte;
+- lukustatud objektide puhul ei teki vaikset osalist ühistoimingut;
+- valitud objektide kopeerimine säilitab nende suhtelise paigutuse;
+- valikukast võimaldab välja zoomitud kaardil valida aiaridade ja teiste väikeste objektide kogumeid;
+- valik, pööramine ja ühistoimingud säilitavad undo/redo ning olemasolevate `.pplan` failide käitumise.

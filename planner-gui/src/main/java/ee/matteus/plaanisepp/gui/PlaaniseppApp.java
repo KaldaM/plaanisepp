@@ -216,6 +216,7 @@ public class PlaaniseppApp extends Application {
     private boolean measuringActive;
     private boolean addingCablePoint;
     private String editingCableConnectionId;
+    private String rotatingObjectId;
     private boolean mapDraggedSincePress;
     private boolean planDragInProgress;
     private boolean planDragRecorded;
@@ -456,6 +457,9 @@ public class PlaaniseppApp extends Application {
             if (event.getCode() == KeyCode.ENTER && isShapePlacementPending()) {
                 finishPendingShapePlacement();
                 event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE && rotatingObjectId != null) {
+                finishObjectRotation();
+                event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && isPlacementPending()) {
                 cancelPlacement();
                 event.consume();
@@ -569,6 +573,12 @@ public class PlaaniseppApp extends Application {
                 && !event.isAltDown()
                 && !event.isShiftDown()) {
             setObjectHidden(selectedObject, !selectedObject.hidden());
+            event.consume();
+        } else if (event.getCode() == KeyCode.R
+                && event.isControlDown()
+                && !event.isAltDown()
+                && !event.isShiftDown()) {
+            startObjectRotation(selectedObject);
             event.consume();
         } else if (event.getCode() == KeyCode.DELETE
                 && !event.isControlDown()
@@ -3990,6 +4000,10 @@ public class PlaaniseppApp extends Application {
         if (mapToolStatusLabel == null) {
             return;
         }
+        if (rotatingObjectId != null) {
+            mapToolStatusLabel.setText("Lohista pööramispunkti või lõpeta Escape'iga");
+            return;
+        }
         if (pendingPowerSourceConsumer != null) {
             mapToolStatusLabel.setText("Vali kaardilt elektrikapp");
             return;
@@ -4739,7 +4753,6 @@ public class PlaaniseppApp extends Application {
     private void drawTent(Tent tent) {
         double widthPixels = metersToPixels(tent.widthMeters());
         double heightPixels = metersToPixels(tent.heightMeters());
-        Position rotationOffset = rotationOffset(widthPixels, heightPixels, tent.rotationDegrees());
         Rectangle rectangle = new Rectangle(
                 tent.position().x(),
                 tent.position().y(),
@@ -4767,20 +4780,23 @@ public class PlaaniseppApp extends Application {
             label.setMouseTransparent(true);
             Group truck = new Group(rectangle, label);
             truck.setRotate(tent.rotationDegrees());
-            truck.setTranslateX(rotationOffset.x());
-            truck.setTranslateY(rotationOffset.y());
             makeSelectable(truck, tent);
             makeDraggable(truck, tent);
             mapPane.getChildren().add(truck);
         } else {
             rectangle.setRotate(tent.rotationDegrees());
-            rectangle.setTranslateX(rotationOffset.x());
-            rectangle.setTranslateY(rotationOffset.y());
             makeSelectable(rectangle, tent);
             makeDraggable(rectangle, tent);
             mapPane.getChildren().add(rectangle);
         }
         addMapLabel(tent, tent.position().x(), tent.position().y() - 24);
+        addRotationHandleIfActive(
+                tent,
+                new Position(tent.position().x() + widthPixels / 2, tent.position().y() + heightPixels / 2),
+                widthPixels,
+                heightPixels,
+                tent.rotationDegrees()
+        );
     }
 
     private void drawPowerSource(PowerSource source) {
@@ -4823,6 +4839,15 @@ public class PlaaniseppApp extends Application {
 
         mapPane.getChildren().add(shape);
         addMapLabel(object, object.position().x() + 16, object.position().y() - 12);
+        if (object.shape() != CustomObjectShape.CIRCLE) {
+            addRotationHandleIfActive(
+                    object,
+                    object.position(),
+                    widthPixels,
+                    heightPixels,
+                    object.rotationDegrees()
+            );
+        }
     }
 
     private void drawAreaObject(AreaObject object) {
@@ -5911,6 +5936,137 @@ public class PlaaniseppApp extends Application {
         });
     }
 
+    private void startObjectRotation(PlannerObject object) {
+        if (!supportsInteractiveRotation(object)) {
+            showError("Objekti ei saa pöörata", "Pööramine on praegu toetatud telkidele ja nelinurksetele objektidele.");
+            return;
+        }
+        if (mapLayoutLocked || object.locked()) {
+            showMapLayoutLockedMessage();
+            return;
+        }
+        selectObject(object);
+        rotatingObjectId = object.id();
+        updateMapToolStatus();
+        redrawMap();
+    }
+
+    private boolean supportsInteractiveRotation(PlannerObject object) {
+        return object instanceof Tent
+                || object instanceof CustomObject customObject && customObject.shape() != CustomObjectShape.CIRCLE;
+    }
+
+    private boolean isObjectRotationActive(PlannerObject object) {
+        return object != null && object.id().equals(rotatingObjectId);
+    }
+
+    private void addRotationHandleIfActive(
+            PlannerObject object,
+            Position center,
+            double widthPixels,
+            double heightPixels,
+            double rotationDegrees
+    ) {
+        if (!isObjectRotationActive(object)) {
+            return;
+        }
+        double handleDistance = Math.max(24, Math.max(widthPixels, heightPixels) / 2 + 24);
+        double radians = Math.toRadians(rotationDegrees - 90);
+        double handleX = center.x() + Math.cos(radians) * handleDistance;
+        double handleY = center.y() + Math.sin(radians) * handleDistance;
+        Line guide = new Line(center.x(), center.y(), handleX, handleY);
+        guide.setStroke(Color.web("#7c3aed"));
+        guide.setStrokeWidth(2);
+        guide.setMouseTransparent(true);
+        Circle handle = new Circle(handleX, handleY, 8, Color.web("#ffffff"));
+        handle.setStroke(Color.web("#7c3aed"));
+        handle.setStrokeWidth(3);
+        handle.setCursor(Cursor.HAND);
+        handle.setOnMousePressed(event -> {
+            if (event.getButton() != MouseButton.PRIMARY || mapLayoutLocked || object.locked()) {
+                return;
+            }
+            mapScrollPane.setPannable(false);
+            beginPlanDrag();
+            event.consume();
+        });
+        handle.setOnMouseDragged(event -> {
+            if (mapLayoutLocked || object.locked()) {
+                return;
+            }
+            Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+            double angle = Math.toDegrees(Math.atan2(mapPoint.getY() - center.y(), mapPoint.getX() - center.x())) + 90;
+            updateInteractiveRotationPreview(object, angle, center, handleDistance, guide, handle);
+            recordPlanDragChange();
+            event.consume();
+        });
+        handle.setOnMouseReleased(event -> {
+            if (event.getButton() == MouseButton.PRIMARY) {
+                mapScrollPane.setPannable(true);
+                finishObjectRotation();
+                event.consume();
+            }
+        });
+        mapPane.getChildren().addAll(guide, handle);
+    }
+
+    private void setInteractiveRotation(PlannerObject object, double rotationDegrees) {
+        if (object instanceof Tent tent) {
+            tent.setRotationDegrees(rotationDegrees);
+        } else if (object instanceof CustomObject customObject) {
+            customObject.setRotationDegrees(rotationDegrees);
+        }
+    }
+
+    private void updateInteractiveRotationPreview(
+            PlannerObject object,
+            double rotationDegrees,
+            Position center,
+            double handleDistance,
+            Line guide,
+            Circle handle
+    ) {
+        setInteractiveRotation(object, rotationDegrees);
+        Node mapObjectNode = mapObjectNodes.get(object.id());
+        if (mapObjectNode != null) {
+            mapObjectNode.setRotate(rotationDegrees);
+        }
+
+        double radians = Math.toRadians(rotationDegrees - 90);
+        double handleX = center.x() + Math.cos(radians) * handleDistance;
+        double handleY = center.y() + Math.sin(radians) * handleDistance;
+        guide.setEndX(handleX);
+        guide.setEndY(handleY);
+        handle.setCenterX(handleX);
+        handle.setCenterY(handleY);
+        syncInteractiveRotationField(object, rotationDegrees);
+    }
+
+    private void syncInteractiveRotationField(PlannerObject object, double rotationDegrees) {
+        boolean wasUpdatingDetailControls = updatingDetailControls;
+        updatingDetailControls = true;
+        try {
+            if (object instanceof Tent) {
+                tentRotationField.setText(formatDegrees(rotationDegrees));
+            } else if (object instanceof CustomObject) {
+                customObjectRotationField.setText(formatDegrees(rotationDegrees));
+            }
+        } finally {
+            updatingDetailControls = wasUpdatingDetailControls;
+        }
+    }
+
+    private void finishObjectRotation() {
+        if (rotatingObjectId == null) {
+            return;
+        }
+        rotatingObjectId = null;
+        mapScrollPane.setPannable(true);
+        refreshDetails();
+        updateMapToolStatus();
+        redrawMap();
+    }
+
     private void selectFenceRowForDrag(PlannerObject object) {
         if (selectedObject != null && selectedObject.id().equals(object.id())) {
             return;
@@ -5929,6 +6085,9 @@ public class PlaaniseppApp extends Application {
         selectObject(object);
         MenuItem editItem = new MenuItem("Muuda");
         editItem.setOnAction(event -> editObject(object));
+        MenuItem rotateItem = new MenuItem("Pööra");
+        rotateItem.setDisable(!supportsInteractiveRotation(object) || mapLayoutLocked || object.locked());
+        rotateItem.setOnAction(event -> startObjectRotation(object));
         MenuItem copyItem = new MenuItem("Kopeeri");
         copyItem.setOnAction(event -> copyObject(object));
         MenuItem visibilityItem = new MenuItem(object.hidden() ? "Kuva" : "Peida");
@@ -5937,7 +6096,7 @@ public class PlaaniseppApp extends Application {
         deleteItem.setDisable(mapLayoutLocked);
         deleteItem.setOnAction(event -> deleteObject(object));
         showContextMenu(
-                new ContextMenu(editItem, copyItem, visibilityItem, deleteItem),
+                new ContextMenu(editItem, rotateItem, copyItem, visibilityItem, deleteItem),
                 mapPane,
                 screenX,
                 screenY
@@ -6028,6 +6187,13 @@ public class PlaaniseppApp extends Application {
     }
 
     private void selectObject(PlannerObject object) {
+        if (rotatingObjectId != null && (object == null || !object.id().equals(rotatingObjectId))) {
+            if (selectedObject != null) {
+                syncInteractiveRotationField(selectedObject, selectedObjectRotationDegrees(selectedObject));
+            }
+            rotatingObjectId = null;
+            mapScrollPane.setPannable(true);
+        }
         if (selectedObject != null
                 && object != null
                 && !selectedObject.id().equals(object.id())
@@ -6040,6 +6206,16 @@ public class PlaaniseppApp extends Application {
         revealObjectInObjectList(object);
         revealObjectInPowerSummary(object);
         redrawMap();
+    }
+
+    private double selectedObjectRotationDegrees(PlannerObject object) {
+        if (object instanceof Tent tent) {
+            return tent.rotationDegrees();
+        }
+        if (object instanceof CustomObject customObject) {
+            return customObject.rotationDegrees();
+        }
+        return 0;
     }
 
     private void commitPendingDetailFieldsBeforeSelectionChange() {
@@ -7821,15 +7997,6 @@ public class PlaaniseppApp extends Application {
             totalY += point.y();
         }
         return new Position(totalX / points.size(), totalY / points.size());
-    }
-
-    private Position rotationOffset(double width, double height, double degrees) {
-        double radians = Math.toRadians(degrees);
-        double sin = Math.abs(Math.sin(radians));
-        double cos = Math.abs(Math.cos(radians));
-        double rotatedWidth = width * cos + height * sin;
-        double rotatedHeight = width * sin + height * cos;
-        return new Position((rotatedWidth - width) / 2, (rotatedHeight - height) / 2);
     }
 
     private void refreshPowerSourceChoices() {
