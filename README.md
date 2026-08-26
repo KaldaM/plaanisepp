@@ -93,3 +93,14 @@ sudo dnf remove plaanisepp
 RPM paigaldab rakenduse `/opt/plaanisepp` alla, lisab rakenduste menüüsse kirje „Plaanisepp” ning seob `.pplan` failid rakendusega. Uus RPM asendab varasema tehnilise nimega `pannkoogihommiku-planeerija` paketi. Paigaldamise järel saab plaani avada failihalduris topeltklõpsuga. Rakenduse aknas, menüüs ja plaanifailidel kasutatakse projekti enda ikooni.
 
 `jpackage` paketid tuleb koostada ning kontrollida sellel operatsioonisüsteemil, millele need on mõeldud.
+
+### Avaldamine GitHub Releasesis
+
+GitHub Actions ehitab avaliku väljalaske automaatselt GitHubi Windowsi ja Linuxi runnerites. Uus Release tekib, kui `main` harus oleva versiooni jaoks push'itakse samanimeline tag. Näiteks praeguse versiooni `0.1.1` avaldamiseks:
+
+```bash
+git tag -a v0.1.1 -m "Plaanisepp v0.1.1"
+git push origin v0.1.1
+```
+
+Töövoog kontrollib, et tag ja Gradle'i versioon kattuvad, ning lisab GitHub Release'i külge Windowsi EXE-paigaldaja, Fedora RPM-i, Linuxi iseseisva rakendusepildi `.tar.gz` arhiivina ja nende `SHA256SUMS` kontrollsummad. Tõrke korral Release'i ei avaldata; tag'i parandamiseks tuleb luua uus versiooninumber ja uus tag.

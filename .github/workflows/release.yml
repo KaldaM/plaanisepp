@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package-linux:
+    name: Package Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v7
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Install RPM build tools
+        run: sudo apt-get update && sudo apt-get install --yes rpm
+
+      - name: Verify release tag version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          PROJECT_VERSION="$(./gradlew -q properties --no-daemon | awk '/^version:/ { print $2; exit }')"
+          test "$RELEASE_TAG" = "v$PROJECT_VERSION"
+
+      - name: Build Linux packages
+        run: ./gradlew :planner-gui:packageLinuxRpm --no-daemon
+
+      - name: Archive Linux application image
+        run: |
+          mkdir -p planner-gui/build/release
+          tar -C planner-gui/build/jpackage \
+            -czf "planner-gui/build/release/plaanisepp-${{ github.ref_name }}-linux-x64.tar.gz" \
+            plaanisepp
+
+      - name: Upload Linux release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-assets
+          if-no-files-found: error
+          path: |
+            planner-gui/build/release/*.tar.gz
+            planner-gui/build/jpackage-rpm/*.rpm
+
+  package-windows:
+    name: Package Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v7
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Install WiX Toolset
+        shell: pwsh
+        run: dotnet tool install --global wix --version 4.*
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: .\gradlew.bat :planner-gui:packageWindowsInstaller --no-daemon
+
+      - name: Upload Windows release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-assets
+          if-no-files-found: error
+          path: planner-gui/build/jpackage-windows-installer/*.exe
+
+  publish-release:
+    name: Publish GitHub Release
+    needs:
+      - package-linux
+      - package-windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-release-assets'
+          merge-multiple: true
+          path: release-assets
+
+      - name: Create release checksums
+        working-directory: release-assets
+        run: sha256sum * > SHA256SUMS
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          else
+            gh release create "$RELEASE_TAG" release-assets/* \
+              --title "Plaanisepp $RELEASE_TAG" \
+              --generate-notes
+          fi
