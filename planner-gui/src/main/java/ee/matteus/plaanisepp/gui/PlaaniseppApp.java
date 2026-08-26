@@ -246,6 +246,7 @@ public class PlaaniseppApp extends Application {
     private final Map<String, Node> mapObjectNodes = new HashMap<>();
     private final Map<String, FenceRowVisual> fenceRowVisuals = new HashMap<>();
     private final Map<String, List<Circle>> shapeMidpointHandles = new HashMap<>();
+    private final Map<String, Line> fenceSelectionHighlights = new HashMap<>();
     private javafx.scene.shape.Shape selectedObjectHighlight;
     private final List<Node> fenceInteractionNodes = new ArrayList<>();
     private Set<String> knownGroups = new HashSet<>();
@@ -4121,6 +4122,7 @@ public class PlaaniseppApp extends Application {
         mapObjectNodes.clear();
         fenceRowVisuals.clear();
         shapeMidpointHandles.clear();
+        fenceSelectionHighlights.clear();
         selectedObjectHighlight = null;
         fenceInteractionNodes.clear();
         powerConnectionAnchorMarkers.clear();
@@ -4195,6 +4197,7 @@ public class PlaaniseppApp extends Application {
                 Position end = row.endPosition(pixelsPerMeter());
                 Line outline = new Line(row.position().x(), row.position().y(), end.x(), end.y());
                 outline.setStrokeWidth(2);
+                fenceSelectionHighlights.put(row.id(), outline);
                 addSelectionOutline(outline, Color.web(row.colorHex()));
             }
         } else if (selectedObject instanceof PowerSource source) {
@@ -4827,7 +4830,8 @@ public class PlaaniseppApp extends Application {
             Position center,
             double pointerStartRotationDegrees,
             double objectStartRotationDegrees,
-            List<Position> originalPoints
+            List<Position> originalPoints,
+            Map<String, Position> originalFenceJoints
     ) {
     }
 
@@ -5096,9 +5100,31 @@ public class PlaaniseppApp extends Application {
                 null,
                 splitHandles
         ));
-        if (isSelected(fenceRow) && !mapLayoutLocked) {
+        if (isSelected(fenceRow) && rotatingObjectId == null && !mapLayoutLocked) {
             addFenceRowEndpointHandles(fenceRow, fenceLine, dividers, inventoryLabel);
         }
+        addFenceRotationHandleIfActive(fenceRow);
+    }
+
+    private void addFenceRotationHandleIfActive(FenceRow fenceRow) {
+        if (!isObjectRotationActive(fenceRow)) {
+            return;
+        }
+        List<Position> jointPositions = rotationFenceJoints(fenceRow).values().stream().toList();
+        if (jointPositions.isEmpty()) {
+            return;
+        }
+        double minX = jointPositions.stream().mapToDouble(Position::x).min().orElse(fenceRow.position().x());
+        double maxX = jointPositions.stream().mapToDouble(Position::x).max().orElse(fenceRow.position().x());
+        double minY = jointPositions.stream().mapToDouble(Position::y).min().orElse(fenceRow.position().y());
+        double maxY = jointPositions.stream().mapToDouble(Position::y).max().orElse(fenceRow.position().y());
+        addRotationHandleIfActive(
+                fenceRow,
+                new Position((minX + maxX) / 2, (minY + maxY) / 2),
+                Math.max(16, maxX - minX),
+                Math.max(16, maxY - minY),
+                fenceRow.rotationDegrees()
+        );
     }
 
     private void markFenceDragNode(Node node) {
@@ -5351,6 +5377,13 @@ public class PlaaniseppApp extends Application {
         visual.fenceLine().setStartY(start.y());
         visual.fenceLine().setEndX(end.x());
         visual.fenceLine().setEndY(end.y());
+        Line selectionHighlight = fenceSelectionHighlights.get(fenceRow.id());
+        if (selectionHighlight != null) {
+            selectionHighlight.setStartX(start.x());
+            selectionHighlight.setStartY(start.y());
+            selectionHighlight.setEndX(end.x());
+            selectionHighlight.setEndY(end.y());
+        }
         if (visual.startHandle() != null) {
             visual.startHandle().setCenterX(start.x());
             visual.startHandle().setCenterY(start.y());
@@ -6118,7 +6151,9 @@ public class PlaaniseppApp extends Application {
             showError("Objekti ei saa pöörata", "Pööramine on praegu toetatud telkidele ja nelinurksetele objektidele.");
             return;
         }
-        if (mapLayoutLocked || object.locked()) {
+        boolean lockedFenceNetwork = object instanceof FenceRow fenceRow
+                && plan.fenceNetworkRows(fenceRow.id()).stream().anyMatch(PlannerObject::locked);
+        if (mapLayoutLocked || object.locked() || lockedFenceNetwork) {
             showMapLayoutLockedMessage();
             return;
         }
@@ -6129,7 +6164,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean supportsInteractiveRotation(PlannerObject object) {
-        return !(object instanceof FenceRow);
+        return true;
     }
 
     private boolean isObjectRotationActive(PlannerObject object) {
@@ -6170,7 +6205,8 @@ public class PlaaniseppApp extends Application {
                     center,
                     pointerRotationDegrees(mapPoint, center),
                     object.rotationDegrees(),
-                    rotationPoints(object)
+                    rotationPoints(object),
+                    rotationFenceJoints(object)
             );
             event.consume();
         });
@@ -6241,6 +6277,18 @@ public class PlaaniseppApp extends Application {
         return List.of();
     }
 
+    private Map<String, Position> rotationFenceJoints(PlannerObject object) {
+        if (!(object instanceof FenceRow fenceRow)) {
+            return Map.of();
+        }
+        Map<String, Position> jointPositions = new HashMap<>();
+        for (FenceRow row : plan.fenceNetworkRows(fenceRow.id())) {
+            plan.findFenceJoint(row.startJointId()).ifPresent(joint -> jointPositions.put(joint.id(), joint.position()));
+            plan.findFenceJoint(row.endJointId()).ifPresent(joint -> jointPositions.put(joint.id(), joint.position()));
+        }
+        return Map.copyOf(jointPositions);
+    }
+
     private void updateInteractiveRotationPreview(
             PlannerObject object,
             double rotationDegrees,
@@ -6251,7 +6299,16 @@ public class PlaaniseppApp extends Application {
     ) {
         setInteractiveRotation(object, rotationDegrees);
         Node mapObjectNode = mapObjectNodes.get(object.id());
-        if (rotationDragState != null && object instanceof AreaObject areaObject) {
+        if (rotationDragState != null && object instanceof FenceRow fenceRow) {
+            double delta = rotationDegrees - rotationDragState.objectStartRotationDegrees();
+            rotationDragState.originalFenceJoints().forEach((jointId, position) ->
+                    plan.findFenceJoint(jointId).ifPresent(joint ->
+                            joint.moveTo(rotatePositions(List.of(position), center, delta).getFirst())
+                    )
+            );
+            plan.synchronizeFenceRows(pixelsPerMeter());
+            updateFenceNetworkDragPreview(fenceRow);
+        } else if (rotationDragState != null && object instanceof AreaObject areaObject) {
             List<Position> points = rotatePositions(
                     rotationDragState.originalPoints(), center,
                     rotationDegrees - rotationDragState.objectStartRotationDegrees()
@@ -6310,7 +6367,9 @@ public class PlaaniseppApp extends Application {
                 tentRotationField.setText(formatDegrees(rotationDegrees));
             } else if (object instanceof CustomObject) {
                 customObjectRotationField.setText(formatDegrees(rotationDegrees));
-            } else if (!(object instanceof FenceRow)) {
+            } else if (object instanceof FenceRow) {
+                fenceRotationField.setText(formatDegrees(rotationDegrees));
+            } else {
                 generalRotationField.setText(formatDegrees(rotationDegrees));
             }
         } finally {
