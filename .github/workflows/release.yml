@@ -45,19 +45,18 @@ jobs:
 
       - name: Archive Linux application image
         run: |
-          mkdir -p planner-gui/build/release
+          mkdir -p planner-gui/build/release-assets
           tar -C planner-gui/build/jpackage \
-            -czf "planner-gui/build/release/plaanisepp-${{ github.ref_name }}-linux-x64.tar.gz" \
+            -czf "planner-gui/build/release-assets/plaanisepp-${{ github.ref_name }}-linux-x64.tar.gz" \
             plaanisepp
+          cp planner-gui/build/jpackage-rpm/*.rpm planner-gui/build/release-assets/
 
       - name: Upload Linux release assets
         uses: actions/upload-artifact@v7
         with:
           name: linux-release-assets
           if-no-files-found: error
-          path: |
-            planner-gui/build/release/*.tar.gz
-            planner-gui/build/jpackage-rpm/*.rpm
+          path: planner-gui/build/release-assets/*
 
   package-windows:
     name: Package Windows
@@ -110,8 +109,11 @@ jobs:
           path: release-assets
 
       - name: Create release checksums
-        working-directory: release-assets
-        run: sha256sum * > SHA256SUMS
+        run: |
+          mkdir release-files
+          find release-assets -type f -exec cp -t release-files {} +
+          cd release-files
+          sha256sum * > SHA256SUMS
 
       - name: Create or update release
         env:
@@ -119,9 +121,9 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release-assets/* --clobber
+            gh release upload "$RELEASE_TAG" release-files/* --clobber
           else
-            gh release create "$RELEASE_TAG" release-assets/* \
+            gh release create "$RELEASE_TAG" release-files/* \
               --title "Plaanisepp $RELEASE_TAG" \
               --generate-notes
           fi
