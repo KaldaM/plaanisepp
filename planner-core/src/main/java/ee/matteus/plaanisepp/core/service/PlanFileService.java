@@ -766,6 +766,12 @@ public class PlanFileService {
         properties.setProperty(prefix + "widthPixels", Double.toString(fenceRow.widthPixels()));
         properties.setProperty(prefix + "startJointId", fenceRow.startJointId());
         properties.setProperty(prefix + "endJointId", fenceRow.endJointId());
+        properties.setProperty(
+                prefix + "customInventoryLabelPosition",
+                Boolean.toString(fenceRow.customInventoryLabelPosition())
+        );
+        properties.setProperty(prefix + "inventoryLabelOffsetX", Double.toString(fenceRow.inventoryLabelOffset().x()));
+        properties.setProperty(prefix + "inventoryLabelOffsetY", Double.toString(fenceRow.inventoryLabelOffset().y()));
     }
 
     private PlannerObject readObject(Properties properties, String prefix) {
@@ -830,6 +836,12 @@ public class PlanFileService {
         String endJointId = properties.getProperty(prefix + "endJointId", "");
         if (!startJointId.isBlank() && !endJointId.isBlank() && !startJointId.equals(endJointId)) {
             fenceRow.setJointIds(startJointId, endJointId);
+        }
+        if (booleanValue(properties, prefix + "customInventoryLabelPosition", false)) {
+            fenceRow.setInventoryLabelOffset(new Position(
+                    doubleValue(properties, prefix + "inventoryLabelOffsetX", 0),
+                    doubleValue(properties, prefix + "inventoryLabelOffsetY", 0)
+            ));
         }
         String connectedToFenceRowId = properties.getProperty(prefix + "connectedToFenceRowId", "");
         if (!connectedToFenceRowId.isBlank() && !connectedToFenceRowId.equals(fenceRow.id())) {

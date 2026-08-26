@@ -13,6 +13,8 @@ public class FenceRow extends PlannerObject {
     private String connectedToFenceRowId;
     private String startJointId;
     private String endJointId;
+    private boolean customInventoryLabelPosition;
+    private Position inventoryLabelOffset;
 
     public FenceRow(String id, String name, Position position) {
         super(id, name, position);
@@ -23,6 +25,7 @@ public class FenceRow extends PlannerObject {
         connectedToFenceRowId = "";
         startJointId = "";
         endJointId = "";
+        inventoryLabelOffset = new Position(0, 0);
     }
 
     public int segmentCount() {
@@ -122,6 +125,24 @@ public class FenceRow extends PlannerObject {
         }
         this.startJointId = startJointId;
         this.endJointId = endJointId;
+    }
+
+    public boolean customInventoryLabelPosition() {
+        return customInventoryLabelPosition;
+    }
+
+    public Position inventoryLabelOffset() {
+        return inventoryLabelOffset;
+    }
+
+    public void setInventoryLabelOffset(Position inventoryLabelOffset) {
+        this.inventoryLabelOffset = inventoryLabelOffset == null ? new Position(0, 0) : inventoryLabelOffset;
+        customInventoryLabelPosition = true;
+    }
+
+    public void resetInventoryLabelPosition() {
+        inventoryLabelOffset = new Position(0, 0);
+        customInventoryLabelPosition = false;
     }
 
     void alignToEndpoints(Position start, Position end, double pixelsPerMeter) {

@@ -285,6 +285,7 @@ public class PlaaniseppApp extends Application {
     private TextField fenceRotationField;
     private Label fenceTotalLengthLabel;
     private ColorPicker fenceColorPicker;
+    private Button resetFenceInventoryLabelButton;
     private Label customObjectWidthLabel;
     private Label customObjectHeightLabel;
     private TextField customObjectWidthField;
@@ -2532,6 +2533,8 @@ public class PlaaniseppApp extends Application {
         fenceTotalLengthLabel = new Label("-");
         fenceColorPicker = new ColorPicker();
         fenceColorPicker.setOnAction(event -> autoApplySelectedColor());
+        resetFenceInventoryLabelButton = new Button("Lähtesta kogusesildi asukoht");
+        resetFenceInventoryLabelButton.setOnAction(event -> resetFenceInventoryLabelPosition());
         configureTextCommit(fenceSegmentCountField, this::autoApplyFenceRowGeometry);
         configureTextCommit(fenceSegmentLengthField, this::autoApplyFenceRowGeometry);
         configureTextCommit(fenceRotationField, this::autoApplyFenceRowGeometry);
@@ -2541,6 +2544,7 @@ public class PlaaniseppApp extends Application {
         fenceRowForm.addRow(2, new Label("Suund °"), fenceRotationField);
         fenceRowForm.addRow(3, new Label("Kogupikkus"), fenceTotalLengthLabel);
         fenceRowForm.addRow(4, new Label("Värv"), fenceColorPicker);
+        fenceRowForm.addRow(5, new Label("Sildi asukoht"), resetFenceInventoryLabelButton);
         fenceRowPanel = new VBox(8, sectionLabel("Aiarida"), fenceRowForm);
 
         GridPane tentForm = detailGrid();
@@ -4679,10 +4683,12 @@ public class PlaaniseppApp extends Application {
             int fenceCount = networkRows.stream().mapToInt(FenceRow::segmentCount).sum();
             double totalLength = networkRows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
             inventoryLabel = new Label("%d aeda · %.1f m".formatted(fenceCount, totalLength));
-            inventoryLabel.setLayoutX(center.x() + 8);
-            inventoryLabel.setLayoutY(center.y() + 28);
+            double defaultLabelX = center.x() + 8;
+            double defaultLabelY = center.y() + 28;
+            inventoryLabel.setLayoutX(defaultLabelX + fenceRow.inventoryLabelOffset().x());
+            inventoryLabel.setLayoutY(defaultLabelY + fenceRow.inventoryLabelOffset().y());
             inventoryLabel.setStyle("-fx-background-color: rgba(255,255,255,0.88); -fx-padding: 2 4 2 4;");
-            inventoryLabel.setMouseTransparent(true);
+            makeFenceInventoryLabelDraggable(inventoryLabel, fenceRow, defaultLabelX, defaultLabelY);
             mapPane.getChildren().add(inventoryLabel);
         }
         fenceRowVisuals.put(fenceRow.id(), new FenceRowVisual(
@@ -4975,8 +4981,12 @@ public class PlaaniseppApp extends Application {
             }
         }
         if (visual.inventoryLabel() != null) {
-            visual.inventoryLabel().setLayoutX((start.x() + end.x()) / 2 + 8);
-            visual.inventoryLabel().setLayoutY((start.y() + end.y()) / 2 + 28);
+            visual.inventoryLabel().setLayoutX(
+                    (start.x() + end.x()) / 2 + 8 + fenceRow.inventoryLabelOffset().x()
+            );
+            visual.inventoryLabel().setLayoutY(
+                    (start.y() + end.y()) / 2 + 28 + fenceRow.inventoryLabelOffset().y()
+            );
         }
     }
 
@@ -5434,6 +5444,52 @@ public class PlaaniseppApp extends Application {
             refreshDetails();
             recordPlanDragChange();
             event.consume();
+        });
+    }
+
+    private void makeFenceInventoryLabelDraggable(
+            Label label,
+            FenceRow fenceRow,
+            double defaultX,
+            double defaultY
+    ) {
+        makeSelectable(label, fenceRow);
+        markFenceDragNode(label);
+        final Delta pressScene = new Delta();
+        final Delta startLayout = new Delta();
+        label.setCursor(Cursor.HAND);
+        label.setOnMousePressed(event -> {
+            if (event.getButton() != MouseButton.PRIMARY || mapLayoutLocked) {
+                return;
+            }
+            selectFenceRowForDrag(fenceRow);
+            mapScrollPane.setPannable(false);
+            beginPlanDrag();
+            pressScene.x = event.getSceneX();
+            pressScene.y = event.getSceneY();
+            startLayout.x = label.getLayoutX();
+            startLayout.y = label.getLayoutY();
+            event.consume();
+        });
+        label.setOnMouseDragged(event -> {
+            if (mapLayoutLocked) {
+                return;
+            }
+            double labelX = startLayout.x + (event.getSceneX() - pressScene.x) / zoomLevel;
+            double labelY = startLayout.y + (event.getSceneY() - pressScene.y) / zoomLevel;
+            label.setLayoutX(labelX);
+            label.setLayoutY(labelY);
+            Position offset = new Position(labelX - defaultX, labelY - defaultY);
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setInventoryLabelOffset(offset));
+            recordPlanDragChange();
+            event.consume();
+        });
+        label.setOnMouseReleased(event -> {
+            if (event.getButton() == MouseButton.PRIMARY) {
+                mapScrollPane.setPannable(true);
+                refreshDetails();
+                event.consume();
+            }
         });
     }
 
@@ -6017,6 +6073,9 @@ public class PlaaniseppApp extends Application {
         areaOpacitySlider.setDisable(!areaSelected);
         lineColorPicker.setDisable(!lineSelected);
         fenceColorPicker.setDisable(!fenceRowSelected);
+        resetFenceInventoryLabelButton.setDisable(
+                !fenceRowSelected || !((FenceRow) selectedObject).customInventoryLabelPosition()
+        );
         lineWidthSlider.setDisable(!lineSelected);
         fenceSegmentCountField.setDisable(!fenceGeometryEditable);
         fenceSegmentLengthField.setDisable(!fenceGeometryEditable);
@@ -6448,6 +6507,20 @@ public class PlaaniseppApp extends Application {
         markDirty();
     }
 
+    private void resetFenceInventoryLabelPosition() {
+        if (mapLayoutLocked) {
+            showMapLayoutLockedMessage();
+            return;
+        }
+        if (!(selectedObject instanceof FenceRow fenceRow)) {
+            return;
+        }
+        plan.fenceNetworkRows(fenceRow.id()).forEach(FenceRow::resetInventoryLabelPosition);
+        redrawMap();
+        refreshDetails();
+        markDirty();
+    }
+
     private void resetSelectedCableLabelPosition() {
         if (mapLayoutLocked) {
             showMapLayoutLockedMessage();
@@ -6790,6 +6863,7 @@ public class PlaaniseppApp extends Application {
                         row.segmentLengthMeters(),
                         row.colorHex(),
                         row.widthPixels(),
+                        row.customInventoryLabelPosition() ? row.inventoryLabelOffset() : null,
                         row.startJointId(),
                         row.endJointId()
                 ))
@@ -6854,6 +6928,9 @@ public class PlaaniseppApp extends Application {
             pastedRow.setSegmentLengthMeters(copiedRow.segmentLengthMeters());
             pastedRow.setColorHex(copiedRow.colorHex());
             pastedRow.setWidthPixels(copiedRow.widthPixels());
+            if (copiedRow.inventoryLabelOffset() != null) {
+                pastedRow.setInventoryLabelOffset(copiedRow.inventoryLabelOffset());
+            }
             plan.addObject(pastedRow);
             pastedRow.setJointIds(
                     pastedJointIds.get(copiedRow.startJointId()),
@@ -6922,6 +6999,9 @@ public class PlaaniseppApp extends Application {
             fenceCopy.setRotationDegrees(fenceRow.rotationDegrees());
             fenceCopy.setColorHex(fenceRow.colorHex());
             fenceCopy.setWidthPixels(fenceRow.widthPixels());
+            if (fenceRow.customInventoryLabelPosition()) {
+                fenceCopy.setInventoryLabelOffset(fenceRow.inventoryLabelOffset());
+            }
             copy = fenceCopy;
         } else if (original instanceof LineObject lineObject) {
             LineObject lineCopy = new LineObject(planFactory.newId(), copyName, copyPosition);
@@ -9085,6 +9165,7 @@ public class PlaaniseppApp extends Application {
             double segmentLengthMeters,
             String colorHex,
             double widthPixels,
+            Position inventoryLabelOffset,
             String startJointId,
             String endJointId
     ) {

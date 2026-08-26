@@ -503,6 +503,9 @@ public class EventPlan {
         continuation.setNotes(row.notes());
         continuation.setHidden(row.hidden());
         continuation.setShowMapLabel(row.showMapLabel());
+        if (row.customInventoryLabelPosition()) {
+            continuation.setInventoryLabelOffset(row.inventoryLabelOffset());
+        }
         addObject(continuation);
         row.setSegmentCount(segmentIndex);
         row.setJointIds(row.startJointId(), splitJointId);
