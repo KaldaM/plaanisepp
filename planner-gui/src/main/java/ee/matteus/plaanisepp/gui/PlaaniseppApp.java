@@ -223,6 +223,7 @@ public class PlaaniseppApp extends Application {
     private boolean planDragInProgress;
     private boolean planDragRecorded;
     private boolean synchronizingSidebarSelection;
+    private boolean preservingSidebarMultiSelection;
     private boolean startupPlanFileProvided;
     private boolean quickObjectSearchActive;
     private boolean shiftKeyPressed;
@@ -1836,23 +1837,27 @@ public class PlaaniseppApp extends Application {
             }
         });
         objectList.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            ObjectListEntry entry = objectListEntryAt(event);
+            if (event.getButton() == MouseButton.SECONDARY
+                    && entry != null
+                    && !entry.isGroup()
+                    && isSelected(entry.objectItem().object())
+                    && selectedLogicalObjects().size() > 1) {
+                preservingSidebarMultiSelection = true;
+                Platform.runLater(() -> preservingSidebarMultiSelection = false);
+                return;
+            }
             if (event.getButton() != MouseButton.PRIMARY || !event.isControlDown()) {
                 return;
             }
-            Node target = event.getPickResult().getIntersectedNode();
-            while (target != null && !(target instanceof ListCell<?>)) {
-                target = target.getParent();
-            }
-            if (!(target instanceof ListCell<?> cell)
-                    || !(cell.getItem() instanceof ObjectListEntry entry)
-                    || entry.isGroup()) {
+            if (entry == null || entry.isGroup()) {
                 return;
             }
             toggleObjectSelection(entry.objectItem().object());
             event.consume();
         });
         objectList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-            if (synchronizingSidebarSelection) {
+            if (synchronizingSidebarSelection || preservingSidebarMultiSelection) {
                 return;
             }
             if (newValue == null) {
@@ -1890,6 +1895,17 @@ public class PlaaniseppApp extends Application {
         updateRevealObjectButton();
         refreshObjectList();
         return new VBox(8, objectSearchField, objectList, createObjectListResizeHandle(), revealObjectButton);
+    }
+
+    private ObjectListEntry objectListEntryAt(MouseEvent event) {
+        Node target = event.getPickResult().getIntersectedNode();
+        while (target != null && !(target instanceof ListCell<?>)) {
+            target = target.getParent();
+        }
+        if (target instanceof ListCell<?> cell && cell.getItem() instanceof ObjectListEntry entry) {
+            return entry;
+        }
+        return null;
     }
 
     private VBox createChecklistPanel() {
@@ -6468,13 +6484,20 @@ public class PlaaniseppApp extends Application {
         copyItem.setOnAction(event -> copyObject(object));
         MenuItem visibilityItem = new MenuItem(allSelectedObjectsHidden() ? "Kuva valitud" : "Peida valitud");
         visibilityItem.setOnAction(event -> toggleSelectedObjectsHidden());
+        MenuItem lockItem = new MenuItem(allSelectedObjectsLocked()
+                ? "Eemalda valitud objektide lukustus"
+                : "Lukusta valitud objektid");
+        lockItem.setOnAction(event -> {
+            lockedCheckBox.setSelected(!allSelectedObjectsLocked());
+            updateSelectedLock();
+        });
         MenuItem deleteItem = new MenuItem(selectionCount > 1
                 ? "Kustuta valitud (%d)".formatted(selectionCount)
                 : "Kustuta");
-        deleteItem.setDisable(mapLayoutLocked);
+        deleteItem.setDisable(mapLayoutLocked || selectedObjects().stream().anyMatch(PlannerObject::locked));
         deleteItem.setOnAction(event -> deleteSelectedObject());
         showContextMenu(
-                new ContextMenu(editItem, rotateItem, copyItem, visibilityItem, deleteItem),
+                new ContextMenu(editItem, rotateItem, copyItem, visibilityItem, lockItem, deleteItem),
                 mapPane,
                 screenX,
                 screenY
