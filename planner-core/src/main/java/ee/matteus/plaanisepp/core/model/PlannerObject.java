@@ -11,6 +11,7 @@ public abstract class PlannerObject {
     private boolean showMapLabel;
     private boolean customMapLabelPosition;
     private Position mapLabelOffset;
+    private double opacity;
 
     protected PlannerObject(String id, String name, Position position) {
         this.id = id;
@@ -22,6 +23,7 @@ public abstract class PlannerObject {
         this.showMapLabel = true;
         this.customMapLabelPosition = false;
         this.mapLabelOffset = new Position(0, 0);
+        this.opacity = 1.0;
     }
 
     public String id() {
@@ -106,5 +108,13 @@ public abstract class PlannerObject {
     public void resetMapLabelPosition() {
         this.mapLabelOffset = new Position(0, 0);
         this.customMapLabelPosition = false;
+    }
+
+    public double opacity() {
+        return opacity;
+    }
+
+    public void setOpacity(double opacity) {
+        this.opacity = Math.max(0.0, Math.min(1.0, opacity));
     }
 }

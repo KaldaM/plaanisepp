@@ -273,6 +273,7 @@ public class PlaaniseppApp extends Application {
     private CheckBox lockedCheckBox;
     private CheckBox showMapLabelCheckBox;
     private Button resetMapLabelButton;
+    private Slider selectedObjectOpacitySlider;
     private TextField tentWidthField;
     private TextField tentHeightField;
     private TextField tentRotationField;
@@ -283,6 +284,7 @@ public class PlaaniseppApp extends Application {
     private Slider customObjectOpacitySlider;
     private ColorPicker textObjectColorPicker;
     private Slider textObjectFontSizeSlider;
+    private Slider textObjectTextOpacitySlider;
     private ComboBox<MarkerType> markerTypeComboBox;
     private ColorPicker markerColorPicker;
     private ColorPicker areaColorPicker;
@@ -311,6 +313,7 @@ public class PlaaniseppApp extends Application {
     private ComboBox<OutletChoice> connectionOutletComboBox;
     private TextField cableLengthNotesField;
     private TextField cableNotesField;
+    private Slider cableOpacitySlider;
     private CheckBox showSelectedCableLabelCheckBox;
     private Button resetCableLabelButton;
     private Button removePowerConnectionButton;
@@ -2602,6 +2605,8 @@ public class PlaaniseppApp extends Application {
         showMapLabelCheckBox.setOnAction(event -> updateSelectedMapLabelVisibility());
         resetMapLabelButton = new Button("Lähtesta nime asukoht");
         resetMapLabelButton.setOnAction(event -> resetSelectedMapLabelPosition());
+        selectedObjectOpacitySlider = createOpacitySlider(100);
+        configureOpacityPreview(selectedObjectOpacitySlider);
         tentWidthField = new TextField();
         tentHeightField = new TextField();
         tentRotationField = new TextField();
@@ -2616,6 +2621,8 @@ public class PlaaniseppApp extends Application {
         customObjectOpacitySlider = createOpacitySlider(CustomObject.DEFAULT_OPACITY * 100.0);
         configureOpacityPreview(customObjectOpacitySlider);
         textObjectColorPicker = new ColorPicker();
+        textObjectTextOpacitySlider = createOpacitySlider(100);
+        configureOpacityPreview(textObjectTextOpacitySlider);
         customObjectWidthLabel = new Label("Objekti laius m");
         customObjectHeightLabel = new Label("Objekti pikkus m");
         customObjectWidthField = new TextField();
@@ -2654,6 +2661,8 @@ public class PlaaniseppApp extends Application {
                 autoApplyCableNotes();
             }
         });
+        cableOpacitySlider = createOpacitySlider(100);
+        configureCableOpacityPreview(cableOpacitySlider);
         resetCableLabelButton = new Button("Lähtesta kaablisilt");
         resetCableLabelButton.setOnAction(event -> resetSelectedCableLabelPosition());
         showSelectedCableLabelCheckBox = new CheckBox("Näita kaablisilti");
@@ -2714,21 +2723,22 @@ public class PlaaniseppApp extends Application {
         baseForm.addRow(3, new Label("Lukustus"), lockedCheckBox);
         baseForm.addRow(4, new Label("Kaardil"), showMapLabelCheckBox);
         baseForm.addRow(5, new Label("Nime asukoht"), resetMapLabelButton);
+        baseForm.addRow(6, new Label("Läbipaistvus"), opacityControl(selectedObjectOpacitySlider));
 
         GridPane customObjectForm = detailGrid();
         customObjectForm.addRow(0, new Label("Kuju"), customObjectShapeComboBox);
         customObjectForm.addRow(1, new Label("Värv"), customObjectColorPicker);
-        customObjectForm.addRow(2, new Label("Läbipaistvus"), opacityControl(customObjectOpacitySlider));
-        customObjectForm.addRow(3, customObjectWidthLabel, customObjectWidthField);
-        customObjectForm.addRow(4, customObjectHeightLabel, customObjectHeightField);
-        customObjectForm.addRow(5, customObjectRotationLabel, customObjectRotationField);
-        customObjectForm.addRow(6, new Label("Pindala"), customObjectAreaLabel);
-        customObjectForm.addRow(7, new Label("Ümbermõõt"), customObjectPerimeterLabel);
+        customObjectForm.addRow(2, customObjectWidthLabel, customObjectWidthField);
+        customObjectForm.addRow(3, customObjectHeightLabel, customObjectHeightField);
+        customObjectForm.addRow(4, customObjectRotationLabel, customObjectRotationField);
+        customObjectForm.addRow(5, new Label("Pindala"), customObjectAreaLabel);
+        customObjectForm.addRow(6, new Label("Ümbermõõt"), customObjectPerimeterLabel);
         customObjectPanel = new VBox(8, sectionLabel("Objekt"), customObjectForm);
 
         GridPane textObjectForm = detailGrid();
         textObjectForm.addRow(0, new Label("Värv"), textObjectColorPicker);
         textObjectForm.addRow(1, new Label("Suurus"), pixelControl(textObjectFontSizeSlider));
+        textObjectForm.addRow(2, new Label("Teksti läbipaistvus"), opacityControl(textObjectTextOpacitySlider));
         textObjectPanel = new VBox(8, sectionLabel("Tekst"), textObjectForm);
 
         markerTypeComboBox = new ComboBox<>();
@@ -2748,9 +2758,8 @@ public class PlaaniseppApp extends Application {
         areaPerimeterLabel = new Label("-");
         GridPane areaForm = detailGrid();
         areaForm.addRow(0, new Label("Värv"), areaColorPicker);
-        areaForm.addRow(1, new Label("Läbipaistvus"), opacityControl(areaOpacitySlider));
-        areaForm.addRow(2, new Label("Pindala"), areaSizeLabel);
-        areaForm.addRow(3, new Label("Ümbermõõt"), areaPerimeterLabel);
+        areaForm.addRow(1, new Label("Pindala"), areaSizeLabel);
+        areaForm.addRow(2, new Label("Ümbermõõt"), areaPerimeterLabel);
         areaPanel = new VBox(8, sectionLabel("Ala"), areaForm);
 
         lineColorPicker = new ColorPicker();
@@ -2788,7 +2797,6 @@ public class PlaaniseppApp extends Application {
         tentForm.addRow(1, new Label("Pikkus m"), tentHeightField);
         tentForm.addRow(2, new Label("Pööre °"), tentRotationField);
         tentForm.addRow(3, new Label("Värv"), tentColorPicker);
-        tentForm.addRow(4, new Label("Läbipaistvus"), opacityControl(tentOpacitySlider));
         tentPanel = new VBox(8, sectionLabel("Telk"), tentForm);
 
         choosePowerSourceButton = new Button("Vali kapp kaardilt");
@@ -2804,8 +2812,9 @@ public class PlaaniseppApp extends Application {
         GridPane cableDetailsForm = detailGrid();
         cableDetailsForm.addRow(0, new Label("Kaabli tükid"), cableLengthNotesField);
         cableDetailsForm.addRow(1, new Label("Kaabli märkmed"), cableNotesField);
-        cableDetailsForm.addRow(2, new Label("Kaablisilt"), showSelectedCableLabelCheckBox);
-        cableDetailsForm.addRow(3, new Label("Sildi asukoht"), resetCableLabelButton);
+        cableDetailsForm.addRow(2, new Label("Läbipaistvus"), opacityControl(cableOpacitySlider));
+        cableDetailsForm.addRow(3, new Label("Kaablisilt"), showSelectedCableLabelCheckBox);
+        cableDetailsForm.addRow(4, new Label("Sildi asukoht"), resetCableLabelButton);
         TitledPane cableDetailsPane = new TitledPane("Kaabli lisainfo", cableDetailsForm);
         cableDetailsPane.setExpanded(false);
         HBox powerConnectionActions = new HBox(
@@ -2919,8 +2928,27 @@ public class PlaaniseppApp extends Application {
         });
     }
 
+    private void configureCableOpacityPreview(Slider slider) {
+        slider.valueProperty().addListener((observable, oldValue, newValue) -> {
+            if (updatingOpacityControls || selectedPowerConnection() == null) {
+                return;
+            }
+            plan.setCableOpacity(selectedPowerConnection().id(), newValue.doubleValue() / 100.0);
+            redrawMap();
+            markDirty();
+        });
+    }
+
     private boolean previewSelectedObjectOpacity(Slider slider, double percentage) {
         double opacity = percentage / 100.0;
+        if (slider == selectedObjectOpacitySlider && selectedObject != null) {
+            selectedObject.setOpacity(opacity);
+            return true;
+        }
+        if (slider == textObjectTextOpacitySlider && selectedObject instanceof TextObject textObject) {
+            textObject.setTextOpacity(opacity);
+            return true;
+        }
         if (slider == tentOpacitySlider && selectedObject instanceof Tent tent) {
             tent.setOpacity(opacity);
             return true;
@@ -4258,7 +4286,7 @@ public class PlaaniseppApp extends Application {
         Polyline line = CablePolylineHelper.create(path);
         line.setStroke(cableColor);
         line.setStrokeWidth(strokeWidth);
-        line.setOpacity(selectedCable ? 1.0 : 0.85);
+        line.setOpacity(plan.cableOpacity(cable.connection().id()) * (selectedCable ? 1.0 : 0.85));
         line.setMouseTransparent(true);
         if (cable.connection().connectorType() == ConnectorType.SCHUKO_230V) {
             line.getStrokeDashArray().addAll(8.0, 6.0);
@@ -4762,7 +4790,7 @@ public class PlaaniseppApp extends Application {
         rectangle.setArcWidth(4);
         rectangle.setArcHeight(4);
         boolean djTruck = tent.preset() == TentPreset.DJ_TRUCK;
-        rectangle.setFill(Color.web(djTruck ? "#1d4ed8" : tent.colorHex(), tent.opacity()));
+        rectangle.setFill(Color.web(djTruck ? "#1d4ed8" : tent.colorHex()));
         rectangle.setStroke(Color.web(djTruck ? "#dc2626" : "#222222"));
         rectangle.setStrokeWidth(isSelected(tent) ? 4 : 1);
         applyLockedStroke(rectangle, tent);
@@ -4780,11 +4808,13 @@ public class PlaaniseppApp extends Application {
             label.setMouseTransparent(true);
             Group truck = new Group(rectangle, label);
             truck.setRotate(tent.rotationDegrees());
+            truck.setOpacity(tent.opacity());
             makeSelectable(truck, tent);
             makeDraggable(truck, tent);
             mapPane.getChildren().add(truck);
         } else {
             rectangle.setRotate(tent.rotationDegrees());
+            rectangle.setOpacity(tent.opacity());
             makeSelectable(rectangle, tent);
             makeDraggable(rectangle, tent);
             mapPane.getChildren().add(rectangle);
@@ -4804,6 +4834,7 @@ public class PlaaniseppApp extends Application {
         circle.setFill(Color.web("#2563eb"));
         circle.setStroke(Color.web("#111827"));
         circle.setStrokeWidth(isSelected(source) ? 4 : 1);
+        circle.setOpacity(source.opacity());
         applyLockedStroke(circle, source);
         makeSelectable(circle, source);
         makeDraggable(circle, source);
@@ -4830,7 +4861,8 @@ public class PlaaniseppApp extends Application {
             rectangle.setRotate(object.rotationDegrees());
             shape = rectangle;
         }
-        shape.setFill(Color.web(object.colorHex(), object.opacity()));
+        shape.setFill(Color.web(object.colorHex()));
+        shape.setOpacity(object.opacity());
         shape.setStroke(Color.web("#111827"));
         shape.setStrokeWidth(isSelected(object) ? 4 : 1);
         applyLockedStroke(shape, object);
@@ -4858,7 +4890,8 @@ public class PlaaniseppApp extends Application {
         for (Position point : object.points()) {
             polygon.getPoints().addAll(point.x(), point.y());
         }
-        polygon.setFill(Color.web(object.colorHex(), object.opacity()));
+        polygon.setFill(Color.web(object.colorHex()));
+        polygon.setOpacity(object.opacity());
         polygon.setStroke(Color.web(object.colorHex()));
         polygon.setStrokeWidth(isSelected(object) ? 4 : 1.5);
         applyLockedStroke(polygon, object);
@@ -4882,7 +4915,7 @@ public class PlaaniseppApp extends Application {
         polyline.setFill(null);
         polyline.setStroke(Color.web(object.colorHex()));
         polyline.setStrokeWidth(object.widthPixels() + (isSelected(object) ? 2.0 : 0.0));
-        polyline.setOpacity(isSelected(object) ? 1.0 : 0.9);
+        polyline.setOpacity(object.opacity() * (isSelected(object) ? 1.0 : 0.9));
         applyLockedStroke(polyline, object);
         makeSelectable(polyline, object);
         makeDraggable(polyline, object);
@@ -4902,7 +4935,7 @@ public class PlaaniseppApp extends Application {
         Line fenceLine = new Line(start.x(), start.y(), end.x(), end.y());
         fenceLine.setStroke(Color.web(fenceRow.colorHex()));
         fenceLine.setStrokeWidth(fenceRow.widthPixels() + (isSelected(fenceRow) ? 2.0 : 0.0));
-        fenceLine.setOpacity(isSelected(fenceRow) ? 1.0 : 0.9);
+        fenceLine.setOpacity(fenceRow.opacity() * (isSelected(fenceRow) ? 1.0 : 0.9));
         applyLockedStroke(fenceLine, fenceRow);
         makeSelectable(fenceLine, fenceRow);
         makeDraggable(fenceLine, fenceRow);
@@ -4926,6 +4959,7 @@ public class PlaaniseppApp extends Application {
             );
             divider.setStroke(Color.web(fenceRow.colorHex()));
             divider.setStrokeWidth(2);
+            divider.setOpacity(fenceRow.opacity() * (isSelected(fenceRow) ? 1.0 : 0.9));
             divider.setMouseTransparent(true);
             mapPane.getChildren().add(divider);
             dividers.add(divider);
@@ -5630,18 +5664,19 @@ public class PlaaniseppApp extends Application {
         textBox.setLayoutY(object.position().y());
         textBox.setMaxWidth(260);
         textBox.setStyle("""
-                -fx-background-color: rgba(255,255,255,0.88);
+                -fx-background-color: rgba(255,255,255,%s);
                 -fx-border-color: %s;
                 -fx-border-width: %s;
                 -fx-background-radius: 4;
                 -fx-border-radius: 4;
                 -fx-padding: 4 7 5 7;
-                """.formatted(object.colorHex(), isSelected(object) ? "2" : "1"));
+                """.formatted(0.88 * object.opacity(), cssRgba(object.colorHex(), object.opacity()), isSelected(object) ? "2" : "1"));
 
         Label titleLabel = new Label(object.name());
         titleLabel.setWrapText(true);
         titleLabel.setMaxWidth(246);
         titleLabel.setTextFill(Color.web(object.colorHex()));
+        titleLabel.setOpacity(object.textOpacity());
         titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: %spx;".formatted(Double.toString(object.fontSize())));
         textBox.getChildren().add(titleLabel);
 
@@ -5650,6 +5685,7 @@ public class PlaaniseppApp extends Application {
             contentLabel.setWrapText(true);
             contentLabel.setMaxWidth(246);
             contentLabel.setTextFill(Color.web("#111827"));
+            contentLabel.setOpacity(object.textOpacity());
             contentLabel.setStyle("-fx-font-size: %spx;".formatted(Double.toString(object.fontSize())));
             textBox.getChildren().add(contentLabel);
         }
@@ -5663,6 +5699,7 @@ public class PlaaniseppApp extends Application {
         Pane markerIcon = MarkerIconFactory.create(object.markerType());
         markerIcon.setLayoutX(object.position().x());
         markerIcon.setLayoutY(object.position().y());
+        markerIcon.setOpacity(object.opacity());
         markerIcon.setStyle("-fx-background-color: %s; -fx-background-radius: 6; -fx-border-radius: 6;%s".formatted(
                 object.colorHex(),
                 isSelected(object) ? " -fx-border-color: #111827; -fx-border-width: 2;" : " -fx-border-color: #111827; -fx-border-width: 1;"
@@ -6486,6 +6523,7 @@ public class PlaaniseppApp extends Application {
         showMapLabelCheckBox.setDisable(!hasSelection || textObjectSelected);
         boolean customMapLabelPosition = hasSelection && !textObjectSelected && selectedObject.customMapLabelPosition();
         resetMapLabelButton.setDisable(!customMapLabelPosition || mapLayoutLocked);
+        selectedObjectOpacitySlider.setDisable(!hasSelection);
         resetMapLabelButton.setTooltip(new Tooltip(mapLabelResetTooltip(hasSelection, textObjectSelected, customMapLabelPosition)));
         boolean lockedSelection = selectedObject != null && selectedObject.locked();
         deleteObjectButton.setDisable(!hasSelection || lockedSelection || mapLayoutLocked);
@@ -6499,6 +6537,7 @@ public class PlaaniseppApp extends Application {
         customObjectOpacitySlider.setDisable(!customObjectSelected);
         textObjectColorPicker.setDisable(!textObjectSelected);
         textObjectFontSizeSlider.setDisable(!textObjectSelected);
+        textObjectTextOpacitySlider.setDisable(!textObjectSelected);
         markerTypeComboBox.setDisable(!markerSelected);
         markerColorPicker.setDisable(!markerSelected);
         areaColorPicker.setDisable(!areaSelected);
@@ -6523,6 +6562,7 @@ public class PlaaniseppApp extends Application {
         cableLengthNotesField.setDisable(!powerConsumerSelected);
         cableNotesField.setDisable(!powerConsumerSelected);
         PowerConnection editedPowerConnection = powerConsumerSelected ? selectedPowerConnection() : null;
+        cableOpacitySlider.setDisable(editedPowerConnection == null);
         showSelectedCableLabelCheckBox.setDisable(editedPowerConnection == null);
         boolean consumerHasPowerConnection = powerConsumerSelected
                 && !plan.findPowerConnectionsForConsumer(selectedObject.id()).isEmpty();
@@ -6592,6 +6632,7 @@ public class PlaaniseppApp extends Application {
             notesArea.clear();
             lockedCheckBox.setSelected(false);
             showMapLabelCheckBox.setSelected(false);
+            setOpacitySliderValue(selectedObjectOpacitySlider, 100);
             tentWidthField.clear();
             tentHeightField.clear();
             tentRotationField.clear();
@@ -6601,6 +6642,7 @@ public class PlaaniseppApp extends Application {
             customObjectColorPicker.setValue(Color.web("#9ca3af"));
             textObjectColorPicker.setValue(Color.web("#111827"));
             textObjectFontSizeSlider.setValue(TextObject.DEFAULT_FONT_SIZE);
+            setOpacitySliderValue(textObjectTextOpacitySlider, 100);
             markerTypeComboBox.getSelectionModel().select(MarkerType.WC);
             markerColorPicker.setValue(Color.web(MarkerType.WC.defaultColorHex()));
             areaColorPicker.setValue(Color.web("#f59e0b"));
@@ -6635,6 +6677,7 @@ public class PlaaniseppApp extends Application {
         notesArea.setText(selectedObject.notes());
         lockedCheckBox.setSelected(selectedObject.locked());
         showMapLabelCheckBox.setSelected(selectedObject.showMapLabel());
+        setOpacitySliderValue(selectedObjectOpacitySlider, selectedObject.opacity() * 100.0);
         if (selectedObject instanceof Tent tent) {
             tentWidthField.setText(formatMeters(tent.widthMeters()));
             tentHeightField.setText(formatMeters(tent.heightMeters()));
@@ -6680,6 +6723,7 @@ public class PlaaniseppApp extends Application {
             customObjectColorPicker.setValue(Color.web("#9ca3af"));
             textObjectColorPicker.setValue(Color.web(textObject.colorHex()));
             textObjectFontSizeSlider.setValue(textObject.fontSize());
+            setOpacitySliderValue(textObjectTextOpacitySlider, textObject.textOpacity() * 100.0);
             markerTypeComboBox.getSelectionModel().select(MarkerType.WC);
             markerColorPicker.setValue(Color.web(MarkerType.WC.defaultColorHex()));
             customObjectWidthField.clear();
@@ -6787,10 +6831,12 @@ public class PlaaniseppApp extends Application {
             cableLengthNotesField.setText(connection.cableLengthNotes());
             cableNotesField.setText(connection.cableNotes());
             showSelectedCableLabelCheckBox.setSelected(plan.showCableLabel(connection.id()));
+            setOpacitySliderValue(cableOpacitySlider, plan.cableOpacity(connection.id()) * 100.0);
         }, () -> {
             cableLengthNotesField.clear();
             cableNotesField.clear();
             showSelectedCableLabelCheckBox.setSelected(true);
+            setOpacitySliderValue(cableOpacitySlider, 100);
         });
     }
 
@@ -7977,6 +8023,16 @@ public class PlaaniseppApp extends Application {
             return "%.0f".formatted(degrees);
         }
         return "%.2f".formatted(degrees);
+    }
+
+    private String cssRgba(String colorHex, double opacity) {
+        Color color = Color.web(colorHex);
+        return "rgba(%d,%d,%d,%.3f)".formatted(
+                Math.round(color.getRed() * 255),
+                Math.round(color.getGreen() * 255),
+                Math.round(color.getBlue() * 255),
+                Math.max(0, Math.min(1, opacity))
+        );
     }
 
     private String formatNumber(double value) {

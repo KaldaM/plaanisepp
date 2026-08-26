@@ -5,11 +5,13 @@ public class TextObject extends PlannerObject {
 
     private String colorHex;
     private double fontSize;
+    private double textOpacity;
 
     public TextObject(String id, String name, Position position) {
         super(id, name, position);
         this.colorHex = "#111827";
         this.fontSize = DEFAULT_FONT_SIZE;
+        this.textOpacity = 1.0;
     }
 
     public String colorHex() {
@@ -29,5 +31,13 @@ public class TextObject extends PlannerObject {
             throw new IllegalArgumentException("Teksti suurus peab olema positiivne.");
         }
         this.fontSize = fontSize;
+    }
+
+    public double textOpacity() {
+        return textOpacity;
+    }
+
+    public void setTextOpacity(double textOpacity) {
+        this.textOpacity = Math.max(0.0, Math.min(1.0, textOpacity));
     }
 }

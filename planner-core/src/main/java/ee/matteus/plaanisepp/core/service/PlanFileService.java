@@ -185,6 +185,7 @@ public class PlanFileService {
             properties.setProperty(prefix + "cableNotes", connection.cableNotes());
             properties.setProperty(prefix + "cableLengthNotes", connection.cableLengthNotes());
             properties.setProperty(prefix + "showCableLabel", Boolean.toString(plan.showCableLabel(connection.id())));
+            properties.setProperty(prefix + "opacity", Double.toString(plan.cableOpacity(connection.id())));
             properties.setProperty(prefix + "customCableLabelPosition", Boolean.toString(connection.customCableLabelPosition()));
             properties.setProperty(prefix + "cableLabelOffsetX", Double.toString(connection.cableLabelOffset().x()));
             properties.setProperty(prefix + "cableLabelOffsetY", Double.toString(connection.cableLabelOffset().y()));
@@ -330,6 +331,8 @@ public class PlanFileService {
                 connection.id(), readRoutePoints(properties, prefix)));
         loadedConnection.ifPresent(connection -> plan.setShowCableLabel(
                 connection.id(), booleanValue(properties, prefix + "showCableLabel", true)));
+        loadedConnection.ifPresent(connection -> plan.setCableOpacity(
+                connection.id(), doubleValue(properties, prefix + "opacity", 1.0)));
         if (loadedConnection.isPresent()
                 && Boolean.parseBoolean(properties.getProperty(prefix + "customCableLabelPosition", "false"))) {
             plan.updateCableLabelOffsetForConnection(
@@ -662,6 +665,7 @@ public class PlanFileService {
         properties.setProperty(prefix + "customMapLabelPosition", Boolean.toString(object.customMapLabelPosition()));
         properties.setProperty(prefix + "mapLabelOffsetX", Double.toString(object.mapLabelOffset().x()));
         properties.setProperty(prefix + "mapLabelOffsetY", Double.toString(object.mapLabelOffset().y()));
+        properties.setProperty(prefix + "opacity", Double.toString(object.opacity()));
         if (object instanceof PowerConnectable connectable) {
             properties.setProperty(prefix + "powerConnectionOffsetX", Double.toString(connectable.powerConnectionOffset().x()));
             properties.setProperty(prefix + "powerConnectionOffsetY", Double.toString(connectable.powerConnectionOffset().y()));
@@ -735,6 +739,7 @@ public class PlanFileService {
         properties.setProperty(prefix + "type", "TEXT_OBJECT");
         properties.setProperty(prefix + "colorHex", object.colorHex());
         properties.setProperty(prefix + "fontSize", Double.toString(object.fontSize()));
+        properties.setProperty(prefix + "textOpacity", Double.toString(object.textOpacity()));
     }
 
     private void writeMarkerObject(Properties properties, String prefix, MarkerObject object) {
@@ -804,6 +809,7 @@ public class PlanFileService {
         object.setLocked(Boolean.parseBoolean(properties.getProperty(prefix + "locked", "false")));
         object.setHidden(Boolean.parseBoolean(properties.getProperty(prefix + "hidden", "false")));
         object.setShowMapLabel(Boolean.parseBoolean(properties.getProperty(prefix + "showMapLabel", "true")));
+        object.setOpacity(doubleValue(properties, prefix + "opacity", 1.0));
         if (Boolean.parseBoolean(properties.getProperty(prefix + "customMapLabelPosition", "false"))) {
             object.setMapLabelOffset(new Position(
                     doubleValue(properties, prefix + "mapLabelOffsetX", 0),
@@ -933,6 +939,7 @@ public class PlanFileService {
         );
         object.setColorHex(properties.getProperty(prefix + "colorHex", "#111827"));
         object.setFontSize(doubleValue(properties, prefix + "fontSize", TextObject.DEFAULT_FONT_SIZE));
+        object.setTextOpacity(doubleValue(properties, prefix + "textOpacity", 1.0));
         return object;
     }
 

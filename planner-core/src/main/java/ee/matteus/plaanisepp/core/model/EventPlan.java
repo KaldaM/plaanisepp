@@ -31,6 +31,7 @@ public class EventPlan {
     private final Map<String, ChecklistSuggestionStatus> checklistSuggestionStatuses = new TreeMap<>();
     private final Set<String> hiddenGroups = new HashSet<>();
     private final Set<String> hiddenCableLabelConnectionIds = new HashSet<>();
+    private final Map<String, Double> cableOpacities = new TreeMap<>();
     private boolean showCables = true;
     private boolean showCableLabels = true;
     private boolean show230VCables = true;
@@ -1079,6 +1080,16 @@ public class EventPlan {
             hiddenCableLabelConnectionIds.remove(connectionId);
         } else if (findPowerConnection(connectionId).isPresent()) {
             hiddenCableLabelConnectionIds.add(connectionId);
+        }
+    }
+
+    public double cableOpacity(String connectionId) {
+        return cableOpacities.getOrDefault(connectionId, 1.0);
+    }
+
+    public void setCableOpacity(String connectionId, double opacity) {
+        if (findPowerConnection(connectionId).isPresent()) {
+            cableOpacities.put(connectionId, Math.max(0.0, Math.min(1.0, opacity)));
         }
     }
 
