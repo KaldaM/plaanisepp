@@ -185,6 +185,7 @@ public class PlaaniseppApp extends Application {
     private final PlanHistory<PlanSnapshot> planHistory = new PlanHistory<>(MAX_PLAN_HISTORY_STEPS);
     private final Preferences preferences = ApplicationPreferences.open();
     private final RecentPlanFiles recentPlanFiles = new RecentPlanFiles(preferences);
+    private final GitHubReleaseService gitHubReleaseService = new GitHubReleaseService();
 
     private EventPlan plan;
     private PlanSnapshot savedPlanSnapshot;
@@ -468,6 +469,7 @@ public class PlaaniseppApp extends Application {
         } else if (!startupPlanFileProvided) {
             Platform.runLater(this::showStartupPlanDialog);
         }
+        Platform.runLater(this::checkForUpdatesOnStartup);
     }
 
     private void handleDoubleShift(KeyEvent event, Scene scene) {
@@ -1005,9 +1007,10 @@ public class PlaaniseppApp extends Application {
         dialog.setTitle("Plaanisepa versioonid");
         dialog.setHeaderText("Plaanisepp");
         dialog.setContentText("Paigaldatud versioon: " + applicationVersion()
-                + "\n\nGitHub Releasesis on saadaval paigalduspaketid ja varasemad versioonid.");
+                + "\n\nKontrollin uusimat versiooni…");
         ButtonType openReleasesButton = new ButtonType("Ava GitHub Releases");
         dialog.getButtonTypes().setAll(openReleasesButton, ButtonType.CLOSE);
+        checkLatestRelease(dialog);
         dialog.showAndWait().ifPresent(button -> {
             if (button == openReleasesButton) {
                 openGitHubReleases();
@@ -1017,14 +1020,81 @@ public class PlaaniseppApp extends Application {
 
     private String applicationVersion() {
         String implementationVersion = PlaaniseppApp.class.getPackage().getImplementationVersion();
-        return implementationVersion == null || implementationVersion.isBlank()
-                ? "arendusversioon"
-                : implementationVersion;
+        if (implementationVersion != null && !implementationVersion.isBlank()) {
+            return implementationVersion;
+        }
+        return System.getProperty("plaanisepp.version", "arendusversioon");
     }
 
     private void openGitHubReleases() {
         try {
             getHostServices().showDocument(GITHUB_RELEASES_URL);
+        } catch (RuntimeException exception) {
+            showError("GitHub Releasesi ei saanud avada.", exception.getMessage());
+        }
+    }
+
+    private void checkForUpdatesOnStartup() {
+        Optional<GitHubReleaseService.ReleaseVersion> installedVersion = installedReleaseVersion();
+        if (installedVersion.isEmpty()) {
+            return;
+        }
+        gitHubReleaseService.fetchLatestRelease().whenComplete((latestRelease, exception) -> {
+            if (exception != null || latestRelease.version().compareTo(installedVersion.get()) <= 0) {
+                return;
+            }
+            Platform.runLater(() -> showUpdateAvailableDialog(latestRelease));
+        });
+    }
+
+    private void checkLatestRelease(Alert dialog) {
+        gitHubReleaseService.fetchLatestRelease().whenComplete((latestRelease, exception) -> Platform.runLater(() -> {
+            if (exception != null) {
+                dialog.setContentText("Paigaldatud versioon: " + applicationVersion()
+                        + "\n\nUusima versiooni kontroll ei õnnestunud."
+                        + "\nGitHub Releasesis on saadaval paigalduspaketid ja varasemad versioonid.");
+                return;
+            }
+            Optional<GitHubReleaseService.ReleaseVersion> installedVersion = installedReleaseVersion();
+            String updateStatus = installedVersion.isPresent()
+                    && latestRelease.version().compareTo(installedVersion.get()) > 0
+                    ? "Saadaval on uuem versioon."
+                    : "Kasutad uusimat avaldatud versiooni.";
+            dialog.setContentText("Paigaldatud versioon: " + applicationVersion()
+                    + "\nUusim avaldatud versioon: " + latestRelease.version()
+                    + "\n\n" + updateStatus
+                    + "\nGitHub Releasesis on saadaval paigalduspaketid ja varasemad versioonid.");
+        }));
+    }
+
+    private Optional<GitHubReleaseService.ReleaseVersion> installedReleaseVersion() {
+        try {
+            return Optional.of(GitHubReleaseService.ReleaseVersion.parse(applicationVersion()));
+        } catch (IllegalArgumentException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private void showUpdateAvailableDialog(GitHubReleaseService.LatestRelease latestRelease) {
+        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        dialog.initOwner(stage);
+        dialog.setTitle("Plaaniseppa saab uuendada");
+        dialog.setHeaderText("Uus versioon on saadaval");
+        dialog.setContentText("Praegune versioon: " + applicationVersion()
+                + "\nUus versioon: " + latestRelease.version()
+                + "\n\nAllalaadimine avaneb GitHub Releasesi lehel.");
+        ButtonType openReleasesButton = new ButtonType("Ava allalaadimine");
+        dialog.getButtonTypes().setAll(openReleasesButton, ButtonType.CLOSE);
+        dialog.showAndWait().ifPresent(button -> {
+            if (button == openReleasesButton) {
+                openReleasePage(latestRelease.pageUrl());
+            }
+        });
+    }
+
+    private void openReleasePage(java.net.URI releasePageUrl) {
+        try {
+            getHostServices().showDocument(releasePageUrl.toString());
         } catch (RuntimeException exception) {
             showError("GitHub Releasesi ei saanud avada.", exception.getMessage());
         }

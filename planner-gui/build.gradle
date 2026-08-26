@@ -6,6 +6,7 @@ plugins {
 dependencies {
     implementation project(':planner-core')
     implementation 'org.apache.pdfbox:pdfbox:2.0.31'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
 }
 
 javafx {
@@ -21,13 +22,16 @@ def applicationVendor = 'Plaanisepp'
 application {
     applicationName = applicationExecutableName
     mainClass = 'ee.matteus.plaanisepp.gui.PlaaniseppApp'
-    applicationDefaultJvmArgs = ['--enable-native-access=javafx.graphics']
+    applicationDefaultJvmArgs = [
+            '--enable-native-access=javafx.graphics',
+            "-Dplaanisepp.version=${project.version}"
+    ]
 }
 
 def linuxAppName = applicationExecutableName
 def windowsAppName = applicationDisplayName
 def packagedMainClass = 'ee.matteus.plaanisepp.gui.PlaaniseppLauncher'
-def packagedJavaModules = 'javafx.controls,javafx.fxml,javafx.swing,java.logging,java.prefs,java.scripting,jdk.jfr,jdk.unsupported.desktop'
+def packagedJavaModules = 'javafx.controls,javafx.fxml,javafx.swing,java.logging,java.net.http,java.prefs,java.scripting,jdk.jfr,jdk.unsupported.desktop'
 def packageInputDirectory = layout.buildDirectory.dir('jpackage-input')
 def windowsPackageInputDirectory = layout.buildDirectory.dir('jpackage-input-windows')
 def linuxPackageDirectory = layout.buildDirectory.dir('jpackage')
@@ -57,6 +61,10 @@ def javaFxRuntimeJars = configurations.runtimeClasspath.filter {
 }
 def packagingLauncher = javaToolchains.launcherFor {
     languageVersion = JavaLanguageVersion.of(25)
+}
+
+tasks.named('jar', Jar).configure {
+    manifest.attributes('Implementation-Version': project.version)
 }
 
 tasks.register('prepareLinuxPackageInput', Sync) {
