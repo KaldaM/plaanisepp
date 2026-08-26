@@ -368,6 +368,7 @@ public class PlaaniseppApp extends Application {
     private Boolean pendingPlacementShowMapLabel;
     private CustomObjectShape pendingPlacementShape;
     private boolean pendingTentPlacement;
+    private PlacementType pendingTentPlacementType;
     private boolean pendingPowerSourcePlacement;
     private PlacementType pendingPowerSourcePlacementType;
     private boolean pendingCustomObjectPlacement;
@@ -1384,6 +1385,7 @@ public class PlaaniseppApp extends Application {
             List<PlacementType> availableTypes = organizerView
                     ? List.of(
                             PlacementType.TENT,
+                            PlacementType.DJ_TRUCK,
                             PlacementType.CUSTOM_OBJECT,
                             PlacementType.TEXT_OBJECT,
                             PlacementType.MARKER_OBJECT,
@@ -3171,7 +3173,7 @@ public class PlaaniseppApp extends Application {
         pendingFenceTemplateRowId = null;
 
         switch (selectedType) {
-            case TENT -> addTent();
+            case TENT, DJ_TRUCK -> addTent(selectedType);
             case POWER_SOURCE, DISTRIBUTION_PANEL -> addPowerSource(selectedType);
             case CUSTOM_OBJECT -> addCustomObject();
             case TEXT_OBJECT -> addTextObject();
@@ -3208,7 +3210,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
         switch (placementType) {
-            case TENT -> placeTent(position);
+            case TENT, DJ_TRUCK -> placeTent(position);
             case POWER_SOURCE, DISTRIBUTION_PANEL -> placePowerSource(position);
             case CUSTOM_OBJECT -> placeCustomObject(position);
             case TEXT_OBJECT -> placeTextObject(position);
@@ -3253,8 +3255,9 @@ public class PlaaniseppApp extends Application {
         groupField.getEditor().setText(groupName == null ? "" : groupName);
     }
 
-    private void addTent() {
+    private void addTent(PlacementType placementType) {
         pendingTentPlacement = !pendingTentPlacement;
+        pendingTentPlacementType = pendingTentPlacement ? placementType : null;
         pendingPowerSourcePlacement = false;
         pendingCustomObjectPlacement = false;
         pendingTextObjectPlacement = false;
@@ -3270,15 +3273,19 @@ public class PlaaniseppApp extends Application {
     }
 
     private void placeTent(Position position) {
-        Tent tent = new Tent(planFactory.newId(), placementNameOrDefault(PlacementType.TENT), position);
+        PlacementType placementType = pendingTentPlacementType == PlacementType.DJ_TRUCK
+                ? PlacementType.DJ_TRUCK
+                : PlacementType.TENT;
+        Tent tent = new Tent(planFactory.newId(), placementNameOrDefault(placementType), position);
         tent.setGroupName(placementGroupNameOrDefault());
         tent.setShowMapLabel(pendingPlacementShowMapLabelOrDefault());
-        tent.setColorHex(placementColorHexOrDefault(PlacementType.TENT));
+        tent.setColorHex(placementColorHexOrDefault(placementType));
         tent.setOpacity(pendingTentOpacityOrDefault());
         tent.setSizeMeters(pendingPlacementWidthMetersOrDefault(), pendingPlacementHeightMetersOrDefault());
         plan.addObject(tent);
         clearPendingPlacementDetails();
         pendingTentPlacement = false;
+        pendingTentPlacementType = null;
         refreshPlacementButtons();
         updateMapToolStatus();
         refreshGroupFilters();
@@ -7479,7 +7486,9 @@ public class PlaaniseppApp extends Application {
         if (placementTypeComboBox != null) {
             placementTypeComboBox.setDisable(placementPending || mapLayoutLocked);
             if (pendingTentPlacement) {
-                placementTypeComboBox.getSelectionModel().select(PlacementType.TENT);
+                placementTypeComboBox.getSelectionModel().select(
+                        pendingTentPlacementType == null ? PlacementType.TENT : pendingTentPlacementType
+                );
             } else if (pendingPowerSourcePlacement) {
                 placementTypeComboBox.getSelectionModel().select(PlacementType.POWER_SOURCE);
             } else if (pendingCustomObjectPlacement) {
@@ -7525,6 +7534,7 @@ public class PlaaniseppApp extends Application {
 
     private void cancelPlacement() {
         pendingTentPlacement = false;
+        pendingTentPlacementType = null;
         pendingPowerSourcePlacement = false;
         pendingCustomObjectPlacement = false;
         pendingTextObjectPlacement = false;

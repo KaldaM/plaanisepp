@@ -43,8 +43,8 @@ final class PlacementDetailsDialog {
         CheckBox showMapLabelCheckBox = new CheckBox("Näita nime kaardil");
         showMapLabelCheckBox.setSelected(initialShowMapLabel);
         ColorPicker colorPicker = new ColorPicker(Color.web(placementType.defaultColorHex()));
-        TextField tentWidthField = new TextField("3");
-        TextField tentHeightField = new TextField("3");
+        TextField tentWidthField = new TextField(Double.toString(placementType.defaultWidthMeters()));
+        TextField tentHeightField = new TextField(Double.toString(placementType.defaultHeightMeters()));
         ComboBox<CustomObjectShape> shapeComboBox = createShapeComboBox();
         Label objectWidthLabel = new Label("Laius m");
         Label objectHeightLabel = new Label("Pikkus m");
@@ -205,7 +205,7 @@ final class PlacementDetailsDialog {
         GridPane form = detailGrid();
         form.addRow(0, new Label("Nimi"), nameField);
         form.addRow(1, new Label("Grupp"), groupComboBox);
-        if (placementType == PlacementType.TENT) {
+        if (placementType.usesTentDimensions()) {
             form.addRow(2, new Label("Laius m"), tentWidthField);
             form.addRow(3, new Label("Pikkus m"), tentHeightField);
             form.addRow(4, new Label("Läbipaistvus"), opacityControl(opacitySlider));
@@ -231,7 +231,7 @@ final class PlacementDetailsDialog {
 
     private static int colorRow(PlacementType placementType) {
         return switch (placementType) {
-            case TENT -> 5;
+            case TENT, DJ_TRUCK -> 5;
             case CUSTOM_OBJECT -> 6;
             case MARKER_OBJECT, AREA_OBJECT, LINE_OBJECT, FENCE_ROW, TEXT_OBJECT -> 3;
             case POWER_SOURCE, DISTRIBUTION_PANEL -> 2;
@@ -280,7 +280,7 @@ final class PlacementDetailsDialog {
         }
         double opacity = placementType == PlacementType.AREA_OBJECT
                 || placementType == PlacementType.CUSTOM_OBJECT
-                || placementType == PlacementType.TENT
+                || placementType.usesTentDimensions()
                 ? opacitySlider.getValue() / 100.0
                 : AreaObject.DEFAULT_OPACITY;
         return Optional.of(new PlacementDetails(
@@ -307,7 +307,7 @@ final class PlacementDetailsDialog {
             TextField objectWidthField,
             TextField objectHeightField
     ) {
-        if (placementType == PlacementType.TENT) {
+        if (placementType.usesTentDimensions()) {
             return readTentDimensions(owner, tentWidthField, tentHeightField);
         }
         if (placementType == PlacementType.CUSTOM_OBJECT) {
@@ -521,26 +521,38 @@ record PlacementDetails(
 }
 
 enum PlacementType {
-    TENT("Telk", "Uus telk", "#e74c3c", true),
-    POWER_SOURCE("Elektrikapp", "Uus kapp", "#2563eb", false),
-    DISTRIBUTION_PANEL("Alajaotuskilp", "Uus alajaotuskilp", "#2563eb", false),
-    CUSTOM_OBJECT("Objekt", "Uus objekt", "#9ca3af", true),
-    TEXT_OBJECT("Tekst", "Uus tekst", "#111827", true),
-    MARKER_OBJECT("Marker", "Uus marker", MarkerType.WC.defaultColorHex(), true),
-    LINE_OBJECT("Joon", "Uus joon", "#0f766e", true),
-    FENCE_ROW("Aiarida", "Uus aiarida", "#64748b", true),
-    AREA_OBJECT("Ala", "Uus ala", "#f59e0b", true);
+    TENT("Telk", "Uus telk", "#e74c3c", true, 3.0, 3.0),
+    DJ_TRUCK("Red Bull DJ Truck", "Red Bull DJ Truck", "#dc2626", true, 6.0, 2.2),
+    POWER_SOURCE("Elektrikapp", "Uus kapp", "#2563eb", false, 1.0, 1.0),
+    DISTRIBUTION_PANEL("Alajaotuskilp", "Uus alajaotuskilp", "#2563eb", false, 1.0, 1.0),
+    CUSTOM_OBJECT("Objekt", "Uus objekt", "#9ca3af", true, 1.0, 1.0),
+    TEXT_OBJECT("Tekst", "Uus tekst", "#111827", true, 1.0, 1.0),
+    MARKER_OBJECT("Marker", "Uus marker", MarkerType.WC.defaultColorHex(), true, 1.0, 1.0),
+    LINE_OBJECT("Joon", "Uus joon", "#0f766e", true, 1.0, 1.0),
+    FENCE_ROW("Aiarida", "Uus aiarida", "#64748b", true, 1.0, 1.0),
+    AREA_OBJECT("Ala", "Uus ala", "#f59e0b", true, 1.0, 1.0);
 
     private final String label;
     private final String defaultName;
     private final String defaultColorHex;
     private final boolean configurableColor;
+    private final double defaultWidthMeters;
+    private final double defaultHeightMeters;
 
-    PlacementType(String label, String defaultName, String defaultColorHex, boolean configurableColor) {
+    PlacementType(
+            String label,
+            String defaultName,
+            String defaultColorHex,
+            boolean configurableColor,
+            double defaultWidthMeters,
+            double defaultHeightMeters
+    ) {
         this.label = label;
         this.defaultName = defaultName;
         this.defaultColorHex = defaultColorHex;
         this.configurableColor = configurableColor;
+        this.defaultWidthMeters = defaultWidthMeters;
+        this.defaultHeightMeters = defaultHeightMeters;
     }
 
     String defaultName() {
@@ -553,6 +565,18 @@ enum PlacementType {
 
     boolean hasConfigurableColor() {
         return configurableColor;
+    }
+
+    double defaultWidthMeters() {
+        return defaultWidthMeters;
+    }
+
+    double defaultHeightMeters() {
+        return defaultHeightMeters;
+    }
+
+    boolean usesTentDimensions() {
+        return this == TENT || this == DJ_TRUCK;
     }
 
     @Override

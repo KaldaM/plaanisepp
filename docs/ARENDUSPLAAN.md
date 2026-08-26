@@ -410,6 +410,8 @@ Kõlarite ja muu PA-tehnika eelseadistustel peab samuti olema sisseehitatud vaik
 
 Eelseadistused peavad kasutama sama objektide, seadmete ja elektriühenduste mudelit nagu käsitsi loodud objektid. Need ei tohi luua eraldi, ainult kaardil nähtavat paralleelmudelit.
 
+Esimene eelseadistus on teostatud: **Red Bull DJ Truck** lisatakse tavalise telgiobjektina vaikimisi 6 × 2,2 m mõõtudega. Nime, grupi, värvi ja mõõte saab lisamisel samamoodi muuta nagu telgil ning objekt töötab olemasoleva seadmete ja vooluühenduste töövooga. Vaikimisi elektrivõimsust ei lisata enne kinnitatud tehniliste andmete saamist.
+
 ## 13. Aedade planeerimise tööriist
 
 Ürituse inventari planeerimiseks lisatakse eraldi aiaridade tööriist. Aed ei ole tavaline vabapikkusega joon, vaid koosneb vaikimisi **3,5 m** pikkustest füüsilistest aialõikudest. Plaan peab näitama nii aiaketi geomeetriat kui ka selleks vajalike aedade täpset kogust.
