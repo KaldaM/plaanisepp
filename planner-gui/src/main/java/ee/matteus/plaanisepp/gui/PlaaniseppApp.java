@@ -121,6 +121,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -241,6 +242,7 @@ public class PlaaniseppApp extends Application {
     private final Set<String> visibleGroups = new HashSet<>();
     private final Set<String> collapsedPowerSummaryKeys = new HashSet<>();
     private final Set<String> collapsedObjectGroups = new HashSet<>();
+    private final Set<String> selectedObjectIds = new LinkedHashSet<>();
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private final Map<String, Node> mapObjectNodes = new HashMap<>();
@@ -568,7 +570,7 @@ public class PlaaniseppApp extends Application {
                 && event.isControlDown()
                 && !event.isAltDown()
                 && !event.isShiftDown()) {
-            lockedCheckBox.setSelected(!selectedObject.locked());
+            lockedCheckBox.setSelected(!allSelectedObjectsLocked());
             updateSelectedLock();
             event.consume();
         } else if (event.getCode() == KeyCode.C
@@ -581,7 +583,7 @@ public class PlaaniseppApp extends Application {
                 && event.isControlDown()
                 && !event.isAltDown()
                 && !event.isShiftDown()) {
-            setObjectHidden(selectedObject, !selectedObject.hidden());
+            toggleSelectedObjectsHidden();
             event.consume();
         } else if (event.getCode() == KeyCode.R
                 && event.isControlDown()
@@ -850,14 +852,14 @@ public class PlaaniseppApp extends Application {
         MenuItem lockObjectItem = new MenuItem();
         lockObjectItem.setOnAction(event -> {
             if (selectedObject != null) {
-                lockedCheckBox.setSelected(!selectedObject.locked());
+                lockedCheckBox.setSelected(!allSelectedObjectsLocked());
                 updateSelectedLock();
             }
         });
         MenuItem visibilityItem = new MenuItem();
         visibilityItem.setOnAction(event -> {
             if (selectedObject != null) {
-                setObjectHidden(selectedObject, !selectedObject.hidden());
+                toggleSelectedObjectsHidden();
             }
         });
         MenuItem deleteObjectItem = new MenuItem("Kustuta objekt (Delete)");
@@ -885,13 +887,13 @@ public class PlaaniseppApp extends Application {
             lockObjectItem.setDisable(!objectSelected);
             visibilityItem.setDisable(!objectSelected);
             deleteObjectItem.setDisable(!objectSelected || mapLayoutLocked
-                    || selectedObject != null && selectedObject.locked());
-            lockObjectItem.setText(objectSelected && selectedObject.locked()
-                    ? "Eemalda objekti lukustus (Ctrl+L)"
-                    : "Lukusta objekt (Ctrl+L)");
-            visibilityItem.setText(objectSelected && selectedObject.hidden()
-                    ? "Kuva objekt (Ctrl+H)"
-                    : "Peida objekt (Ctrl+H)");
+                    || selectedObjects().stream().anyMatch(PlannerObject::locked));
+            lockObjectItem.setText(objectSelected && allSelectedObjectsLocked()
+                    ? "Eemalda valitud objektide lukustus (Ctrl+L)"
+                    : "Lukusta valitud objektid (Ctrl+L)");
+            visibilityItem.setText(objectSelected && allSelectedObjectsHidden()
+                    ? "Kuva valitud objektid (Ctrl+H)"
+                    : "Peida valitud objektid (Ctrl+H)");
         });
 
         MenuItem resetZoomItem = new MenuItem("Taasta 100% suum");
@@ -1818,9 +1820,13 @@ public class PlaaniseppApp extends Application {
                 row.setPadding(new Insets(0, 0, 0, 34));
                 setText(null);
                 setGraphic(row);
-                setStyle(item.visible()
+                String visibilityStyle = item.visible()
                         ? ""
-                        : "-fx-text-fill: #6b7280; -fx-font-style: italic;");
+                        : "-fx-text-fill: #6b7280; -fx-font-style: italic;";
+                String selectionStyle = PlaaniseppApp.this.isSelected(item.object())
+                        ? "-fx-background-color: rgba(37,99,235,0.18);"
+                        : "";
+                setStyle(visibilityStyle + selectionStyle);
                 setOnContextMenuRequested(event -> {
                     showObjectContextMenu(
                             item.object(), event.getScreenX(), event.getScreenY()
@@ -1828,6 +1834,22 @@ public class PlaaniseppApp extends Application {
                     event.consume();
                 });
             }
+        });
+        objectList.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            if (event.getButton() != MouseButton.PRIMARY || !event.isControlDown()) {
+                return;
+            }
+            Node target = event.getPickResult().getIntersectedNode();
+            while (target != null && !(target instanceof ListCell<?>)) {
+                target = target.getParent();
+            }
+            if (!(target instanceof ListCell<?> cell)
+                    || !(cell.getItem() instanceof ObjectListEntry entry)
+                    || entry.isGroup()) {
+                return;
+            }
+            toggleObjectSelection(entry.objectItem().object());
+            event.consume();
         });
         objectList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
             if (synchronizingSidebarSelection) {
@@ -4117,6 +4139,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void redrawMap() {
+        synchronizeSelectionState();
         plan.synchronizeFenceRows(pixelsPerMeter());
         mapPane.getChildren().clear();
         mapObjectNodes.clear();
@@ -4160,6 +4183,21 @@ public class PlaaniseppApp extends Application {
         powerConnectionAnchorMarkers.forEach(Node::toFront);
         drawPendingShapePreview();
         mapPane.getChildren().addAll(measurementNodes);
+    }
+
+    private void synchronizeSelectionState() {
+        if (selectedObject == null) {
+            selectedObjectIds.clear();
+            return;
+        }
+        Set<String> currentObjectIds = plan.objects().stream()
+                .map(PlannerObject::id)
+                .collect(java.util.stream.Collectors.toSet());
+        selectedObjectIds.retainAll(currentObjectIds);
+        if (!selectedObjectIds.contains(selectedObject.id())) {
+            selectedObjectIds.clear();
+            selectedObjectIds.addAll(logicalObjectIds(selectedObject));
+        }
     }
 
     private void drawSelectedObjectHighlight() {
@@ -6062,7 +6100,11 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
-            selectObject(object);
+            if (event.isControlDown()) {
+                toggleObjectSelection(object);
+            } else {
+                selectObject(object);
+            }
             event.consume();
         });
     }
@@ -6072,6 +6114,10 @@ public class PlaaniseppApp extends Application {
         final boolean[] fenceDragged = {false};
         node.setOnMousePressed(event -> {
             if (event.getButton() != MouseButton.PRIMARY || measuringActive || addingCablePoint) {
+                return;
+            }
+            if (event.isControlDown()) {
+                event.consume();
                 return;
             }
             if (pendingPowerSourceConsumer != null && object instanceof PowerSource source) {
@@ -6397,6 +6443,8 @@ public class PlaaniseppApp extends Application {
             commitPendingDetailFieldsBeforeSelectionChange();
         }
         selectedObject = object;
+        selectedObjectIds.clear();
+        selectedObjectIds.addAll(logicalObjectIds(object));
         clearObjectSearchIfItHides(object);
         refreshDetails();
         revealObjectInObjectList(object);
@@ -6404,19 +6452,27 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showObjectContextMenu(PlannerObject object, double screenX, double screenY) {
-        selectObject(object);
+        if (!isSelected(object)) {
+            selectObject(object);
+        }
+        int selectionCount = selectedLogicalObjects().size();
         MenuItem editItem = new MenuItem("Muuda");
+        editItem.setDisable(selectionCount > 1);
         editItem.setOnAction(event -> editObject(object));
         MenuItem rotateItem = new MenuItem("Pööra");
-        rotateItem.setDisable(!supportsInteractiveRotation(object) || mapLayoutLocked || object.locked());
+        rotateItem.setDisable(selectionCount > 1
+                || !supportsInteractiveRotation(object) || mapLayoutLocked || object.locked());
         rotateItem.setOnAction(event -> startObjectRotation(object));
         MenuItem copyItem = new MenuItem("Kopeeri");
+        copyItem.setDisable(selectionCount > 1);
         copyItem.setOnAction(event -> copyObject(object));
-        MenuItem visibilityItem = new MenuItem(object.hidden() ? "Kuva" : "Peida");
-        visibilityItem.setOnAction(event -> setObjectHidden(object, !object.hidden()));
-        MenuItem deleteItem = new MenuItem("Kustuta");
+        MenuItem visibilityItem = new MenuItem(allSelectedObjectsHidden() ? "Kuva valitud" : "Peida valitud");
+        visibilityItem.setOnAction(event -> toggleSelectedObjectsHidden());
+        MenuItem deleteItem = new MenuItem(selectionCount > 1
+                ? "Kustuta valitud (%d)".formatted(selectionCount)
+                : "Kustuta");
         deleteItem.setDisable(mapLayoutLocked);
-        deleteItem.setOnAction(event -> deleteObject(object));
+        deleteItem.setOnAction(event -> deleteSelectedObject());
         showContextMenu(
                 new ContextMenu(editItem, rotateItem, copyItem, visibilityItem, deleteItem),
                 mapPane,
@@ -6523,11 +6579,93 @@ public class PlaaniseppApp extends Application {
             commitPendingDetailFieldsBeforeSelectionChange();
         }
         selectedObject = object;
+        selectedObjectIds.clear();
+        selectedObjectIds.addAll(logicalObjectIds(object));
         clearObjectSearchIfItHides(object);
         refreshDetails();
         revealObjectInObjectList(object);
         revealObjectInPowerSummary(object);
         redrawMap();
+    }
+
+    private void toggleObjectSelection(PlannerObject object) {
+        if (object == null) {
+            return;
+        }
+        if (selectedObject != null && !updatingDetailControls) {
+            commitPendingDetailFieldsBeforeSelectionChange();
+        }
+        Set<String> logicalIds = logicalObjectIds(object);
+        if (logicalIds.stream().allMatch(selectedObjectIds::contains)) {
+            selectedObjectIds.removeAll(logicalIds);
+            if (selectedObject != null && logicalIds.contains(selectedObject.id())) {
+                selectedObject = firstSelectedObject().orElse(null);
+            }
+        } else {
+            selectedObjectIds.addAll(logicalIds);
+            selectedObject = object;
+        }
+        clearObjectSearchIfItHides(selectedObject);
+        refreshDetails();
+        refreshObjectList();
+        revealObjectInPowerSummary(selectedObject);
+        redrawMap();
+    }
+
+    private Set<String> logicalObjectIds(PlannerObject object) {
+        if (object == null) {
+            return Set.of();
+        }
+        if (object instanceof FenceRow fenceRow) {
+            Set<String> ids = new LinkedHashSet<>();
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> ids.add(row.id()));
+            return ids;
+        }
+        return Set.of(object.id());
+    }
+
+    private Optional<PlannerObject> firstSelectedObject() {
+        return plan.objects().stream().filter(object -> selectedObjectIds.contains(object.id())).findFirst();
+    }
+
+    private List<PlannerObject> selectedObjects() {
+        return plan.objects().stream().filter(object -> selectedObjectIds.contains(object.id())).toList();
+    }
+
+    private List<PlannerObject> selectedLogicalObjects() {
+        List<PlannerObject> result = new ArrayList<>();
+        Set<String> handledIds = new HashSet<>();
+        for (PlannerObject object : selectedObjects()) {
+            if (handledIds.contains(object.id())) {
+                continue;
+            }
+            result.add(object);
+            handledIds.addAll(logicalObjectIds(object));
+        }
+        return result;
+    }
+
+    private boolean allSelectedObjectsHidden() {
+        List<PlannerObject> objects = selectedObjects();
+        return !objects.isEmpty() && objects.stream().allMatch(PlannerObject::hidden);
+    }
+
+    private boolean allSelectedObjectsLocked() {
+        List<PlannerObject> objects = selectedObjects();
+        return !objects.isEmpty() && objects.stream().allMatch(PlannerObject::locked);
+    }
+
+    private void toggleSelectedObjectsHidden() {
+        List<PlannerObject> objects = selectedObjects();
+        if (objects.isEmpty()) {
+            return;
+        }
+        boolean hidden = !allSelectedObjectsHidden();
+        objects.forEach(object -> object.setHidden(hidden));
+        redrawMap();
+        refreshObjectList();
+        updateRevealObjectButton();
+        markDirty();
     }
 
     private double selectedObjectRotationDegrees(PlannerObject object) {
@@ -6563,7 +6701,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void clearObjectSearchIfItHides(PlannerObject object) {
-        if (objectSearchField == null) {
+        if (objectSearchField == null || object == null) {
             return;
         }
         String query = objectSearchField.getText().trim().toLowerCase();
@@ -6691,7 +6829,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean isSelected(PlannerObject object) {
-        return selectedObject != null && selectedObject.id().equals(object.id());
+        return object != null && selectedObjectIds.contains(object.id());
     }
 
     private String mapLabel(PlannerObject object) {
@@ -6816,7 +6954,7 @@ public class PlaaniseppApp extends Application {
         generalRotationField.setManaged(generalRotationVisible);
         generalRotationField.setDisable(!generalRotationVisible);
         resetMapLabelButton.setTooltip(new Tooltip(mapLabelResetTooltip(hasSelection, textObjectSelected, customMapLabelPosition)));
-        boolean lockedSelection = selectedObject != null && selectedObject.locked();
+        boolean lockedSelection = selectedObjects().stream().anyMatch(PlannerObject::locked);
         deleteObjectButton.setDisable(!hasSelection || lockedSelection || mapLayoutLocked);
         deleteObjectButton.setTooltip(mapLayoutLocked
                 ? new Tooltip("Paigutuse muutmiseks eemalda tööriistaribal paigutuslukk")
@@ -6963,11 +7101,14 @@ public class PlaaniseppApp extends Application {
             return;
         }
 
-        selectedTypeLabel.setText(objectTypeName(selectedObject));
+        int logicalSelectionCount = selectedLogicalObjects().size();
+        selectedTypeLabel.setText(logicalSelectionCount > 1
+                ? "%d objekti valitud · %s".formatted(logicalSelectionCount, objectTypeName(selectedObject))
+                : objectTypeName(selectedObject));
         nameField.setText(selectedObject.name());
         refreshGroupChoices(selectedObject.groupName());
         notesArea.setText(selectedObject.notes());
-        lockedCheckBox.setSelected(selectedObject.locked());
+        lockedCheckBox.setSelected(allSelectedObjectsLocked());
         showMapLabelCheckBox.setSelected(selectedObject.showMapLabel());
         setOpacitySliderValue(selectedObjectOpacitySlider, selectedObject.opacity() * 100.0);
         generalRotationField.setText(formatDegrees(selectedObject.rotationDegrees()));
@@ -7241,12 +7382,9 @@ public class PlaaniseppApp extends Application {
         if (selectedObject == null) {
             return;
         }
-        if (selectedObject instanceof FenceRow fenceRow) {
-            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setLocked(lockedCheckBox.isSelected()));
-        } else {
-            selectedObject.setLocked(lockedCheckBox.isSelected());
-        }
+        selectedObjects().forEach(object -> object.setLocked(lockedCheckBox.isSelected()));
         redrawMap();
+        refreshObjectList();
         markDirty();
     }
 
@@ -7867,9 +8005,8 @@ public class PlaaniseppApp extends Application {
             showMapLayoutLockedMessage();
             return;
         }
-        boolean lockedSelection = selectedObject instanceof FenceRow fenceRow
-                ? plan.fenceNetworkRows(fenceRow.id()).stream().anyMatch(PlannerObject::locked)
-                : selectedObject.locked();
+        List<PlannerObject> objectsToDelete = selectedObjects();
+        boolean lockedSelection = objectsToDelete.stream().anyMatch(PlannerObject::locked);
         if (lockedSelection) {
             showError("Objekti ei kustutatud", "Eemalda enne lukustus ja proovi uuesti.");
             return;
@@ -7878,15 +8015,9 @@ public class PlaaniseppApp extends Application {
             return;
         }
 
-        if (selectedObject instanceof FenceRow fenceRow) {
-            plan.fenceNetworkRows(fenceRow.id()).stream()
-                    .map(PlannerObject::id)
-                    .toList()
-                    .forEach(plan::removeObject);
-        } else {
-            plan.removeObject(selectedObject.id());
-        }
+        objectsToDelete.stream().map(PlannerObject::id).toList().forEach(plan::removeObject);
         selectedObject = null;
+        selectedObjectIds.clear();
         pendingPowerSourceConsumer = null;
         refreshGroupFilters();
         refreshObjectList();
@@ -7900,8 +8031,13 @@ public class PlaaniseppApp extends Application {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.initOwner(stage);
         alert.setTitle("Kustuta objekt");
-        alert.setHeaderText("Kas kustutada \"%s\"?".formatted(selectedObject.name()));
-        alert.setContentText(deleteConfirmationText(selectedObject));
+        List<PlannerObject> logicalSelection = selectedLogicalObjects();
+        alert.setHeaderText(logicalSelection.size() > 1
+                ? "Kas kustutada %d valitud objekti?".formatted(logicalSelection.size())
+                : "Kas kustutada \"%s\"?".formatted(selectedObject.name()));
+        alert.setContentText(logicalSelection.size() > 1
+                ? "Valitud objektid ja nendega seotud andmed kustutatakse. Seda tegevust ei saa tagasi võtta."
+                : deleteConfirmationText(selectedObject));
         return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
     }
 
