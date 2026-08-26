@@ -161,6 +161,7 @@ public class PlaaniseppApp extends Application {
     private static final double MIN_FONT_SIZE_PIXELS = 6.0;
     private static final double MAX_FONT_SIZE_PIXELS = 120.0;
     private static final String OBJECT_LIST_HEIGHT_PREFERENCE = "objectListHeight";
+    private static final String FENCE_DRAG_NODE_KEY = "plaanisepp.fenceDragNode";
     private static final long DOUBLE_SHIFT_INTERVAL_NANOS = 500_000_000L;
     private static final int MAX_PLAN_HISTORY_STEPS = 50;
     private static final List<ChecklistSuggestion> CHECKLIST_SUGGESTIONS = List.of(
@@ -231,6 +232,7 @@ public class PlaaniseppApp extends Application {
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private final Map<String, Node> mapObjectNodes = new HashMap<>();
     private final Map<String, FenceRowVisual> fenceRowVisuals = new HashMap<>();
+    private final List<Node> fenceInteractionNodes = new ArrayList<>();
     private Set<String> knownGroups = new HashSet<>();
     private ListView<SummaryListItem> summaryList;
     private VBox sidebar;
@@ -282,6 +284,7 @@ public class PlaaniseppApp extends Application {
     private TextField fenceSegmentLengthField;
     private TextField fenceRotationField;
     private Label fenceTotalLengthLabel;
+    private ColorPicker fenceColorPicker;
     private Label customObjectWidthLabel;
     private Label customObjectHeightLabel;
     private TextField customObjectWidthField;
@@ -344,6 +347,7 @@ public class PlaaniseppApp extends Application {
     private ToggleButton showMarkerObjectsButton;
     private ToggleButton showAreaObjectsButton;
     private ToggleButton showLineObjectsButton;
+    private ToggleButton showFenceInventoryLabelsButton;
     private ComboBox<PlacementType> placementTypeComboBox;
     private Button addPlacementButton;
     private PlannerObject selectedObject;
@@ -371,6 +375,7 @@ public class PlaaniseppApp extends Application {
     private boolean pendingAreaObjectPlacement;
     private MarkerType pendingPlacementMarkerType;
     private PlannerObject copiedObject;
+    private FenceNetworkClipboard copiedFenceNetwork;
     private int keyboardPasteCount;
     private boolean updatingOpacityControls;
     private boolean opacityDragChanged;
@@ -1043,6 +1048,10 @@ public class PlaaniseppApp extends Application {
         showMarkerObjectsButton = objectTypeToggle("Markerid", "Näitab või peidab kaardil markerid");
         showAreaObjectsButton = objectTypeToggle("Alad", "Näitab või peidab kaardil alaobjektid");
         showLineObjectsButton = objectTypeToggle("Jooned", "Näitab või peidab kaardil jooneobjektid");
+        showFenceInventoryLabelsButton = objectTypeToggle(
+                "Aedade kogused",
+                "Näitab või peidab kaardil aiaridade koguse ja pikkuse"
+        );
         applyMapLayerControlsFromPlan();
 
         measureButton = new ToggleButton("Mõõdulint");
@@ -1221,6 +1230,7 @@ public class PlaaniseppApp extends Application {
         showMarkerObjectsButton.setSelected(plan.showMarkerObjects());
         showAreaObjectsButton.setSelected(plan.showAreaObjects());
         showLineObjectsButton.setSelected(plan.showLineObjects());
+        showFenceInventoryLabelsButton.setSelected(plan.showFenceInventoryLabels());
     }
 
     private void updateMapLayerVisibility() {
@@ -1241,6 +1251,7 @@ public class PlaaniseppApp extends Application {
         plan.setShowMarkerObjects(showMarkerObjectsButton.isSelected());
         plan.setShowAreaObjects(showAreaObjectsButton.isSelected());
         plan.setShowLineObjects(showLineObjectsButton.isSelected());
+        plan.setShowFenceInventoryLabels(showFenceInventoryLabelsButton.isSelected());
         redrawMap();
         refreshObjectList();
         markDirty();
@@ -1333,6 +1344,12 @@ public class PlaaniseppApp extends Application {
         mapScrollPane.setFitToWidth(false);
         mapScrollPane.setFitToHeight(false);
         mapScrollPane.setStyle("-fx-background: #eef1ec;");
+        mapScrollPane.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            if (isFenceDragTarget(event.getTarget())) {
+                mapScrollPane.setPannable(false);
+            }
+        });
+        mapScrollPane.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> mapScrollPane.setPannable(true));
         mapScrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
             if (!event.isAltDown() || event.getDeltaY() == 0) {
                 return;
@@ -1547,7 +1564,7 @@ public class PlaaniseppApp extends Application {
                 visibilityCheckBox.setSelected(!item.object().hidden());
                 visibilityCheckBox.setTooltip(new Tooltip("Kuva objekt kaardil"));
                 visibilityCheckBox.setOnAction(event -> setObjectHidden(
-                        item.object(), !visibilityCheckBox.isSelected()
+                        item, !visibilityCheckBox.isSelected()
                 ));
                 VBox textBox = new VBox(2, nameLabel, detailLabel);
                 HBox row = new HBox(8, visibilityCheckBox, colorSwatch, textBox);
@@ -1949,7 +1966,8 @@ public class PlaaniseppApp extends Application {
                 showTextObjectsButton,
                 showMarkerObjectsButton,
                 showAreaObjectsButton,
-                showLineObjectsButton
+                showLineObjectsButton,
+                showFenceInventoryLabelsButton
         );
         cableLayersPanel = new VBox(8, new Label("Kaablid"), cableVisibilityRow, cableTypeRow);
         return new VBox(
@@ -1976,6 +1994,7 @@ public class PlaaniseppApp extends Application {
         showMarkerObjectsButton.setSelected(visible);
         showAreaObjectsButton.setSelected(visible);
         showLineObjectsButton.setSelected(visible);
+        showFenceInventoryLabelsButton.setSelected(visible);
         updateMapLayerVisibility();
     }
 
@@ -1984,15 +2003,25 @@ public class PlaaniseppApp extends Application {
             return;
         }
         String query = objectSearchField == null ? "" : objectSearchField.getText().trim().toLowerCase();
-        List<ObjectListItem> objectItems = plan.objects().stream()
-                .filter(object -> !organizerView || !(object instanceof PowerSource))
-                .map(object -> new ObjectListItem(
-                        object,
-                        objectTypeName(object),
-                        groupNameForFilter(object),
-                        objectMeasurementText(object),
-                        isObjectVisibleOnMap(object)
-                ))
+        List<ObjectListItem> unfilteredItems = new ArrayList<>();
+        for (PlannerObject object : plan.objects()) {
+            if (organizerView && object instanceof PowerSource) {
+                continue;
+            }
+            if (object instanceof FenceRow fenceRow && !plan.isFenceNetworkRepresentative(fenceRow)) {
+                continue;
+            }
+            unfilteredItems.add(new ObjectListItem(
+                    object,
+                    objectTypeName(object),
+                    groupNameForFilter(object),
+                    object instanceof FenceRow fenceRow
+                            ? fenceNetworkMeasurementText(fenceRow)
+                            : objectMeasurementText(object),
+                    isObjectVisibleOnMap(object)
+            ));
+        }
+        List<ObjectListItem> objectItems = unfilteredItems.stream()
                 .filter(item -> objectListItemMatches(item, query))
                 .sorted(Comparator
                         .comparing(ObjectListItem::visible).reversed()
@@ -2020,6 +2049,13 @@ public class PlaaniseppApp extends Application {
         objectList.getItems().setAll(entries);
         revealObjectInObjectList(selectedObject);
         updateRevealObjectButton();
+    }
+
+    private String fenceNetworkMeasurementText(FenceRow representative) {
+        List<FenceRow> rows = plan.fenceNetworkRows(representative.id());
+        int fenceCount = rows.stream().mapToInt(FenceRow::segmentCount).sum();
+        double totalLength = rows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
+        return "%d aeda · %.1f m · %d osa".formatted(fenceCount, totalLength, rows.size());
     }
 
     private void toggleObjectGroup(String groupName) {
@@ -2494,6 +2530,8 @@ public class PlaaniseppApp extends Application {
         fenceSegmentLengthField = new TextField();
         fenceRotationField = new TextField();
         fenceTotalLengthLabel = new Label("-");
+        fenceColorPicker = new ColorPicker();
+        fenceColorPicker.setOnAction(event -> autoApplySelectedColor());
         configureTextCommit(fenceSegmentCountField, this::autoApplyFenceRowGeometry);
         configureTextCommit(fenceSegmentLengthField, this::autoApplyFenceRowGeometry);
         configureTextCommit(fenceRotationField, this::autoApplyFenceRowGeometry);
@@ -2502,6 +2540,7 @@ public class PlaaniseppApp extends Application {
         fenceRowForm.addRow(1, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
         fenceRowForm.addRow(2, new Label("Suund °"), fenceRotationField);
         fenceRowForm.addRow(3, new Label("Kogupikkus"), fenceTotalLengthLabel);
+        fenceRowForm.addRow(4, new Label("Värv"), fenceColorPicker);
         fenceRowPanel = new VBox(8, sectionLabel("Aiarida"), fenceRowForm);
 
         GridPane tentForm = detailGrid();
@@ -3787,6 +3826,7 @@ public class PlaaniseppApp extends Application {
         mapPane.getChildren().clear();
         mapObjectNodes.clear();
         fenceRowVisuals.clear();
+        fenceInteractionNodes.clear();
         powerConnectionAnchorMarkers.clear();
         addMapImage();
         if (showCables()) {
@@ -3817,6 +3857,7 @@ public class PlaaniseppApp extends Application {
                 drawCustomObject(customObject);
             }
         }
+        fenceInteractionNodes.forEach(Node::toFront);
         powerConnectionAnchorMarkers.forEach(Node::toFront);
         drawPendingShapePreview();
         mapPane.getChildren().addAll(measurementNodes);
@@ -4580,6 +4621,7 @@ public class PlaaniseppApp extends Application {
         applyLockedStroke(fenceLine, fenceRow);
         makeSelectable(fenceLine, fenceRow);
         makeDraggable(fenceLine, fenceRow);
+        markFenceDragNode(fenceLine);
         mapPane.getChildren().add(fenceLine);
 
         double angle = Math.toRadians(fenceRow.rotationDegrees());
@@ -4587,7 +4629,8 @@ public class PlaaniseppApp extends Application {
         double perpendicularY = Math.cos(angle) * 6;
         double segmentLengthPixels = fenceRow.segmentLengthMeters() * pixelsPerMeter();
         List<Line> dividers = new ArrayList<>();
-        for (int index = 1; index < fenceRow.segmentCount(); index++) {
+        List<Circle> splitHandles = new ArrayList<>();
+        for (int index = 0; index <= fenceRow.segmentCount(); index++) {
             double x = start.x() + Math.cos(angle) * segmentLengthPixels * index;
             double y = start.y() + Math.sin(angle) * segmentLengthPixels * index;
             Line divider = new Line(
@@ -4601,29 +4644,73 @@ public class PlaaniseppApp extends Application {
             divider.setMouseTransparent(true);
             mapPane.getChildren().add(divider);
             dividers.add(divider);
+            if (index > 0 && index < fenceRow.segmentCount() && isSelected(fenceRow) && !mapLayoutLocked) {
+                int segmentIndex = index;
+                Circle splitHandle = new Circle(x, y, 6, Color.TRANSPARENT);
+                splitHandle.setStroke(Color.web(fenceRow.colorHex(), 0.65));
+                splitHandle.setStrokeWidth(1.5);
+                splitHandle.setCursor(Cursor.HAND);
+                markFenceDragNode(splitHandle);
+                makeDraggable(splitHandle, fenceRow);
+                Tooltip.install(splitHandle, new Tooltip("Paremklõpsuga lisa siia ühenduspunkt"));
+                splitHandle.setOnContextMenuRequested(event -> {
+                    showFenceSplitContextMenu(
+                            fenceRow,
+                            segmentIndex,
+                            splitHandle,
+                            event.getScreenX(),
+                            event.getScreenY()
+                    );
+                    event.consume();
+                });
+                splitHandles.add(splitHandle);
+                mapPane.getChildren().add(splitHandle);
+                fenceInteractionNodes.add(splitHandle);
+            }
         }
 
         Position center = new Position((start.x() + end.x()) / 2, (start.y() + end.y()) / 2);
-        addMapLabel(fenceRow, center.x() + 8, center.y() + 8);
-        Label inventoryLabel = new Label("%d aeda · %.1f m".formatted(
-                fenceRow.segmentCount(),
-                fenceRow.totalLengthMeters()
-        ));
-        inventoryLabel.setLayoutX(center.x() + 8);
-        inventoryLabel.setLayoutY(center.y() + 28);
-        inventoryLabel.setStyle("-fx-background-color: rgba(255,255,255,0.88); -fx-padding: 2 4 2 4;");
-        inventoryLabel.setMouseTransparent(true);
-        mapPane.getChildren().add(inventoryLabel);
+        if (plan.isFenceNetworkRepresentative(fenceRow)) {
+            addMapLabel(fenceRow, center.x() + 8, center.y() + 8);
+        }
+        Label inventoryLabel = null;
+        if (plan.showFenceInventoryLabels() && plan.isFenceNetworkRepresentative(fenceRow)) {
+            List<FenceRow> networkRows = plan.fenceNetworkRows(fenceRow.id());
+            int fenceCount = networkRows.stream().mapToInt(FenceRow::segmentCount).sum();
+            double totalLength = networkRows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
+            inventoryLabel = new Label("%d aeda · %.1f m".formatted(fenceCount, totalLength));
+            inventoryLabel.setLayoutX(center.x() + 8);
+            inventoryLabel.setLayoutY(center.y() + 28);
+            inventoryLabel.setStyle("-fx-background-color: rgba(255,255,255,0.88); -fx-padding: 2 4 2 4;");
+            inventoryLabel.setMouseTransparent(true);
+            mapPane.getChildren().add(inventoryLabel);
+        }
         fenceRowVisuals.put(fenceRow.id(), new FenceRowVisual(
                 fenceLine,
                 dividers,
                 inventoryLabel,
                 null,
-                null
+                null,
+                splitHandles
         ));
         if (isSelected(fenceRow) && !mapLayoutLocked) {
             addFenceRowEndpointHandles(fenceRow, fenceLine, dividers, inventoryLabel);
         }
+    }
+
+    private void markFenceDragNode(Node node) {
+        node.getProperties().put(FENCE_DRAG_NODE_KEY, Boolean.TRUE);
+    }
+
+    private boolean isFenceDragTarget(Object target) {
+        Node node = target instanceof Node targetNode ? targetNode : null;
+        while (node != null) {
+            if (Boolean.TRUE.equals(node.getProperties().get(FENCE_DRAG_NODE_KEY))) {
+                return true;
+            }
+            node = node.getParent();
+        }
+        return false;
     }
 
     private void addFenceRowEndpointHandles(
@@ -4638,6 +4725,8 @@ public class PlaaniseppApp extends Application {
         Circle endHandle = shapePointHandle(end, Color.web(fenceRow.colorHex()));
         startHandle.setCursor(Cursor.HAND);
         endHandle.setCursor(Cursor.HAND);
+        markFenceDragNode(startHandle);
+        markFenceDragNode(endHandle);
         Tooltip.install(startHandle, new Tooltip(fenceEndpointTooltip(fenceRow, true)));
         Tooltip.install(endHandle, new Tooltip(fenceEndpointTooltip(fenceRow, false)));
         makeFenceRowStartDraggable(startHandle, endHandle, fenceRow, fenceLine, dividers, inventoryLabel);
@@ -4657,9 +4746,12 @@ public class PlaaniseppApp extends Application {
                 dividers,
                 inventoryLabel,
                 startHandle,
-                endHandle
+                endHandle,
+                fenceRowVisuals.get(fenceRow.id()).splitHandles()
         ));
         mapPane.getChildren().addAll(startHandle, endHandle);
+        fenceInteractionNodes.add(startHandle);
+        fenceInteractionNodes.add(endHandle);
     }
 
     private String fenceEndpointTooltip(FenceRow fenceRow, boolean startEndpoint) {
@@ -4689,7 +4781,37 @@ public class PlaaniseppApp extends Application {
             plan.disconnectFenceEndpoint(fenceRow, startEndpoint);
             refreshEditedShapeObject();
         });
-        showContextMenu(new ContextMenu(continueItem, disconnectItem), owner, screenX, screenY);
+        MenuItem removeJointItem = new MenuItem("Eemalda ühenduspunkt");
+        removeJointItem.setDisable(
+                mapLayoutLocked || fenceRow.locked() || !plan.canRemoveFenceJoint(jointId)
+        );
+        removeJointItem.setOnAction(event -> {
+            FenceRow joinedRow = plan.removeFenceJoint(jointId);
+            selectedObject = joinedRow;
+            refreshEditedShapeObject();
+        });
+        showContextMenu(
+                new ContextMenu(continueItem, disconnectItem, removeJointItem),
+                owner,
+                screenX,
+                screenY
+        );
+    }
+
+    private void showFenceSplitContextMenu(
+            FenceRow fenceRow,
+            int segmentIndex,
+            Node owner,
+            double screenX,
+            double screenY
+    ) {
+        MenuItem addJointItem = new MenuItem("Lisa ühenduspunkt");
+        addJointItem.setDisable(mapLayoutLocked || fenceRow.locked());
+        addJointItem.setOnAction(event -> {
+            plan.splitFenceRow(fenceRow, segmentIndex, planFactory.newId());
+            refreshEditedShapeObject();
+        });
+        showContextMenu(new ContextMenu(addJointItem), owner, screenX, screenY);
     }
 
     private void startConnectedFenceRow(FenceRow template, boolean startEndpoint) {
@@ -4714,8 +4836,16 @@ public class PlaaniseppApp extends Application {
             Label inventoryLabel
     ) {
         final boolean[] dragged = {false};
+        final Delta dragStartScene = new Delta();
+        final Position[] dragStartPosition = {null};
         endHandle.setOnMousePressed(event -> {
             dragged[0] = false;
+            dragStartScene.x = event.getSceneX();
+            dragStartScene.y = event.getSceneY();
+            dragStartPosition[0] = plan.findFenceJoint(fenceRow.endJointId())
+                    .map(FenceJoint::position)
+                    .orElse(fenceRow.endPosition(pixelsPerMeter()));
+            mapScrollPane.setPannable(false);
             event.consume();
         });
         endHandle.setOnMouseDragged(event -> {
@@ -4723,14 +4853,18 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
-            Point2D point = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-            if (plan.moveFenceEndpoint(fenceRow, false, new Position(point.getX(), point.getY()))) {
+            Position target = new Position(
+                    dragStartPosition[0].x() + (event.getSceneX() - dragStartScene.x) / zoomLevel,
+                    dragStartPosition[0].y() + (event.getSceneY() - dragStartScene.y) / zoomLevel
+            );
+            if (plan.moveFenceEndpoint(fenceRow, false, target)) {
                 updateFenceNetworkDragPreview(fenceRow);
                 dragged[0] = true;
             }
             event.consume();
         });
         endHandle.setOnMouseReleased(event -> {
+            mapScrollPane.setPannable(true);
             if (dragged[0]) {
                 refreshEditedShapeObject();
             }
@@ -4755,8 +4889,16 @@ public class PlaaniseppApp extends Application {
             Label inventoryLabel
     ) {
         final boolean[] dragged = {false};
+        final Delta dragStartScene = new Delta();
+        final Position[] dragStartPosition = {null};
         startHandle.setOnMousePressed(event -> {
             dragged[0] = false;
+            dragStartScene.x = event.getSceneX();
+            dragStartScene.y = event.getSceneY();
+            dragStartPosition[0] = plan.findFenceJoint(fenceRow.startJointId())
+                    .map(FenceJoint::position)
+                    .orElse(fenceRow.position());
+            mapScrollPane.setPannable(false);
             event.consume();
         });
         startHandle.setOnMouseDragged(event -> {
@@ -4764,14 +4906,18 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
-            Point2D point = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-            if (plan.moveFenceEndpoint(fenceRow, true, new Position(point.getX(), point.getY()))) {
+            Position target = new Position(
+                    dragStartPosition[0].x() + (event.getSceneX() - dragStartScene.x) / zoomLevel,
+                    dragStartPosition[0].y() + (event.getSceneY() - dragStartScene.y) / zoomLevel
+            );
+            if (plan.moveFenceEndpoint(fenceRow, true, target)) {
                 updateFenceNetworkDragPreview(fenceRow);
                 dragged[0] = true;
             }
             event.consume();
         });
         startHandle.setOnMouseReleased(event -> {
+            mapScrollPane.setPannable(true);
             if (dragged[0]) {
                 refreshEditedShapeObject();
             }
@@ -4815,16 +4961,23 @@ public class PlaaniseppApp extends Application {
         double perpendicularY = Math.cos(angle) * 6;
         double segmentLengthPixels = fenceRow.segmentLengthMeters() * pixelsPerMeter();
         for (int index = 0; index < visual.dividers().size(); index++) {
-            double x = start.x() + Math.cos(angle) * segmentLengthPixels * (index + 1);
-            double y = start.y() + Math.sin(angle) * segmentLengthPixels * (index + 1);
+            double x = start.x() + Math.cos(angle) * segmentLengthPixels * index;
+            double y = start.y() + Math.sin(angle) * segmentLengthPixels * index;
             Line divider = visual.dividers().get(index);
             divider.setStartX(x - perpendicularX);
             divider.setStartY(y - perpendicularY);
             divider.setEndX(x + perpendicularX);
             divider.setEndY(y + perpendicularY);
+            int splitHandleIndex = index - 1;
+            if (splitHandleIndex >= 0 && splitHandleIndex < visual.splitHandles().size()) {
+                visual.splitHandles().get(splitHandleIndex).setCenterX(x);
+                visual.splitHandles().get(splitHandleIndex).setCenterY(y);
+            }
         }
-        visual.inventoryLabel().setLayoutX((start.x() + end.x()) / 2 + 8);
-        visual.inventoryLabel().setLayoutY((start.y() + end.y()) / 2 + 28);
+        if (visual.inventoryLabel() != null) {
+            visual.inventoryLabel().setLayoutX((start.x() + end.x()) / 2 + 8);
+            visual.inventoryLabel().setLayoutY((start.y() + end.y()) / 2 + 28);
+        }
     }
 
     private void addAreaMidpointHandles(AreaObject object, Polygon polygon) {
@@ -5369,6 +5522,7 @@ public class PlaaniseppApp extends Application {
 
     private void makeDraggable(Node node, PlannerObject object) {
         final Delta dragDelta = new Delta();
+        final boolean[] fenceDragged = {false};
         node.setOnMousePressed(event -> {
             if (event.getButton() != MouseButton.PRIMARY || measuringActive || addingCablePoint) {
                 return;
@@ -5378,7 +5532,11 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
-            selectObject(object);
+            if (object instanceof FenceRow) {
+                selectFenceRowForDrag(object);
+            } else {
+                selectObject(object);
+            }
             if (mapLayoutLocked) {
                 event.consume();
                 return;
@@ -5386,8 +5544,10 @@ public class PlaaniseppApp extends Application {
             beginPlanDrag();
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
             if (object instanceof FenceRow) {
-                dragDelta.x = mapPoint.getX();
-                dragDelta.y = mapPoint.getY();
+                fenceDragged[0] = false;
+                mapScrollPane.setPannable(false);
+                dragDelta.x = event.getSceneX();
+                dragDelta.y = event.getSceneY();
             } else {
                 dragDelta.x = mapPoint.getX() - object.position().x();
                 dragDelta.y = mapPoint.getY() - object.position().y();
@@ -5401,30 +5561,56 @@ public class PlaaniseppApp extends Application {
             if (object.locked()) {
                 return;
             }
-            Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
             if (object instanceof FenceRow fenceRow) {
                 boolean moved = plan.translateFenceNetwork(
                         fenceRow.id(),
-                        mapPoint.getX() - dragDelta.x,
-                        mapPoint.getY() - dragDelta.y
+                        (event.getSceneX() - dragDelta.x) / zoomLevel,
+                        (event.getSceneY() - dragDelta.y) / zoomLevel
                 );
-                dragDelta.x = mapPoint.getX();
-                dragDelta.y = mapPoint.getY();
+                dragDelta.x = event.getSceneX();
+                dragDelta.y = event.getSceneY();
                 if (!moved) {
                     event.consume();
                     return;
                 }
+                fenceDragged[0] = true;
+                updateFenceNetworkDragPreview(fenceRow);
             } else {
+                Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
                 object.moveTo(object.position().moveTo(
                         mapPoint.getX() - dragDelta.x,
                         mapPoint.getY() - dragDelta.y
                 ));
+                redrawMap();
             }
-            redrawMap();
             refreshSummary();
             recordPlanDragChange();
             event.consume();
         });
+        node.setOnMouseReleased(event -> {
+            if (object instanceof FenceRow) {
+                mapScrollPane.setPannable(true);
+                if (fenceDragged[0]) {
+                    redrawMap();
+                    refreshDetails();
+                }
+                event.consume();
+            }
+        });
+    }
+
+    private void selectFenceRowForDrag(PlannerObject object) {
+        if (selectedObject != null && selectedObject.id().equals(object.id())) {
+            return;
+        }
+        if (selectedObject != null && !updatingDetailControls) {
+            commitPendingDetailFieldsBeforeSelectionChange();
+        }
+        selectedObject = object;
+        clearObjectSearchIfItHides(object);
+        refreshDetails();
+        revealObjectInObjectList(object);
+        revealObjectInPowerSummary(object);
     }
 
     private void showObjectContextMenu(PlannerObject object, double screenX, double screenY) {
@@ -5514,11 +5700,19 @@ public class PlaaniseppApp extends Application {
     }
 
     private void setObjectHidden(PlannerObject object, boolean hidden) {
-        object.setHidden(hidden);
+        if (object instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setHidden(hidden));
+        } else {
+            object.setHidden(hidden);
+        }
         redrawMap();
         refreshObjectList();
         updateRevealObjectButton();
         markDirty();
+    }
+
+    private void setObjectHidden(ObjectListItem item, boolean hidden) {
+        setObjectHidden(item.object(), hidden);
     }
 
     private void selectObject(PlannerObject object) {
@@ -5620,7 +5814,7 @@ public class PlaaniseppApp extends Application {
         }
         ObjectListEntry target = objectList.getItems().stream()
                 .filter(entry -> !entry.isGroup())
-                .filter(entry -> entry.objectItem().object().id().equals(object.id()))
+                .filter(entry -> objectListEntryRepresents(entry, object))
                 .findFirst()
                 .orElseGet(() -> objectList.getItems().stream()
                         .filter(ObjectListEntry::isGroup)
@@ -5631,6 +5825,18 @@ public class PlaaniseppApp extends Application {
             selectSidebarItem(objectList, target, objectListSection);
             updateRevealObjectButton();
         }
+    }
+
+    private boolean objectListEntryRepresents(ObjectListEntry entry, PlannerObject object) {
+        PlannerObject listedObject = entry.objectItem().object();
+        if (listedObject.id().equals(object.id())) {
+            return true;
+        }
+        if (!(listedObject instanceof FenceRow listedFence) || !(object instanceof FenceRow fenceRow)) {
+            return false;
+        }
+        return plan.fenceNetworkRows(listedFence.id()).stream()
+                .anyMatch(candidate -> candidate.id().equals(fenceRow.id()));
     }
 
     private Optional<SummaryListItem> findPowerSummaryItem(String hierarchyKey) {
@@ -5810,6 +6016,7 @@ public class PlaaniseppApp extends Application {
         areaColorPicker.setDisable(!areaSelected);
         areaOpacitySlider.setDisable(!areaSelected);
         lineColorPicker.setDisable(!lineSelected);
+        fenceColorPicker.setDisable(!fenceRowSelected);
         lineWidthSlider.setDisable(!lineSelected);
         fenceSegmentCountField.setDisable(!fenceGeometryEditable);
         fenceSegmentLengthField.setDisable(!fenceGeometryEditable);
@@ -6029,6 +6236,7 @@ public class PlaaniseppApp extends Application {
             fenceSegmentLengthField.setText(formatMeters(fenceRow.segmentLengthMeters()));
             fenceRotationField.setText(formatDegrees(fenceRow.rotationDegrees()));
             refreshFenceRowLengthLabel(fenceRow);
+            fenceColorPicker.setValue(Color.web(fenceRow.colorHex()));
             cableLengthNotesField.clear();
             cableNotesField.clear();
         } else if (selectedObject instanceof LineObject lineObject) {
@@ -6203,7 +6411,11 @@ public class PlaaniseppApp extends Application {
         if (selectedObject == null) {
             return;
         }
-        selectedObject.setLocked(lockedCheckBox.isSelected());
+        if (selectedObject instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setLocked(lockedCheckBox.isSelected()));
+        } else {
+            selectedObject.setLocked(lockedCheckBox.isSelected());
+        }
         redrawMap();
         markDirty();
     }
@@ -6212,7 +6424,12 @@ public class PlaaniseppApp extends Application {
         if (selectedObject == null || selectedObject instanceof TextObject) {
             return;
         }
-        selectedObject.setShowMapLabel(showMapLabelCheckBox.isSelected());
+        if (selectedObject instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id())
+                    .forEach(row -> row.setShowMapLabel(showMapLabelCheckBox.isSelected()));
+        } else {
+            selectedObject.setShowMapLabel(showMapLabelCheckBox.isSelected());
+        }
         redrawMap();
         markDirty();
     }
@@ -6274,7 +6491,11 @@ public class PlaaniseppApp extends Application {
         if (selectedObject.notes().equals(notes)) {
             return;
         }
-        selectedObject.setNotes(notes);
+        if (selectedObject instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setNotes(notes));
+        } else {
+            selectedObject.setNotes(notes);
+        }
         if (selectedObject instanceof TextObject) {
             redrawMap();
         }
@@ -6353,7 +6574,11 @@ public class PlaaniseppApp extends Application {
                 || selectedObject.name().equals(nameField.getText())) {
             return;
         }
-        selectedObject.rename(nameField.getText());
+        if (selectedObject instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.rename(nameField.getText()));
+        } else {
+            selectedObject.rename(nameField.getText());
+        }
         finishAutoAppliedDetailsChange(false);
     }
 
@@ -6365,7 +6590,11 @@ public class PlaaniseppApp extends Application {
         if (selectedObject.groupName().equals(groupName)) {
             return;
         }
-        selectedObject.setGroupName(groupName);
+        if (selectedObject instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setGroupName(groupName));
+        } else {
+            selectedObject.setGroupName(groupName);
+        }
         finishAutoAppliedDetailsChange(true);
     }
 
@@ -6477,6 +6706,9 @@ public class PlaaniseppApp extends Application {
             areaObject.setColorHex(toHex(areaColorPicker.getValue()));
         } else if (selectedObject instanceof LineObject lineObject) {
             lineObject.setColorHex(toHex(lineColorPicker.getValue()));
+        } else if (selectedObject instanceof FenceRow fenceRow) {
+            String colorHex = toHex(fenceColorPicker.getValue());
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setColorHex(colorHex));
         }
         finishAutoAppliedDetailsChange(before, false);
     }
@@ -6530,7 +6762,39 @@ public class PlaaniseppApp extends Application {
 
     private void copyObject(PlannerObject object) {
         copiedObject = copyObjectAt(object, object.position(), object.name());
+        copiedFenceNetwork = object instanceof FenceRow fenceRow
+                ? createFenceNetworkClipboard(fenceRow)
+                : null;
         keyboardPasteCount = 0;
+    }
+
+    private FenceNetworkClipboard createFenceNetworkClipboard(FenceRow selectedRow) {
+        Position origin = selectedRow.position();
+        List<FenceRow> rows = plan.fenceNetworkRows(selectedRow.id());
+        Map<String, Position> relativeJoints = new HashMap<>();
+        rows.stream()
+                .flatMap(row -> java.util.stream.Stream.of(row.startJointId(), row.endJointId()))
+                .distinct()
+                .forEach(jointId -> plan.findFenceJoint(jointId).ifPresent(joint ->
+                        relativeJoints.put(jointId, new Position(
+                                joint.position().x() - origin.x(),
+                                joint.position().y() - origin.y()
+                        ))));
+        List<FenceRowClipboard> copiedRows = rows.stream()
+                .map(row -> new FenceRowClipboard(
+                        row.name(),
+                        row.groupName(),
+                        row.notes(),
+                        row.showMapLabel(),
+                        row.segmentCount(),
+                        row.segmentLengthMeters(),
+                        row.colorHex(),
+                        row.widthPixels(),
+                        row.startJointId(),
+                        row.endJointId()
+                ))
+                .toList();
+        return new FenceNetworkClipboard(relativeJoints, copiedRows);
     }
 
     private void pasteCopiedObjectWithOffset() {
@@ -6552,6 +6816,10 @@ public class PlaaniseppApp extends Application {
             showMapLayoutLockedMessage();
             return;
         }
+        if (copiedFenceNetwork != null) {
+            pasteCopiedFenceNetwork(position);
+            return;
+        }
 
         PlannerObject copy = copyObjectAt(copiedObject, position, duplicateName(copiedObject));
         if (copy == null) {
@@ -6561,6 +6829,42 @@ public class PlaaniseppApp extends Application {
         plan.addObject(copy);
         refreshGroupFilters();
         selectObject(copy);
+        refreshSummary();
+        markDirty();
+    }
+
+    private void pasteCopiedFenceNetwork(Position position) {
+        Map<String, String> pastedJointIds = new HashMap<>();
+        copiedFenceNetwork.relativeJoints().forEach((sourceJointId, relativePosition) ->
+                pastedJointIds.put(sourceJointId, plan.createFenceJoint(new Position(
+                        position.x() + relativePosition.x(),
+                        position.y() + relativePosition.y()
+                ))));
+        List<FenceRow> pastedRows = new ArrayList<>();
+        String pastedName = duplicateName(copiedObject);
+        for (FenceRowClipboard copiedRow : copiedFenceNetwork.rows()) {
+            Position startPosition = plan.findFenceJoint(pastedJointIds.get(copiedRow.startJointId()))
+                    .orElseThrow()
+                    .position();
+            FenceRow pastedRow = new FenceRow(planFactory.newId(), pastedName, startPosition);
+            pastedRow.setGroupName(copiedRow.groupName());
+            pastedRow.setNotes(copiedRow.notes());
+            pastedRow.setShowMapLabel(copiedRow.showMapLabel());
+            pastedRow.setSegmentCount(copiedRow.segmentCount());
+            pastedRow.setSegmentLengthMeters(copiedRow.segmentLengthMeters());
+            pastedRow.setColorHex(copiedRow.colorHex());
+            pastedRow.setWidthPixels(copiedRow.widthPixels());
+            plan.addObject(pastedRow);
+            pastedRow.setJointIds(
+                    pastedJointIds.get(copiedRow.startJointId()),
+                    pastedJointIds.get(copiedRow.endJointId())
+            );
+            pastedRows.add(pastedRow);
+        }
+        FenceRow firstRow = pastedRows.getFirst();
+        plan.setFenceRowJoints(firstRow, firstRow.startJointId(), firstRow.endJointId());
+        refreshGroupFilters();
+        selectObject(firstRow);
         refreshSummary();
         markDirty();
     }
@@ -6676,7 +6980,10 @@ public class PlaaniseppApp extends Application {
             showMapLayoutLockedMessage();
             return;
         }
-        if (selectedObject.locked()) {
+        boolean lockedSelection = selectedObject instanceof FenceRow fenceRow
+                ? plan.fenceNetworkRows(fenceRow.id()).stream().anyMatch(PlannerObject::locked)
+                : selectedObject.locked();
+        if (lockedSelection) {
             showError("Objekti ei kustutatud", "Eemalda enne lukustus ja proovi uuesti.");
             return;
         }
@@ -6684,7 +6991,14 @@ public class PlaaniseppApp extends Application {
             return;
         }
 
-        plan.removeObject(selectedObject.id());
+        if (selectedObject instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id()).stream()
+                    .map(PlannerObject::id)
+                    .toList()
+                    .forEach(plan::removeObject);
+        } else {
+            plan.removeObject(selectedObject.id());
+        }
         selectedObject = null;
         pendingPowerSourceConsumer = null;
         refreshGroupFilters();
@@ -6706,6 +7020,10 @@ public class PlaaniseppApp extends Application {
 
     private String deleteConfirmationText(PlannerObject object) {
         List<String> warnings = new ArrayList<>();
+        if (object instanceof FenceRow fenceRow) {
+            int partCount = plan.fenceNetworkRows(fenceRow.id()).size();
+            warnings.add("Kogu ühendatud aiarada (%d osa) kustutatakse.".formatted(partCount));
+        }
         if (object instanceof EquipmentContainer container && !container.equipment().isEmpty()) {
             warnings.add("Objekti seadmed kustutatakse samuti.");
         }
@@ -8752,12 +9070,33 @@ public class PlaaniseppApp extends Application {
         launch(args);
     }
 
+    private record FenceNetworkClipboard(
+            Map<String, Position> relativeJoints,
+            List<FenceRowClipboard> rows
+    ) {
+    }
+
+    private record FenceRowClipboard(
+            String name,
+            String groupName,
+            String notes,
+            boolean showMapLabel,
+            int segmentCount,
+            double segmentLengthMeters,
+            String colorHex,
+            double widthPixels,
+            String startJointId,
+            String endJointId
+    ) {
+    }
+
     private record FenceRowVisual(
             Line fenceLine,
             List<Line> dividers,
             Label inventoryLabel,
             Circle startHandle,
-            Circle endHandle
+            Circle endHandle,
+            List<Circle> splitHandles
     ) {
     }
 

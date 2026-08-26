@@ -125,6 +125,7 @@ public class PlanFileService {
         properties.setProperty("layers.showMarkerObjects", Boolean.toString(plan.showMarkerObjects()));
         properties.setProperty("layers.showAreaObjects", Boolean.toString(plan.showAreaObjects()));
         properties.setProperty("layers.showLineObjects", Boolean.toString(plan.showLineObjects()));
+        properties.setProperty("layers.showFenceInventoryLabels", Boolean.toString(plan.showFenceInventoryLabels()));
         properties.setProperty("hiddenGroups.count", Integer.toString(plan.hiddenGroups().size()));
 
         properties.setProperty("checklist.count", Integer.toString(plan.checklistItems().size()));
@@ -231,6 +232,7 @@ public class PlanFileService {
         plan.setShowMarkerObjects(booleanValue(properties, "layers.showMarkerObjects", true));
         plan.setShowAreaObjects(booleanValue(properties, "layers.showAreaObjects", true));
         plan.setShowLineObjects(booleanValue(properties, "layers.showLineObjects", true));
+        plan.setShowFenceInventoryLabels(booleanValue(properties, "layers.showFenceInventoryLabels", true));
 
         int checklistCount = intValue(properties, "checklist.count", 0);
         for (int index = 0; index < checklistCount; index++) {

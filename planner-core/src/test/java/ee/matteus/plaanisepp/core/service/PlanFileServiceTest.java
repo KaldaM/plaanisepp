@@ -150,6 +150,7 @@ class PlanFileServiceTest {
         fenceRow.setRotationDegrees(42);
         fenceRow.setColorHex("#334155");
         fenceRow.setWidthPixels(6);
+        plan.setShowFenceInventoryLabels(false);
         plan.addObject(fenceRow);
         FenceRow continuation = new FenceRow("fence-2", "Jätk", fenceRow.endPosition(plan.pixelsPerMeter()));
         plan.addObject(continuation);
@@ -165,6 +166,7 @@ class PlanFileServiceTest {
         assertEquals(42, loadedRow.rotationDegrees());
         assertEquals("#334155", loadedRow.colorHex());
         assertEquals(6, loadedRow.widthPixels());
+        assertEquals(false, loadedPlan.showFenceInventoryLabels());
         FenceRow loadedContinuation = (FenceRow) loadedPlan.findObject("fence-2").orElseThrow();
         assertEquals(loadedRow.endJointId(), loadedContinuation.startJointId());
     }

@@ -218,6 +218,86 @@ class FenceRowTest {
         }
     }
 
+    @Test
+    void splitsAndRejoinsStraightFenceRowAtPhysicalSegmentBoundary() {
+        EventPlan plan = new EventPlan("Jagatav aiarida");
+        plan.setPixelsPerMeter(10);
+        FenceRow row = new FenceRow("first", "Peasissepääs", new Position(10, 20));
+        row.setSegmentCount(5);
+        row.setRotationDegrees(30);
+        plan.addObject(row);
+        String originalStartJointId = row.startJointId();
+        String originalEndJointId = row.endJointId();
+
+        FenceRow continuation = plan.splitFenceRow(row, 2, "second");
+
+        assertEquals(2, row.segmentCount());
+        assertEquals(3, continuation.segmentCount());
+        assertEquals(row.endJointId(), continuation.startJointId());
+        assertEquals(originalStartJointId, row.startJointId());
+        assertEquals(originalEndJointId, continuation.endJointId());
+        assertEquals(2, plan.fenceNetworkRows(row.id()).size());
+        assertEquals(true, plan.canRemoveFenceJoint(row.endJointId()));
+
+        FenceRow joined = plan.removeFenceJoint(row.endJointId());
+
+        assertEquals(5, joined.segmentCount());
+        assertEquals(1, plan.fenceNetworkRows(joined.id()).size());
+        assertEquals(2, plan.fenceJoints().size());
+        assertEquals(17.5, joined.totalLengthMeters(), 0.0001);
+    }
+
+    @Test
+    void removingCornerJointConnectsItsTwoNeighbouringPoints() {
+        EventPlan plan = new EventPlan("Nurgaga aiarida");
+        plan.setPixelsPerMeter(10);
+        FenceRow first = fenceRow("first", new Position(0, 0), 0);
+        FenceRow second = fenceRow("second", first.endPosition(plan.pixelsPerMeter()), 90);
+        plan.addObject(first);
+        plan.addObject(second);
+        plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
+
+        String sharedJointId = first.endJointId();
+        Position firstOuter = first.position();
+        Position secondOuter = second.endPosition(plan.pixelsPerMeter());
+
+        assertEquals(true, plan.canRemoveFenceJoint(sharedJointId));
+        FenceRow joined = plan.removeFenceJoint(sharedJointId);
+
+        assertPositionEquals(firstOuter, joined.position());
+        assertPositionEquals(secondOuter, joined.endPosition(plan.pixelsPerMeter()));
+        assertEquals(3, joined.segmentCount());
+        assertEquals(1, plan.fenceNetworkRows(joined.id()).size());
+    }
+
+    @Test
+    void repeatedSharedJointMovesNeverChangePhysicalFenceLengthsOrProduceInvalidCoordinates() {
+        EventPlan plan = new EventPlan("Stabiilne aiavõrk");
+        plan.setPixelsPerMeter(10);
+        FenceRow top = fenceRow("top", new Position(0, 0), 0);
+        FenceRow right = fenceRow("right", new Position(70, 0), 90);
+        FenceRow bottom = fenceRow("bottom", new Position(70, 70), 180);
+        FenceRow left = fenceRow("left", new Position(0, 70), -90);
+        plan.addObject(top);
+        plan.addObject(right);
+        plan.addObject(bottom);
+        plan.addObject(left);
+        plan.setFenceRowJoints(right, top.endJointId(), right.endJointId());
+        plan.setFenceRowJoints(bottom, right.endJointId(), bottom.endJointId());
+        plan.setFenceRowJoints(left, bottom.endJointId(), top.startJointId());
+
+        for (int index = 0; index < 50; index++) {
+            plan.moveFenceEndpoint(top, false, new Position(70 + index * 6, 20 - index * 4));
+            for (FenceRow row : List.of(top, right, bottom, left)) {
+                assertEquals(3.5, row.segmentLengthMeters(), 0.000001);
+                assertEquals(true, Double.isFinite(row.position().x()));
+                assertEquals(true, Double.isFinite(row.position().y()));
+                assertEquals(true, Math.abs(row.position().x()) < 10_000);
+                assertEquals(true, Math.abs(row.position().y()) < 10_000);
+            }
+        }
+    }
+
     private double distance(Position first, Position second) {
         return Math.hypot(second.x() - first.x(), second.y() - first.y());
     }

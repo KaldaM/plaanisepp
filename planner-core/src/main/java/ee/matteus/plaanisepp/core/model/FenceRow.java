@@ -131,6 +131,11 @@ public class FenceRow extends PlannerObject {
         setSegmentLengthMeters(lengthMeters / segmentCount);
     }
 
+    void alignDirectionToEndpoints(Position start, Position end) {
+        moveToIgnoringLock(start);
+        setRotationDegrees(Math.toDegrees(Math.atan2(end.y() - start.y(), end.x() - start.x())));
+    }
+
     public void rotateEndToward(Position target) {
         if (locked()) {
             return;

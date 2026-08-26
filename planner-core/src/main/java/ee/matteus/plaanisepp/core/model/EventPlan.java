@@ -45,6 +45,7 @@ public class EventPlan {
     private boolean showMarkerObjects = true;
     private boolean showAreaObjects = true;
     private boolean showLineObjects = true;
+    private boolean showFenceInventoryLabels = true;
 
     public EventPlan(String name) {
         this.name = name;
@@ -331,8 +332,11 @@ public class EventPlan {
                 .map(FenceRow.class::cast)
                 .filter(candidate -> rowIds.contains(candidate.id()))
                 .toList();
+        Map<String, Position> originalPositions = fenceJoints.stream()
+                .filter(joint -> jointIds.contains(joint.id()))
+                .collect(Collectors.toMap(FenceJoint::id, FenceJoint::position));
         findFenceJoint(pinnedJointId).orElseThrow().moveTo(target);
-        for (int iteration = 0; iteration < 80; iteration++) {
+        for (int iteration = 0; iteration < 240; iteration++) {
             double largestError = 0;
             for (FenceRow networkRow : networkRows) {
                 FenceJoint start = findFenceJoint(networkRow.startJointId()).orElseThrow();
@@ -372,8 +376,31 @@ public class EventPlan {
                 break;
             }
         }
-        synchronizeFenceRows(pixelsPerMeter);
+        double remainingError = networkRows.stream()
+                .mapToDouble(networkRow -> {
+                    Position start = findFenceJoint(networkRow.startJointId()).orElseThrow().position();
+                    Position end = findFenceJoint(networkRow.endJointId()).orElseThrow().position();
+                    double actualLength = Math.hypot(end.x() - start.x(), end.y() - start.y());
+                    return Math.abs(actualLength - networkRow.totalLengthMeters() * pixelsPerMeter);
+                })
+                .max()
+                .orElse(0);
+        if (!Double.isFinite(remainingError) || remainingError > 0.05) {
+            originalPositions.forEach((jointId, position) ->
+                    findFenceJoint(jointId).orElseThrow().moveTo(position));
+            alignFenceRowsKeepingLengths(networkRows);
+            return false;
+        }
+        alignFenceRowsKeepingLengths(networkRows);
         return true;
+    }
+
+    private void alignFenceRowsKeepingLengths(List<FenceRow> rows) {
+        for (FenceRow row : rows) {
+            FenceJoint start = findFenceJoint(row.startJointId()).orElseThrow();
+            FenceJoint end = findFenceJoint(row.endJointId()).orElseThrow();
+            row.alignDirectionToEndpoints(start.position(), end.position());
+        }
     }
 
     public boolean applyFenceRowGeometry(FenceRow row) {
@@ -432,6 +459,114 @@ public class EventPlan {
                 .filter(candidate -> jointIds.contains(candidate.startJointId())
                         || jointIds.contains(candidate.endJointId()))
                 .forEach(candidate -> collectFenceNetwork(candidate, rowIds, jointIds));
+    }
+
+    public List<FenceRow> fenceNetworkRows(String fenceRowId) {
+        FenceRow startRow = findObject(fenceRowId)
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .orElseThrow();
+        Set<String> rowIds = new HashSet<>();
+        Set<String> jointIds = new HashSet<>();
+        collectFenceNetwork(startRow, rowIds, jointIds);
+        return objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .filter(row -> rowIds.contains(row.id()))
+                .toList();
+    }
+
+    public boolean isFenceNetworkRepresentative(FenceRow row) {
+        return fenceNetworkRows(row.id()).getFirst().id().equals(row.id());
+    }
+
+    public FenceRow splitFenceRow(FenceRow row, int segmentIndex, String newRowId) {
+        if (row.locked() || segmentIndex < 1 || segmentIndex >= row.segmentCount()) {
+            throw new IllegalArgumentException("Ühenduspunkti saab lisada ainult aiaraja sisemisele piirile.");
+        }
+        int originalSegmentCount = row.segmentCount();
+        String originalEndJointId = row.endJointId();
+        double angle = Math.toRadians(row.rotationDegrees());
+        double splitDistancePixels = segmentIndex * row.segmentLengthMeters() * pixelsPerMeter;
+        Position splitPosition = new Position(
+                row.position().x() + Math.cos(angle) * splitDistancePixels,
+                row.position().y() + Math.sin(angle) * splitDistancePixels
+        );
+        String splitJointId = createFenceJoint(splitPosition);
+        FenceRow continuation = new FenceRow(newRowId, row.name(), splitPosition);
+        continuation.setSegmentCount(originalSegmentCount - segmentIndex);
+        continuation.setSegmentLengthMeters(row.segmentLengthMeters());
+        continuation.setRotationDegrees(row.rotationDegrees());
+        continuation.setColorHex(row.colorHex());
+        continuation.setWidthPixels(row.widthPixels());
+        continuation.setGroupName(row.groupName());
+        continuation.setNotes(row.notes());
+        continuation.setHidden(row.hidden());
+        continuation.setShowMapLabel(row.showMapLabel());
+        addObject(continuation);
+        row.setSegmentCount(segmentIndex);
+        row.setJointIds(row.startJointId(), splitJointId);
+        continuation.setJointIds(splitJointId, originalEndJointId);
+        removeUnusedFenceJoints();
+        synchronizeFenceRows(pixelsPerMeter);
+        return continuation;
+    }
+
+    public boolean canRemoveFenceJoint(String jointId) {
+        List<FenceRow> incidentRows = fenceRowsAtJoint(jointId);
+        if (incidentRows.size() != 2 || incidentRows.stream().anyMatch(PlannerObject::locked)) {
+            return false;
+        }
+        FenceRow first = incidentRows.get(0);
+        FenceRow second = incidentRows.get(1);
+        Position firstOuter = outerFenceJointPosition(first, jointId);
+        Position secondOuter = outerFenceJointPosition(second, jointId);
+        return Math.hypot(
+                secondOuter.x() - firstOuter.x(),
+                secondOuter.y() - firstOuter.y()
+        ) > 0.0001;
+    }
+
+    public FenceRow removeFenceJoint(String jointId) {
+        if (!canRemoveFenceJoint(jointId)) {
+            throw new IllegalArgumentException("Seda ühenduspunkti ei saa naaberpunkte ühendades eemaldada.");
+        }
+        List<FenceRow> incidentRows = fenceRowsAtJoint(jointId);
+        FenceRow survivor = incidentRows.get(0);
+        FenceRow removed = incidentRows.get(1);
+        String survivorOuterJointId = outerFenceJointId(survivor, jointId);
+        String removedOuterJointId = outerFenceJointId(removed, jointId);
+        Position survivorOuter = findFenceJoint(survivorOuterJointId).orElseThrow().position();
+        Position removedOuter = findFenceJoint(removedOuterJointId).orElseThrow().position();
+        double directLengthMeters = Math.hypot(
+                removedOuter.x() - survivorOuter.x(),
+                removedOuter.y() - survivorOuter.y()
+        ) / pixelsPerMeter;
+        survivor.setSegmentCount(Math.max(
+                1,
+                (int) Math.round(directLengthMeters / survivor.segmentLengthMeters())
+        ));
+        survivor.setJointIds(survivorOuterJointId, removedOuterJointId);
+        objects.remove(removed);
+        removeUnusedFenceJoints();
+        synchronizeFenceRows(pixelsPerMeter);
+        return survivor;
+    }
+
+    private List<FenceRow> fenceRowsAtJoint(String jointId) {
+        return objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .filter(row -> row.startJointId().equals(jointId) || row.endJointId().equals(jointId))
+                .toList();
+    }
+
+    private String outerFenceJointId(FenceRow row, String sharedJointId) {
+        return row.startJointId().equals(sharedJointId) ? row.endJointId() : row.startJointId();
+    }
+
+    private Position outerFenceJointPosition(FenceRow row, String sharedJointId) {
+        return findFenceJoint(outerFenceJointId(row, sharedJointId)).orElseThrow().position();
     }
 
     public void migrateLegacyFenceConnections() {
@@ -579,6 +714,14 @@ public class EventPlan {
 
     public void setShowLineObjects(boolean showLineObjects) {
         this.showLineObjects = showLineObjects;
+    }
+
+    public boolean showFenceInventoryLabels() {
+        return showFenceInventoryLabels;
+    }
+
+    public void setShowFenceInventoryLabels(boolean showFenceInventoryLabels) {
+        this.showFenceInventoryLabels = showFenceInventoryLabels;
     }
 
     public Optional<PowerConnection> connectToPower(String sourceId, String consumerId, ConnectorType connectorType) {
