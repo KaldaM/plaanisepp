@@ -2942,7 +2942,11 @@ public class PlaaniseppApp extends Application {
     private boolean previewSelectedObjectOpacity(Slider slider, double percentage) {
         double opacity = percentage / 100.0;
         if (slider == selectedObjectOpacitySlider && selectedObject != null) {
-            selectedObject.setOpacity(opacity);
+            if (selectedObject instanceof FenceRow fenceRow) {
+                plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setOpacity(opacity));
+            } else {
+                selectedObject.setOpacity(opacity);
+            }
             return true;
         }
         if (slider == textObjectTextOpacitySlider && selectedObject instanceof TextObject textObject) {
@@ -4138,10 +4142,61 @@ public class PlaaniseppApp extends Application {
                 drawCustomObject(customObject);
             }
         }
+        drawSelectedObjectHighlight();
         fenceInteractionNodes.forEach(Node::toFront);
         powerConnectionAnchorMarkers.forEach(Node::toFront);
         drawPendingShapePreview();
         mapPane.getChildren().addAll(measurementNodes);
+    }
+
+    private void drawSelectedObjectHighlight() {
+        if (selectedObject == null || !isObjectVisibleOnMap(selectedObject)) {
+            return;
+        }
+        Color highlightColor = Color.web("#7c3aed");
+        if (selectedObject instanceof Tent tent) {
+            Rectangle outline = new Rectangle(
+                    tent.position().x(), tent.position().y(),
+                    metersToPixels(tent.widthMeters()), metersToPixels(tent.heightMeters())
+            );
+            outline.setRotate(tent.rotationDegrees());
+            addSelectionOutline(outline, highlightColor);
+        } else if (selectedObject instanceof CustomObject object) {
+            double width = metersToPixels(object.widthMeters());
+            double height = metersToPixels(object.heightMeters());
+            javafx.scene.shape.Shape outline = object.shape() == CustomObjectShape.CIRCLE
+                    ? new Circle(object.position().x(), object.position().y(), width / 2)
+                    : new Rectangle(object.position().x() - width / 2, object.position().y() - height / 2, width, height);
+            outline.setRotate(object.rotationDegrees());
+            addSelectionOutline(outline, highlightColor);
+        } else if (selectedObject instanceof AreaObject object) {
+            Polygon outline = new Polygon();
+            object.points().forEach(point -> outline.getPoints().addAll(point.x(), point.y()));
+            addSelectionOutline(outline, highlightColor);
+        } else if (selectedObject instanceof LineObject object) {
+            Polyline outline = CablePolylineHelper.create(object.points());
+            outline.setStrokeWidth(2);
+            addSelectionOutline(outline, Color.web(object.colorHex()));
+        } else if (selectedObject instanceof FenceRow fenceRow) {
+            for (FenceRow row : plan.fenceNetworkRows(fenceRow.id())) {
+                Position end = row.endPosition(pixelsPerMeter());
+                Line outline = new Line(row.position().x(), row.position().y(), end.x(), end.y());
+                outline.setStrokeWidth(2);
+                addSelectionOutline(outline, Color.web(row.colorHex()));
+            }
+        } else if (selectedObject instanceof PowerSource source) {
+            addSelectionOutline(new Circle(source.position().x(), source.position().y(), 16), highlightColor);
+        } else if (selectedObject instanceof MarkerObject marker) {
+            addSelectionOutline(new Rectangle(marker.position().x() - 2, marker.position().y() - 2, 32, 32), highlightColor);
+        }
+    }
+
+    private void addSelectionOutline(javafx.scene.shape.Shape outline, Color color) {
+        outline.setFill(Color.TRANSPARENT);
+        outline.setStroke(color);
+        outline.setStrokeWidth(Math.max(2, outline.getStrokeWidth()));
+        outline.setMouseTransparent(true);
+        mapPane.getChildren().add(outline);
     }
 
     private void drawPendingShapePreview() {
@@ -4286,7 +4341,8 @@ public class PlaaniseppApp extends Application {
         Polyline line = CablePolylineHelper.create(path);
         line.setStroke(cableColor);
         line.setStrokeWidth(strokeWidth);
-        line.setOpacity(plan.cableOpacity(cable.connection().id()) * (selectedCable ? 1.0 : 0.85));
+        double cableOpacity = plan.cableOpacity(cable.connection().id());
+        line.setOpacity(cableOpacity * (selectedCable ? 1.0 : 0.85));
         line.setMouseTransparent(true);
         if (cable.connection().connectorType() == ConnectorType.SCHUKO_230V) {
             line.getStrokeDashArray().addAll(8.0, 6.0);
@@ -4333,6 +4389,7 @@ public class PlaaniseppApp extends Application {
                 marker.setFill(Color.WHITE);
                 marker.setStroke(cableColor);
                 marker.setStrokeWidth(2);
+                marker.setOpacity(cableOpacity);
                 Tooltip.install(marker, new Tooltip("Lohista punkti muutmiseks, paremklõps avab valikud"));
                 makeCableSelectable(marker, cable.consumer());
                 makeCableRoutePointDraggable(marker, cable, index, line, highlightLine, hitLine, distanceLabel);
@@ -4344,6 +4401,7 @@ public class PlaaniseppApp extends Application {
                 anchorMarker.setFill(Color.web("#fef3c7"));
                 anchorMarker.setStroke(Color.web("#111827"));
                 anchorMarker.setStrokeWidth(2);
+                anchorMarker.setOpacity(cableOpacity);
                 Tooltip.install(anchorMarker, new Tooltip("Lohista voolu ühenduspunkti, paremklõps lähtestab"));
                 makePowerConnectionAnchorDraggable(
                         anchorMarker,
@@ -4968,6 +5026,7 @@ public class PlaaniseppApp extends Application {
                 Circle splitHandle = new Circle(x, y, 6, Color.TRANSPARENT);
                 splitHandle.setStroke(Color.web(fenceRow.colorHex(), 0.65));
                 splitHandle.setStrokeWidth(1.5);
+                splitHandle.setOpacity(fenceRow.opacity());
                 splitHandle.setCursor(Cursor.HAND);
                 markFenceDragNode(splitHandle);
                 makeDraggable(splitHandle, fenceRow);
@@ -5052,8 +5111,8 @@ public class PlaaniseppApp extends Application {
         Tooltip.install(endHandle, new Tooltip(fenceEndpointTooltip(fenceRow, false)));
         makeFenceRowStartDraggable(startHandle, endHandle, fenceRow, fenceLine, dividers, inventoryLabel);
         makeFenceRowEndDraggable(startHandle, endHandle, fenceRow, fenceLine, dividers, inventoryLabel);
-        startHandle.setOpacity(plan.fenceJointDegree(fenceRow.startJointId()) > 1 ? 0.55 : 1.0);
-        endHandle.setOpacity(plan.fenceJointDegree(fenceRow.endJointId()) > 1 ? 0.55 : 1.0);
+        startHandle.setOpacity(fenceRow.opacity() * (plan.fenceJointDegree(fenceRow.startJointId()) > 1 ? 0.55 : 1.0));
+        endHandle.setOpacity(fenceRow.opacity() * (plan.fenceJointDegree(fenceRow.endJointId()) > 1 ? 0.55 : 1.0));
         startHandle.setOnContextMenuRequested(event -> {
             showFenceEndpointContextMenu(fenceRow, true, startHandle, event.getScreenX(), event.getScreenY());
             event.consume();
@@ -5670,7 +5729,11 @@ public class PlaaniseppApp extends Application {
                 -fx-background-radius: 4;
                 -fx-border-radius: 4;
                 -fx-padding: 4 7 5 7;
-                """.formatted(0.88 * object.opacity(), cssRgba(object.colorHex(), object.opacity()), isSelected(object) ? "2" : "1"));
+                """.formatted(
+                object.opacity(),
+                isSelected(object) ? object.colorHex() : cssRgba(object.colorHex(), object.opacity()),
+                isSelected(object) ? "2" : "1"
+        ));
 
         Label titleLabel = new Label(object.name());
         titleLabel.setWrapText(true);
