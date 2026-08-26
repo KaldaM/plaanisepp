@@ -410,7 +410,7 @@ Kõlarite ja muu PA-tehnika eelseadistustel peab samuti olema sisseehitatud vaik
 
 Eelseadistused peavad kasutama sama objektide, seadmete ja elektriühenduste mudelit nagu käsitsi loodud objektid. Need ei tohi luua eraldi, ainult kaardil nähtavat paralleelmudelit.
 
-Esimene eelseadistus on teostatud: **Red Bull DJ Truck** lisatakse tavalise telgiobjektina vaikimisi 6 × 2,2 m mõõtudega. Nime, grupi, värvi ja mõõte saab lisamisel samamoodi muuta nagu telgil ning objekt töötab olemasoleva seadmete ja vooluühenduste töövooga. Vaikimisi elektrivõimsust ei lisata enne kinnitatud tehniliste andmete saamist.
+Esimene eelseadistus on teostatud: **Red Bull DJ Truck** lisatakse tavalise telgiobjektina vaikimisi 6 × 2,2 m mõõtudega ja 1000 W „DJ Trucki põhitoite” seadmega. Võimsus on esialgne testväärtus ning tuleb tegelike tehniliste andmete selgumisel üle kontrollida. Nime, grupi, värvi, mõõte ja seadme võimsust saab muuta nagu tavalisel telgil. DJ Trucki eelseadistus säilib pärast salvestamist, avamist ja kopeerimist ning kaardil on sellel sinine täide, punane ääris ja „DJ” tähis.
 
 ## 13. Aedade planeerimise tööriist
 

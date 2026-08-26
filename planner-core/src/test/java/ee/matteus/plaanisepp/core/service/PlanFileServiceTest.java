@@ -16,6 +16,7 @@ import ee.matteus.plaanisepp.core.model.PowerConnection;
 import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.Tent;
+import ee.matteus.plaanisepp.core.model.TentPreset;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -458,6 +459,20 @@ class PlanFileServiceTest {
 
         Tent loadedTent = (Tent) loadedPlan.objects().getFirst();
         assertEquals(0.6, loadedTent.opacity(), 0.0001);
+    }
+
+    @Test
+    void savesAndLoadsTentPreset() throws IOException {
+        EventPlan plan = new EventPlan("DJ Truck");
+        Tent truck = new Tent("truck-1", "Red Bull DJ Truck", new Position(10, 20));
+        truck.setPreset(TentPreset.DJ_TRUCK);
+        plan.addObject(truck);
+        Path file = tempDirectory.resolve("dj-truck.pplan");
+
+        service.save(plan, file);
+
+        Tent loadedTruck = (Tent) service.load(file).objects().getFirst();
+        assertEquals(TentPreset.DJ_TRUCK, loadedTruck.preset());
     }
 
     @Test

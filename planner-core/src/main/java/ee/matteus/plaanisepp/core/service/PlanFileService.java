@@ -23,6 +23,7 @@ import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.TextObject;
 import ee.matteus.plaanisepp.core.model.Tent;
+import ee.matteus.plaanisepp.core.model.TentPreset;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -694,6 +695,7 @@ public class PlanFileService {
         properties.setProperty(prefix + "rotationDegrees", Double.toString(tent.rotationDegrees()));
         properties.setProperty(prefix + "colorHex", tent.colorHex());
         properties.setProperty(prefix + "opacity", Double.toString(tent.opacity()));
+        properties.setProperty(prefix + "preset", tent.preset().name());
         writeEquipment(properties, prefix, tent);
     }
 
@@ -863,6 +865,7 @@ public class PlanFileService {
         tent.setRotationDegrees(doubleValue(properties, prefix + "rotationDegrees", 0));
         tent.setColorHex(properties.getProperty(prefix + "colorHex", "#e74c3c"));
         tent.setOpacity(doubleValue(properties, prefix + "opacity", Tent.DEFAULT_OPACITY));
+        tent.setPreset(TentPreset.fromStorageValue(properties.getProperty(prefix + "preset")));
 
         readEquipment(properties, prefix, tent);
         return tent;

@@ -12,6 +12,7 @@ public class Tent extends PlannerObject implements EquipmentContainer {
     private double rotationDegrees;
     private String colorHex;
     private double opacity;
+    private TentPreset preset;
     private Position powerConnectionOffset = new Position(0, 0);
     private final List<Equipment> equipment = new ArrayList<>();
 
@@ -21,6 +22,7 @@ public class Tent extends PlannerObject implements EquipmentContainer {
         this.heightMeters = 3.0;
         this.colorHex = "#e74c3c";
         this.opacity = DEFAULT_OPACITY;
+        this.preset = TentPreset.STANDARD;
     }
 
     public double widthMeters() {
@@ -61,6 +63,14 @@ public class Tent extends PlannerObject implements EquipmentContainer {
 
     public void setOpacity(double opacity) {
         this.opacity = Math.max(0.0, Math.min(1.0, opacity));
+    }
+
+    public TentPreset preset() {
+        return preset;
+    }
+
+    public void setPreset(TentPreset preset) {
+        this.preset = preset == null ? TentPreset.STANDARD : preset;
     }
 
     @Override

@@ -26,6 +26,7 @@ import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.TextObject;
 import ee.matteus.plaanisepp.core.model.Tent;
+import ee.matteus.plaanisepp.core.model.TentPreset;
 import ee.matteus.plaanisepp.core.service.PlanFactory;
 import ee.matteus.plaanisepp.core.service.PlanSnapshot;
 import ee.matteus.plaanisepp.core.service.PlanSnapshotService;
@@ -42,6 +43,7 @@ import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.scene.Cursor;
+import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
@@ -97,6 +99,9 @@ import javafx.scene.shape.Line;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Polyline;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Text;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.scene.transform.Scale;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -162,6 +167,8 @@ public class PlaaniseppApp extends Application {
     private static final double DEFAULT_OBJECT_LIST_HEIGHT = 180.0;
     private static final double MIN_FONT_SIZE_PIXELS = 6.0;
     private static final double MAX_FONT_SIZE_PIXELS = 120.0;
+    private static final double DJ_TRUCK_LABEL_HEIGHT_METERS = 0.8;
+    private static final double MIN_DJ_TRUCK_LABEL_SIZE_PIXELS = 12.0;
     private static final String OBJECT_LIST_HEIGHT_PREFERENCE = "objectListHeight";
     private static final String FENCE_DRAG_NODE_KEY = "plaanisepp.fenceDragNode";
     private static final long DOUBLE_SHIFT_INTERVAL_NANOS = 500_000_000L;
@@ -3282,6 +3289,10 @@ public class PlaaniseppApp extends Application {
         tent.setColorHex(placementColorHexOrDefault(placementType));
         tent.setOpacity(pendingTentOpacityOrDefault());
         tent.setSizeMeters(pendingPlacementWidthMetersOrDefault(), pendingPlacementHeightMetersOrDefault());
+        if (placementType == PlacementType.DJ_TRUCK) {
+            tent.setPreset(TentPreset.DJ_TRUCK);
+            tent.addEquipment(new Equipment("DJ Trucki põhitoide", 1000));
+        }
         plan.addObject(tent);
         clearPendingPlacementDetails();
         pendingTentPlacement = false;
@@ -4735,19 +4746,40 @@ public class PlaaniseppApp extends Application {
                 widthPixels,
                 heightPixels
         );
-        rectangle.setRotate(tent.rotationDegrees());
-        rectangle.setTranslateX(rotationOffset.x());
-        rectangle.setTranslateY(rotationOffset.y());
         rectangle.setArcWidth(4);
         rectangle.setArcHeight(4);
-        rectangle.setFill(Color.web(tent.colorHex(), tent.opacity()));
-        rectangle.setStroke(Color.web("#222222"));
+        boolean djTruck = tent.preset() == TentPreset.DJ_TRUCK;
+        rectangle.setFill(Color.web(djTruck ? "#1d4ed8" : tent.colorHex(), tent.opacity()));
+        rectangle.setStroke(Color.web(djTruck ? "#dc2626" : "#222222"));
         rectangle.setStrokeWidth(isSelected(tent) ? 4 : 1);
         applyLockedStroke(rectangle, tent);
-        makeSelectable(rectangle, tent);
-        makeDraggable(rectangle, tent);
-
-        mapPane.getChildren().add(rectangle);
+        if (djTruck) {
+            Text label = new Text("DJ");
+            label.setFill(Color.web("#dc2626"));
+            double labelSize = Math.max(
+                    MIN_DJ_TRUCK_LABEL_SIZE_PIXELS,
+                    metersToPixels(DJ_TRUCK_LABEL_HEIGHT_METERS)
+            );
+            label.setFont(Font.font("System", FontWeight.BOLD, labelSize));
+            Bounds labelBounds = label.getLayoutBounds();
+            label.setX(tent.position().x() + (widthPixels - labelBounds.getWidth()) / 2 - labelBounds.getMinX());
+            label.setY(tent.position().y() + (heightPixels - labelBounds.getHeight()) / 2 - labelBounds.getMinY());
+            label.setMouseTransparent(true);
+            Group truck = new Group(rectangle, label);
+            truck.setRotate(tent.rotationDegrees());
+            truck.setTranslateX(rotationOffset.x());
+            truck.setTranslateY(rotationOffset.y());
+            makeSelectable(truck, tent);
+            makeDraggable(truck, tent);
+            mapPane.getChildren().add(truck);
+        } else {
+            rectangle.setRotate(tent.rotationDegrees());
+            rectangle.setTranslateX(rotationOffset.x());
+            rectangle.setTranslateY(rotationOffset.y());
+            makeSelectable(rectangle, tent);
+            makeDraggable(rectangle, tent);
+            mapPane.getChildren().add(rectangle);
+        }
         addMapLabel(tent, tent.position().x(), tent.position().y() - 24);
     }
 
@@ -6836,6 +6868,9 @@ public class PlaaniseppApp extends Application {
     }
 
     private String objectTypeName(PlannerObject object) {
+        if (object instanceof Tent tent && tent.preset() == TentPreset.DJ_TRUCK) {
+            return "Red Bull DJ Truck";
+        }
         if (object instanceof Tent) {
             return "Telk";
         }
@@ -7178,6 +7213,7 @@ public class PlaaniseppApp extends Application {
             tentCopy.setRotationDegrees(tent.rotationDegrees());
             tentCopy.setColorHex(tent.colorHex());
             tentCopy.setOpacity(tent.opacity());
+            tentCopy.setPreset(tent.preset());
             copy = tentCopy;
         } else if (original instanceof PowerSource source) {
             PowerSource sourceCopy = original instanceof DistributionPanel
