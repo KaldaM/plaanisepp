@@ -400,7 +400,7 @@ Rakendusse lisatakse vaade või link „Versioonid”, mis kuvab vähemalt praeg
 
 Tag'ipõhine GitHub Actionsi Release-töövoog on teostatud ja kontrollitud väljalaskega `v0.1.1`: see ehitab GitHubi Windowsi runneril EXE-paigaldaja ning Linuxi runneril RPM-i ja iseseisva rakendusepildi arhiivi. Tag peab kattuma Gradle'i versiooniga ning töövoog lisab Release'i juurde ka `SHA256SUMS` kontrollsummad. Windowsi koostamisel paigaldatakse WiX 4.0.6 koos jpackage'i nõutud UI- ja Util-laiendustega.
 
-Rakenduse menüüs **Abi → Versioonid** on teostatud esimene kasutajaliidese etapp: paigaldatud versiooni näitav dialoog avab GitHub Releases'i lehe. Automaatne uue versiooni kontroll ja paketipõhine allalaadimine jäävad hilisemaks etapiks.
+Rakenduse menüüs **Abi → Versioonid** kuvatakse paigaldatud ja uusim avaldatud versioon ning säilib GitHub Releases'i lehe avamise võimalus. Paigaldatud versiooniga rakendus kontrollib käivitumisel taustal, kas GitHub Releasesis on uuem versioon. Sobiva paketi leidmisel saab kasutaja valida allalaadimise asukoha; fail salvestatakse esmalt ajutiselt, kontrollitakse Release'i avaldatud SHA-256 summaga ja tehakse alles siis kasutatavaks. Paigaldaja või allalaadimiskausta avamine toimub ainult kasutaja eraldi valikul.
 
 ## 12. PA-süsteemi objektieelseadistused
 

@@ -8,8 +8,14 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.regex.Matcher;
@@ -61,7 +67,18 @@ final class GitHubReleaseService {
             JsonNode root = objectMapper.readTree(responseBody);
             String tagName = requiredText(root, "tag_name");
             String releasePageUrl = requiredText(root, "html_url");
-            return new LatestRelease(ReleaseVersion.parse(tagName), URI.create(releasePageUrl));
+            JsonNode assetNodes = root.get("assets");
+            if (assetNodes == null || !assetNodes.isArray()) {
+                throw new IllegalArgumentException("GitHub Releasesi vastuses puudub assets.");
+            }
+            List<ReleaseAsset> assets = new ArrayList<>();
+            for (JsonNode asset : assetNodes) {
+                String name = requiredText(asset, "name");
+                String downloadUrl = requiredText(asset, "browser_download_url");
+                String digest = requiredText(asset, "digest");
+                assets.add(new ReleaseAsset(name, URI.create(downloadUrl), Sha256Digest.parse(digest)));
+            }
+            return new LatestRelease(ReleaseVersion.parse(tagName), URI.create(releasePageUrl), assets);
         } catch (JsonProcessingException | IllegalArgumentException exception) {
             throw new IllegalArgumentException("GitHub Releasesi vastust ei saanud lugeda.", exception);
         }
@@ -75,10 +92,78 @@ final class GitHubReleaseService {
         return node.asText();
     }
 
-    record LatestRelease(ReleaseVersion version, URI pageUrl) {
+    record LatestRelease(ReleaseVersion version, URI pageUrl, List<ReleaseAsset> assets) {
         LatestRelease {
             Objects.requireNonNull(version);
             Objects.requireNonNull(pageUrl);
+            assets = List.copyOf(assets);
+        }
+
+        Optional<ReleaseAsset> preferredAssetFor(Platform platform) {
+            return assets.stream()
+                    .filter(asset -> asset.matches(platform))
+                    .findFirst();
+        }
+    }
+
+    record ReleaseAsset(String name, URI downloadUrl, Sha256Digest digest) {
+        ReleaseAsset {
+            Objects.requireNonNull(name);
+            Objects.requireNonNull(downloadUrl);
+            Objects.requireNonNull(digest);
+        }
+
+        boolean matches(Platform platform) {
+            String lowercaseName = name.toLowerCase();
+            return switch (platform) {
+                case WINDOWS -> lowercaseName.endsWith(".exe");
+                case FEDORA_LINUX -> lowercaseName.endsWith(".rpm");
+                case OTHER_LINUX -> lowercaseName.endsWith(".tar.gz");
+                case UNSUPPORTED -> false;
+            };
+        }
+    }
+
+    enum Platform {
+        WINDOWS,
+        FEDORA_LINUX,
+        OTHER_LINUX,
+        UNSUPPORTED;
+
+        static Platform current() {
+            String operatingSystem = System.getProperty("os.name", "").toLowerCase();
+            if (operatingSystem.contains("win")) {
+                return WINDOWS;
+            }
+            if (!operatingSystem.contains("linux")) {
+                return UNSUPPORTED;
+            }
+            try {
+                String releaseData = Files.readString(Path.of("/etc/os-release")).toLowerCase();
+                return releaseData.contains("id=fedora") || releaseData.contains("id_like=fedora")
+                        ? FEDORA_LINUX
+                        : OTHER_LINUX;
+            } catch (IOException exception) {
+                return OTHER_LINUX;
+            }
+        }
+    }
+
+    record Sha256Digest(String value) {
+        private static final Pattern FORMAT = Pattern.compile("[0-9a-f]{64}");
+
+        Sha256Digest {
+            if (!FORMAT.matcher(value).matches()) {
+                throw new IllegalArgumentException("Vigane SHA-256 kontrollsumma.");
+            }
+        }
+
+        static Sha256Digest parse(String value) {
+            String normalizedValue = value == null ? "" : value.trim().toLowerCase();
+            if (normalizedValue.startsWith("sha256:")) {
+                normalizedValue = normalizedValue.substring("sha256:".length());
+            }
+            return new Sha256Digest(normalizedValue);
         }
     }
 

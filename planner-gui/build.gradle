@@ -31,7 +31,7 @@ application {
 def linuxAppName = applicationExecutableName
 def windowsAppName = applicationDisplayName
 def packagedMainClass = 'ee.matteus.plaanisepp.gui.PlaaniseppLauncher'
-def packagedJavaModules = 'javafx.controls,javafx.fxml,javafx.swing,java.logging,java.net.http,java.prefs,java.scripting,jdk.jfr,jdk.unsupported.desktop'
+def packagedJavaModules = 'java.desktop,javafx.controls,javafx.fxml,javafx.swing,java.logging,java.net.http,java.prefs,java.scripting,jdk.jfr,jdk.unsupported.desktop'
 def packageInputDirectory = layout.buildDirectory.dir('jpackage-input')
 def windowsPackageInputDirectory = layout.buildDirectory.dir('jpackage-input-windows')
 def linuxPackageDirectory = layout.buildDirectory.dir('jpackage')
