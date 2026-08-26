@@ -217,6 +217,7 @@ public class PlaaniseppApp extends Application {
     private boolean addingCablePoint;
     private String editingCableConnectionId;
     private String rotatingObjectId;
+    private RotationDragState rotationDragState;
     private boolean mapDraggedSincePress;
     private boolean planDragInProgress;
     private boolean planDragRecorded;
@@ -274,6 +275,8 @@ public class PlaaniseppApp extends Application {
     private CheckBox showMapLabelCheckBox;
     private Button resetMapLabelButton;
     private Slider selectedObjectOpacitySlider;
+    private Label generalRotationLabel;
+    private TextField generalRotationField;
     private TextField tentWidthField;
     private TextField tentHeightField;
     private TextField tentRotationField;
@@ -2607,6 +2610,8 @@ public class PlaaniseppApp extends Application {
         resetMapLabelButton.setOnAction(event -> resetSelectedMapLabelPosition());
         selectedObjectOpacitySlider = createOpacitySlider(100);
         configureOpacityPreview(selectedObjectOpacitySlider);
+        generalRotationLabel = new Label("Pööre °");
+        generalRotationField = new TextField();
         tentWidthField = new TextField();
         tentHeightField = new TextField();
         tentRotationField = new TextField();
@@ -2724,6 +2729,7 @@ public class PlaaniseppApp extends Application {
         baseForm.addRow(4, new Label("Kaardil"), showMapLabelCheckBox);
         baseForm.addRow(5, new Label("Nime asukoht"), resetMapLabelButton);
         baseForm.addRow(6, new Label("Läbipaistvus"), opacityControl(selectedObjectOpacitySlider));
+        baseForm.addRow(7, generalRotationLabel, generalRotationField);
 
         GridPane customObjectForm = detailGrid();
         customObjectForm.addRow(0, new Label("Kuju"), customObjectShapeComboBox);
@@ -2980,6 +2986,7 @@ public class PlaaniseppApp extends Application {
     private void configureAutoApplyingDetailControls() {
         configureTextCommit(nameField, this::autoApplySelectedName);
         configureTextCommit(groupField.getEditor(), this::autoApplySelectedGroup);
+        configureTextCommit(generalRotationField, this::autoApplyGeneralRotation);
         groupField.setOnAction(event -> autoApplySelectedGroup());
         configureTextCommit(tentWidthField, this::autoApplyTentSize);
         configureTextCommit(tentHeightField, this::autoApplyTentSize);
@@ -4150,7 +4157,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void drawSelectedObjectHighlight() {
-        if (selectedObject == null || !isObjectVisibleOnMap(selectedObject)) {
+        if (selectedObject == null || rotatingObjectId != null || !isObjectVisibleOnMap(selectedObject)) {
             return;
         }
         Color highlightColor = Color.web("#7c3aed");
@@ -4809,6 +4816,15 @@ public class PlaaniseppApp extends Application {
     private record PowerCableView(PlannerObject consumer, PowerSource source, PowerConnection connection) {
     }
 
+    private record RotationDragState(
+            String objectId,
+            Position center,
+            double pointerStartRotationDegrees,
+            double objectStartRotationDegrees,
+            List<Position> originalPoints
+    ) {
+    }
+
     private Image loadImage(String imagePath) {
         if (plan.hasPackagedMapImage()) {
             try (InputStream input = new ByteArrayInputStream(plan.packagedMapImage())) {
@@ -4898,6 +4914,7 @@ public class PlaaniseppApp extends Application {
         makeDraggable(circle, source);
 
         mapPane.getChildren().add(circle);
+        addRotationHandleIfActive(source, circle);
         addMapLabel(source, source.position().x() + 16, source.position().y() - 12);
     }
 
@@ -4929,15 +4946,13 @@ public class PlaaniseppApp extends Application {
 
         mapPane.getChildren().add(shape);
         addMapLabel(object, object.position().x() + 16, object.position().y() - 12);
-        if (object.shape() != CustomObjectShape.CIRCLE) {
-            addRotationHandleIfActive(
-                    object,
-                    object.position(),
-                    widthPixels,
-                    heightPixels,
-                    object.rotationDegrees()
-            );
-        }
+        addRotationHandleIfActive(
+                object,
+                object.position(),
+                widthPixels,
+                heightPixels,
+                object.rotationDegrees()
+        );
     }
 
     private void drawAreaObject(AreaObject object) {
@@ -4957,9 +4972,10 @@ public class PlaaniseppApp extends Application {
         makeDraggable(polygon, object);
 
         mapPane.getChildren().add(polygon);
+        addRotationHandleIfActive(object, polygon);
         Position labelPosition = averagePosition(object.points());
         addMapLabel(object, labelPosition.x() + 8, labelPosition.y() + 8);
-        if (isSelected(object) && !mapLayoutLocked) {
+        if (isSelected(object) && rotatingObjectId == null && !mapLayoutLocked) {
             addAreaMidpointHandles(object, polygon);
             addAreaPointHandles(object, polygon);
         }
@@ -4979,9 +4995,10 @@ public class PlaaniseppApp extends Application {
         makeDraggable(polyline, object);
 
         mapPane.getChildren().add(polyline);
+        addRotationHandleIfActive(object, polyline);
         Position labelPosition = averagePosition(object.points());
         addMapLabel(object, labelPosition.x() + 8, labelPosition.y() + 8);
-        if (isSelected(object) && !mapLayoutLocked) {
+        if (isSelected(object) && rotatingObjectId == null && !mapLayoutLocked) {
             addLineMidpointHandles(object, polyline);
             addLinePointHandles(object, polyline);
         }
@@ -5756,6 +5773,21 @@ public class PlaaniseppApp extends Application {
         makeSelectable(textBox, object);
         makeDraggable(textBox, object);
         mapPane.getChildren().add(textBox);
+        textBox.applyCss();
+        double textBoxWidth = Math.min(260, Math.max(1, textBox.prefWidth(-1)));
+        double textBoxHeight = Math.max(1, textBox.prefHeight(textBoxWidth));
+        textBox.resize(textBoxWidth, textBoxHeight);
+        textBox.setRotate(object.rotationDegrees());
+        addRotationHandleIfActive(
+                object,
+                new Position(
+                        object.position().x() + textBoxWidth / 2,
+                        object.position().y() + textBoxHeight / 2
+                ),
+                textBoxWidth,
+                textBoxHeight,
+                object.rotationDegrees()
+        );
     }
 
     private void drawMarkerObject(MarkerObject object) {
@@ -5769,8 +5801,10 @@ public class PlaaniseppApp extends Application {
         ));
         makeSelectable(markerIcon, object);
         makeDraggable(markerIcon, object);
+        markerIcon.setRotate(object.rotationDegrees());
 
         mapPane.getChildren().add(markerIcon);
+        addRotationHandleIfActive(object, markerIcon);
         addMapLabel(object, object.position().x() + 34, object.position().y() + 4);
     }
 
@@ -6052,8 +6086,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean supportsInteractiveRotation(PlannerObject object) {
-        return object instanceof Tent
-                || object instanceof CustomObject customObject && customObject.shape() != CustomObjectShape.CIRCLE;
+        return !(object instanceof FenceRow);
     }
 
     private boolean isObjectRotationActive(PlannerObject object) {
@@ -6088,6 +6121,14 @@ public class PlaaniseppApp extends Application {
             }
             mapScrollPane.setPannable(false);
             beginPlanDrag();
+            Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+            rotationDragState = new RotationDragState(
+                    object.id(),
+                    center,
+                    pointerRotationDegrees(mapPoint, center),
+                    object.rotationDegrees(),
+                    rotationPoints(object)
+            );
             event.consume();
         });
         handle.setOnMouseDragged(event -> {
@@ -6095,7 +6136,12 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-            double angle = Math.toDegrees(Math.atan2(mapPoint.getY() - center.y(), mapPoint.getX() - center.x())) + 90;
+            if (rotationDragState == null || !rotationDragState.objectId().equals(object.id())) {
+                return;
+            }
+            double pointerAngle = pointerRotationDegrees(mapPoint, center);
+            double angle = rotationDragState.objectStartRotationDegrees()
+                    + normalizeAngleDelta(pointerAngle - rotationDragState.pointerStartRotationDegrees());
             updateInteractiveRotationPreview(object, angle, center, handleDistance, guide, handle);
             recordPlanDragChange();
             event.consume();
@@ -6110,12 +6156,46 @@ public class PlaaniseppApp extends Application {
         mapPane.getChildren().addAll(guide, handle);
     }
 
-    private void setInteractiveRotation(PlannerObject object, double rotationDegrees) {
-        if (object instanceof Tent tent) {
-            tent.setRotationDegrees(rotationDegrees);
-        } else if (object instanceof CustomObject customObject) {
-            customObject.setRotationDegrees(rotationDegrees);
+    private void addRotationHandleIfActive(PlannerObject object, Node node) {
+        if (!isObjectRotationActive(object)) {
+            return;
         }
+        Bounds bounds = node.getBoundsInParent();
+        addRotationHandleIfActive(
+                object,
+                new Position((bounds.getMinX() + bounds.getMaxX()) / 2, (bounds.getMinY() + bounds.getMaxY()) / 2),
+                Math.max(16, bounds.getWidth()),
+                Math.max(16, bounds.getHeight()),
+                object.rotationDegrees()
+        );
+    }
+
+    private void setInteractiveRotation(PlannerObject object, double rotationDegrees) {
+        object.setRotationDegrees(rotationDegrees);
+    }
+
+    private double pointerRotationDegrees(Point2D point, Position center) {
+        return Math.toDegrees(Math.atan2(point.getY() - center.y(), point.getX() - center.x())) + 90;
+    }
+
+    private double normalizeAngleDelta(double degrees) {
+        double normalized = degrees % 360;
+        if (normalized > 180) {
+            normalized -= 360;
+        } else if (normalized < -180) {
+            normalized += 360;
+        }
+        return normalized;
+    }
+
+    private List<Position> rotationPoints(PlannerObject object) {
+        if (object instanceof AreaObject areaObject) {
+            return List.copyOf(areaObject.points());
+        }
+        if (object instanceof LineObject lineObject) {
+            return List.copyOf(lineObject.points());
+        }
+        return List.of();
     }
 
     private void updateInteractiveRotationPreview(
@@ -6128,7 +6208,25 @@ public class PlaaniseppApp extends Application {
     ) {
         setInteractiveRotation(object, rotationDegrees);
         Node mapObjectNode = mapObjectNodes.get(object.id());
-        if (mapObjectNode != null) {
+        if (rotationDragState != null && object instanceof AreaObject areaObject) {
+            List<Position> points = rotatePositions(
+                    rotationDragState.originalPoints(), center,
+                    rotationDegrees - rotationDragState.objectStartRotationDegrees()
+            );
+            areaObject.setPoints(points);
+            if (mapObjectNode instanceof Polygon polygon) {
+                replaceShapePoints(polygon.getPoints(), points);
+            }
+        } else if (rotationDragState != null && object instanceof LineObject lineObject) {
+            List<Position> points = rotatePositions(
+                    rotationDragState.originalPoints(), center,
+                    rotationDegrees - rotationDragState.objectStartRotationDegrees()
+            );
+            lineObject.setPoints(points);
+            if (mapObjectNode instanceof Polyline polyline) {
+                replaceShapePoints(polyline.getPoints(), points);
+            }
+        } else if (mapObjectNode != null) {
             mapObjectNode.setRotate(rotationDegrees);
         }
 
@@ -6142,6 +6240,25 @@ public class PlaaniseppApp extends Application {
         syncInteractiveRotationField(object, rotationDegrees);
     }
 
+    private List<Position> rotatePositions(List<Position> points, Position center, double degrees) {
+        double radians = Math.toRadians(degrees);
+        double sin = Math.sin(radians);
+        double cos = Math.cos(radians);
+        return points.stream().map(point -> {
+            double deltaX = point.x() - center.x();
+            double deltaY = point.y() - center.y();
+            return new Position(
+                    center.x() + deltaX * cos - deltaY * sin,
+                    center.y() + deltaX * sin + deltaY * cos
+            );
+        }).toList();
+    }
+
+    private void replaceShapePoints(javafx.collections.ObservableList<Double> coordinates, List<Position> points) {
+        coordinates.clear();
+        points.forEach(point -> coordinates.addAll(point.x(), point.y()));
+    }
+
     private void syncInteractiveRotationField(PlannerObject object, double rotationDegrees) {
         boolean wasUpdatingDetailControls = updatingDetailControls;
         updatingDetailControls = true;
@@ -6150,6 +6267,8 @@ public class PlaaniseppApp extends Application {
                 tentRotationField.setText(formatDegrees(rotationDegrees));
             } else if (object instanceof CustomObject) {
                 customObjectRotationField.setText(formatDegrees(rotationDegrees));
+            } else if (!(object instanceof FenceRow)) {
+                generalRotationField.setText(formatDegrees(rotationDegrees));
             }
         } finally {
             updatingDetailControls = wasUpdatingDetailControls;
@@ -6161,6 +6280,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
         rotatingObjectId = null;
+        rotationDragState = null;
         mapScrollPane.setPannable(true);
         refreshDetails();
         updateMapToolStatus();
@@ -6574,6 +6694,7 @@ public class PlaaniseppApp extends Application {
         boolean areaSelected = selectedObject instanceof AreaObject;
         boolean lineSelected = selectedObject instanceof LineObject;
         boolean fenceRowSelected = selectedObject instanceof FenceRow;
+        boolean generalRotationVisible = hasSelection && !tentSelected && !customObjectSelected && !fenceRowSelected;
         boolean fenceGeometryEditable = fenceRowSelected
                 && (plan.fenceJointDegree(((FenceRow) selectedObject).startJointId()) == 1
                 || plan.fenceJointDegree(((FenceRow) selectedObject).endJointId()) == 1);
@@ -6587,6 +6708,11 @@ public class PlaaniseppApp extends Application {
         boolean customMapLabelPosition = hasSelection && !textObjectSelected && selectedObject.customMapLabelPosition();
         resetMapLabelButton.setDisable(!customMapLabelPosition || mapLayoutLocked);
         selectedObjectOpacitySlider.setDisable(!hasSelection);
+        generalRotationLabel.setVisible(generalRotationVisible);
+        generalRotationLabel.setManaged(generalRotationVisible);
+        generalRotationField.setVisible(generalRotationVisible);
+        generalRotationField.setManaged(generalRotationVisible);
+        generalRotationField.setDisable(!generalRotationVisible);
         resetMapLabelButton.setTooltip(new Tooltip(mapLabelResetTooltip(hasSelection, textObjectSelected, customMapLabelPosition)));
         boolean lockedSelection = selectedObject != null && selectedObject.locked();
         deleteObjectButton.setDisable(!hasSelection || lockedSelection || mapLayoutLocked);
@@ -6695,6 +6821,7 @@ public class PlaaniseppApp extends Application {
             notesArea.clear();
             lockedCheckBox.setSelected(false);
             showMapLabelCheckBox.setSelected(false);
+            generalRotationField.clear();
             setOpacitySliderValue(selectedObjectOpacitySlider, 100);
             tentWidthField.clear();
             tentHeightField.clear();
@@ -6741,6 +6868,7 @@ public class PlaaniseppApp extends Application {
         lockedCheckBox.setSelected(selectedObject.locked());
         showMapLabelCheckBox.setSelected(selectedObject.showMapLabel());
         setOpacitySliderValue(selectedObjectOpacitySlider, selectedObject.opacity() * 100.0);
+        generalRotationField.setText(formatDegrees(selectedObject.rotationDegrees()));
         if (selectedObject instanceof Tent tent) {
             tentWidthField.setText(formatMeters(tent.widthMeters()));
             tentHeightField.setText(formatMeters(tent.heightMeters()));
@@ -7213,6 +7341,38 @@ public class PlaaniseppApp extends Application {
             selectedObject.setGroupName(groupName);
         }
         finishAutoAppliedDetailsChange(true);
+    }
+
+    private void autoApplyGeneralRotation() {
+        if (updatingDetailControls || selectedObject == null
+                || selectedObject instanceof Tent
+                || selectedObject instanceof CustomObject
+                || selectedObject instanceof FenceRow) {
+            return;
+        }
+        try {
+            double targetRotation = Double.parseDouble(generalRotationField.getText().trim().replace(',', '.'));
+            if (Double.compare(targetRotation, selectedObject.rotationDegrees()) == 0) {
+                return;
+            }
+            PlanSnapshot before = planSnapshotService.create(plan);
+            if (selectedObject instanceof AreaObject areaObject) {
+                Position center = averagePosition(areaObject.points());
+                areaObject.setPoints(rotatePositions(
+                        areaObject.points(), center, targetRotation - areaObject.rotationDegrees()
+                ));
+            } else if (selectedObject instanceof LineObject lineObject) {
+                Position center = averagePosition(lineObject.points());
+                lineObject.setPoints(rotatePositions(
+                        lineObject.points(), center, targetRotation - lineObject.rotationDegrees()
+                ));
+            }
+            selectedObject.setRotationDegrees(targetRotation);
+            finishAutoAppliedDetailsChange(before, false);
+        } catch (NumberFormatException exception) {
+            showError("Pööret ei muudetud", "Sisesta pööre arvuna kraadides.");
+            generalRotationField.setText(formatDegrees(selectedObject.rotationDegrees()));
+        }
     }
 
     private void autoApplyTentSize() {

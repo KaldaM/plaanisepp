@@ -666,6 +666,7 @@ public class PlanFileService {
         properties.setProperty(prefix + "mapLabelOffsetX", Double.toString(object.mapLabelOffset().x()));
         properties.setProperty(prefix + "mapLabelOffsetY", Double.toString(object.mapLabelOffset().y()));
         properties.setProperty(prefix + "opacity", Double.toString(object.opacity()));
+        properties.setProperty(prefix + "rotationDegrees", Double.toString(object.rotationDegrees()));
         if (object instanceof PowerConnectable connectable) {
             properties.setProperty(prefix + "powerConnectionOffsetX", Double.toString(connectable.powerConnectionOffset().x()));
             properties.setProperty(prefix + "powerConnectionOffsetY", Double.toString(connectable.powerConnectionOffset().y()));
@@ -810,6 +811,7 @@ public class PlanFileService {
         object.setHidden(Boolean.parseBoolean(properties.getProperty(prefix + "hidden", "false")));
         object.setShowMapLabel(Boolean.parseBoolean(properties.getProperty(prefix + "showMapLabel", "true")));
         object.setOpacity(doubleValue(properties, prefix + "opacity", 1.0));
+        object.setRotationDegrees(doubleValue(properties, prefix + "rotationDegrees", 0));
         if (Boolean.parseBoolean(properties.getProperty(prefix + "customMapLabelPosition", "false"))) {
             object.setMapLabelOffset(new Position(
                     doubleValue(properties, prefix + "mapLabelOffsetX", 0),
