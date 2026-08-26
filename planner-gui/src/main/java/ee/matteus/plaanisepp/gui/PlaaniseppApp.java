@@ -245,6 +245,8 @@ public class PlaaniseppApp extends Application {
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private final Map<String, Node> mapObjectNodes = new HashMap<>();
     private final Map<String, FenceRowVisual> fenceRowVisuals = new HashMap<>();
+    private final Map<String, List<Circle>> shapeMidpointHandles = new HashMap<>();
+    private javafx.scene.shape.Shape selectedObjectHighlight;
     private final List<Node> fenceInteractionNodes = new ArrayList<>();
     private Set<String> knownGroups = new HashSet<>();
     private ListView<SummaryListItem> summaryList;
@@ -4118,6 +4120,8 @@ public class PlaaniseppApp extends Application {
         mapPane.getChildren().clear();
         mapObjectNodes.clear();
         fenceRowVisuals.clear();
+        shapeMidpointHandles.clear();
+        selectedObjectHighlight = null;
         fenceInteractionNodes.clear();
         powerConnectionAnchorMarkers.clear();
         addMapImage();
@@ -4179,10 +4183,12 @@ public class PlaaniseppApp extends Application {
         } else if (selectedObject instanceof AreaObject object) {
             Polygon outline = new Polygon();
             object.points().forEach(point -> outline.getPoints().addAll(point.x(), point.y()));
+            selectedObjectHighlight = outline;
             addSelectionOutline(outline, highlightColor);
         } else if (selectedObject instanceof LineObject object) {
             Polyline outline = CablePolylineHelper.create(object.points());
             outline.setStrokeWidth(2);
+            selectedObjectHighlight = outline;
             addSelectionOutline(outline, Color.web(object.colorHex()));
         } else if (selectedObject instanceof FenceRow fenceRow) {
             for (FenceRow row : plan.fenceNetworkRows(fenceRow.id())) {
@@ -5382,6 +5388,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void addAreaMidpointHandles(AreaObject object, Polygon polygon) {
+        List<Circle> handles = new ArrayList<>();
         for (int index = 0; index < object.points().size(); index++) {
             Position start = object.points().get(index);
             Position end = object.points().get((index + 1) % object.points().size());
@@ -5389,10 +5396,13 @@ public class PlaaniseppApp extends Application {
             Tooltip.install(marker, new Tooltip("Lohista siit uue ala punkti lisamiseks"));
             makeAreaMidpointDraggable(marker, object, index + 1, polygon);
             mapPane.getChildren().add(marker);
+            handles.add(marker);
         }
+        shapeMidpointHandles.put(object.id(), handles);
     }
 
     private void addLineMidpointHandles(LineObject object, Polyline polyline) {
+        List<Circle> handles = new ArrayList<>();
         for (int index = 0; index < object.points().size() - 1; index++) {
             Position start = object.points().get(index);
             Position end = object.points().get(index + 1);
@@ -5400,7 +5410,9 @@ public class PlaaniseppApp extends Application {
             Tooltip.install(marker, new Tooltip("Lohista siit uue joone punkti lisamiseks"));
             makeLineMidpointDraggable(marker, object, index + 1, polyline);
             mapPane.getChildren().add(marker);
+            handles.add(marker);
         }
+        shapeMidpointHandles.put(object.id(), handles);
     }
 
     private void addAreaPointHandles(AreaObject object, Polygon polygon) {
@@ -5461,6 +5473,7 @@ public class PlaaniseppApp extends Application {
             marker.setCenterX(updatedPoint.x());
             marker.setCenterY(updatedPoint.y());
             updatePolygonPoint(polygon, pointIndex, updatedPoint);
+            updateShapeEditDecorations(object, true);
             refreshAreaMeasurements(object);
             dragged[0] = true;
             event.consume();
@@ -5510,6 +5523,7 @@ public class PlaaniseppApp extends Application {
             }
             marker.setCenterX(updatedPoint.x());
             marker.setCenterY(updatedPoint.y());
+            updateShapeHighlight(object);
             refreshAreaMeasurements(object);
             dragged[0] = true;
             event.consume();
@@ -5544,6 +5558,7 @@ public class PlaaniseppApp extends Application {
             marker.setCenterX(updatedPoint.x());
             marker.setCenterY(updatedPoint.y());
             updatePolylinePoint(polyline, pointIndex, updatedPoint);
+            updateShapeEditDecorations(object, false);
             refreshLineLengthLabel(object);
             dragged[0] = true;
             event.consume();
@@ -5593,6 +5608,7 @@ public class PlaaniseppApp extends Application {
             }
             marker.setCenterX(updatedPoint.x());
             marker.setCenterY(updatedPoint.y());
+            updateShapeHighlight(object);
             refreshLineLengthLabel(object);
             dragged[0] = true;
             event.consume();
@@ -5604,6 +5620,33 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseClicked(event -> event.consume());
+    }
+
+    private void updateShapeEditDecorations(PlannerObject object, boolean closedShape) {
+        updateShapeHighlight(object);
+        List<Position> points = object instanceof AreaObject areaObject
+                ? areaObject.points()
+                : object instanceof LineObject lineObject ? lineObject.points() : List.of();
+        List<Circle> handles = shapeMidpointHandles.getOrDefault(object.id(), List.of());
+        int segmentCount = closedShape ? points.size() : Math.max(0, points.size() - 1);
+        for (int index = 0; index < Math.min(segmentCount, handles.size()); index++) {
+            Position start = points.get(index);
+            Position end = points.get(closedShape ? (index + 1) % points.size() : index + 1);
+            Position center = midpoint(start, end);
+            handles.get(index).setCenterX(center.x());
+            handles.get(index).setCenterY(center.y());
+        }
+    }
+
+    private void updateShapeHighlight(PlannerObject object) {
+        List<Position> points = object instanceof AreaObject areaObject
+                ? areaObject.points()
+                : object instanceof LineObject lineObject ? lineObject.points() : List.of();
+        if (selectedObjectHighlight instanceof Polygon polygon && object instanceof AreaObject) {
+            replaceShapePoints(polygon.getPoints(), points);
+        } else if (selectedObjectHighlight instanceof Polyline polyline && object instanceof LineObject) {
+            replaceShapePoints(polyline.getPoints(), points);
+        }
     }
 
     private void showAreaPointContextMenu(
