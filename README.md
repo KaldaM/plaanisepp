@@ -104,3 +104,5 @@ git push origin v0.1.1
 ```
 
 Töövoog kontrollib, et tag ja Gradle'i versioon kattuvad, ning lisab GitHub Release'i külge Windowsi EXE-paigaldaja, Fedora RPM-i, Linuxi iseseisva rakendusepildi `.tar.gz` arhiivina ja nende `SHA256SUMS` kontrollsummad. Tõrke korral Release'i ei avaldata; tag'i parandamiseks tuleb luua uus versiooninumber ja uus tag.
+
+Rakenduses saab menüüst **Abi → Versioonid** vaadata paigaldatud versiooni ning avada GitHub Releases'i lehe.

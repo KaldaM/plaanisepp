@@ -130,6 +130,7 @@ public class PlaaniseppApp extends Application {
     private static final String DEFAULT_MAP_PATH = "classpath:/maps/tavakaart.png";
     private static final String ORTHOPHOTO_MAP_PATH = "classpath:/maps/ortofoto.png";
     private static final String APPLICATION_ICON_PATH = "/icons/plaanisepp.png";
+    private static final String GITHUB_RELEASES_URL = "https://github.com/KaldaM/plaanisepp/releases";
     private static final String SELECTED_OBJECT_SECTION = "selectedObject";
     private static final String OBJECT_LIST_SECTION = "objectList";
     private static final String CHECKLIST_SECTION = "checklist";
@@ -920,10 +921,17 @@ public class PlaaniseppApp extends Application {
 
         MenuItem shortcutsItem = new MenuItem("Klahvikombinatsioonid");
         shortcutsItem.setOnAction(event -> showKeyboardShortcuts());
+        MenuItem versionsItem = new MenuItem("Versioonid");
+        versionsItem.setOnAction(event -> showVersionsDialog());
         MenuItem aboutItem = new MenuItem("Plaanisepa kohta");
         aboutItem.setOnAction(event -> showAboutDialog());
         Menu helpMenu = new Menu("Abi");
-        helpMenu.getItems().addAll(shortcutsItem, new SeparatorMenuItem(), aboutItem);
+        helpMenu.getItems().addAll(
+                shortcutsItem,
+                versionsItem,
+                new SeparatorMenuItem(),
+                aboutItem
+        );
 
         updatePlanHistoryButtons();
         return new MenuBar(fileMenu, editMenu, viewMenu, helpMenu);
@@ -977,10 +985,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showAboutDialog() {
-        String implementationVersion = PlaaniseppApp.class.getPackage().getImplementationVersion();
-        String version = implementationVersion == null || implementationVersion.isBlank()
-                ? "arendusversioon"
-                : implementationVersion;
+        String version = applicationVersion();
         Alert dialog = new Alert(Alert.AlertType.INFORMATION);
         dialog.initOwner(stage);
         dialog.setTitle("Plaanisepa kohta");
@@ -992,6 +997,37 @@ public class PlaaniseppApp extends Application {
                 Java: %s
                 """.formatted(version, System.getProperty("java.version", "määramata")));
         dialog.showAndWait();
+    }
+
+    private void showVersionsDialog() {
+        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        dialog.initOwner(stage);
+        dialog.setTitle("Plaanisepa versioonid");
+        dialog.setHeaderText("Plaanisepp");
+        dialog.setContentText("Paigaldatud versioon: " + applicationVersion()
+                + "\n\nGitHub Releasesis on saadaval paigalduspaketid ja varasemad versioonid.");
+        ButtonType openReleasesButton = new ButtonType("Ava GitHub Releases");
+        dialog.getButtonTypes().setAll(openReleasesButton, ButtonType.CLOSE);
+        dialog.showAndWait().ifPresent(button -> {
+            if (button == openReleasesButton) {
+                openGitHubReleases();
+            }
+        });
+    }
+
+    private String applicationVersion() {
+        String implementationVersion = PlaaniseppApp.class.getPackage().getImplementationVersion();
+        return implementationVersion == null || implementationVersion.isBlank()
+                ? "arendusversioon"
+                : implementationVersion;
+    }
+
+    private void openGitHubReleases() {
+        try {
+            getHostServices().showDocument(GITHUB_RELEASES_URL);
+        } catch (RuntimeException exception) {
+            showError("GitHub Releasesi ei saanud avada.", exception.getMessage());
+        }
     }
 
     private ToolBar createToolbar() {
