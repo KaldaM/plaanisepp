@@ -2,6 +2,8 @@ package ee.matteus.plaanisepp.core.model;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -168,6 +170,56 @@ class FenceRowTest {
 
         assertEquals(false, plan.translateFenceNetwork(first.id(), 50, 50));
         assertEquals(originalPosition, first.position());
+    }
+
+    @Test
+    void movingSharedJointReshapesOpenNetworkWithoutChangingFenceLengths() {
+        EventPlan plan = new EventPlan("Murtud aiarida");
+        plan.setPixelsPerMeter(10);
+        FenceRow first = fenceRow("first", new Position(0, 0), 0);
+        FenceRow second = fenceRow("second", first.endPosition(plan.pixelsPerMeter()), 0);
+        plan.addObject(first);
+        plan.addObject(second);
+        plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
+
+        assertEquals(true, plan.moveFenceEndpoint(first, false, new Position(70, 35)));
+
+        assertPositionEquals(new Position(70, 35), first.endPosition(plan.pixelsPerMeter()));
+        assertPositionEquals(first.endPosition(plan.pixelsPerMeter()), second.position());
+        assertEquals(70, distance(first.position(), first.endPosition(plan.pixelsPerMeter())), 0.001);
+        assertEquals(70, distance(second.position(), second.endPosition(plan.pixelsPerMeter())), 0.001);
+    }
+
+    @Test
+    void movingClosedCornerKeepsEveryFenceLengthAndSharedConnections() {
+        EventPlan plan = new EventPlan("Muudetav ristkülik");
+        plan.setPixelsPerMeter(10);
+        FenceRow top = fenceRow("top", new Position(0, 0), 0);
+        FenceRow right = fenceRow("right", new Position(70, 0), 90);
+        FenceRow bottom = fenceRow("bottom", new Position(70, 70), 180);
+        FenceRow left = fenceRow("left", new Position(0, 70), -90);
+        plan.addObject(top);
+        plan.addObject(right);
+        plan.addObject(bottom);
+        plan.addObject(left);
+        plan.setFenceRowJoints(right, top.endJointId(), right.endJointId());
+        plan.setFenceRowJoints(bottom, right.endJointId(), bottom.endJointId());
+        plan.setFenceRowJoints(left, bottom.endJointId(), top.startJointId());
+
+        assertEquals(true, plan.moveFenceEndpoint(top, false, new Position(90, 20)));
+
+        assertPositionEquals(new Position(90, 20), top.endPosition(plan.pixelsPerMeter()));
+        assertPositionEquals(top.endPosition(plan.pixelsPerMeter()), right.position());
+        assertPositionEquals(right.endPosition(plan.pixelsPerMeter()), bottom.position());
+        assertPositionEquals(bottom.endPosition(plan.pixelsPerMeter()), left.position());
+        assertPositionEquals(left.endPosition(plan.pixelsPerMeter()), top.position());
+        for (FenceRow row : List.of(top, right, bottom, left)) {
+            assertEquals(70, distance(row.position(), row.endPosition(plan.pixelsPerMeter())), 0.01);
+        }
+    }
+
+    private double distance(Position first, Position second) {
+        return Math.hypot(second.x() - first.x(), second.y() - first.y());
     }
 
     private FenceRow fenceRow(String id, Position position, double rotationDegrees) {

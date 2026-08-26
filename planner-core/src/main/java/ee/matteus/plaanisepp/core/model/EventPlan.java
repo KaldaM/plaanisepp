@@ -295,7 +295,7 @@ public class EventPlan {
     public boolean moveFenceEndpoint(FenceRow row, boolean startEndpoint, Position target) {
         String movingJointId = startEndpoint ? row.startJointId() : row.endJointId();
         if (fenceJointDegree(movingJointId) > 1) {
-            return false;
+            return reshapeFenceNetwork(row, movingJointId, target);
         }
         FenceJoint fixed = findFenceJoint(startEndpoint ? row.endJointId() : row.startJointId()).orElseThrow();
         double deltaX = target.x() - fixed.position().x();
@@ -310,6 +310,68 @@ public class EventPlan {
                 fixed.position().y() + deltaY / distance * lengthPixels
         );
         findFenceJoint(movingJointId).orElseThrow().moveTo(constrained);
+        synchronizeFenceRows(pixelsPerMeter);
+        return true;
+    }
+
+    private boolean reshapeFenceNetwork(FenceRow startRow, String pinnedJointId, Position target) {
+        Set<String> rowIds = new HashSet<>();
+        Set<String> jointIds = new HashSet<>();
+        collectFenceNetwork(startRow, rowIds, jointIds);
+        boolean lockedNetwork = objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .filter(object -> rowIds.contains(object.id()))
+                .anyMatch(PlannerObject::locked);
+        if (lockedNetwork) {
+            return false;
+        }
+
+        List<FenceRow> networkRows = objects.stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .filter(candidate -> rowIds.contains(candidate.id()))
+                .toList();
+        findFenceJoint(pinnedJointId).orElseThrow().moveTo(target);
+        for (int iteration = 0; iteration < 80; iteration++) {
+            double largestError = 0;
+            for (FenceRow networkRow : networkRows) {
+                FenceJoint start = findFenceJoint(networkRow.startJointId()).orElseThrow();
+                FenceJoint end = findFenceJoint(networkRow.endJointId()).orElseThrow();
+                double requiredLength = networkRow.totalLengthMeters() * pixelsPerMeter;
+                double deltaX = end.position().x() - start.position().x();
+                double deltaY = end.position().y() - start.position().y();
+                double actualLength = Math.hypot(deltaX, deltaY);
+                largestError = Math.max(largestError, Math.abs(actualLength - requiredLength));
+                if (actualLength < 0.000001) {
+                    double angle = Math.toRadians(networkRow.rotationDegrees());
+                    deltaX = Math.cos(angle);
+                    deltaY = Math.sin(angle);
+                    actualLength = 1;
+                }
+                double correctionX = deltaX / actualLength * (requiredLength - actualLength);
+                double correctionY = deltaY / actualLength * (requiredLength - actualLength);
+                boolean startPinned = start.id().equals(pinnedJointId);
+                boolean endPinned = end.id().equals(pinnedJointId);
+                if (startPinned && !endPinned) {
+                    end.moveTo(new Position(end.position().x() + correctionX, end.position().y() + correctionY));
+                } else if (endPinned && !startPinned) {
+                    start.moveTo(new Position(start.position().x() - correctionX, start.position().y() - correctionY));
+                } else if (!startPinned && !endPinned) {
+                    start.moveTo(new Position(
+                            start.position().x() - correctionX / 2,
+                            start.position().y() - correctionY / 2
+                    ));
+                    end.moveTo(new Position(
+                            end.position().x() + correctionX / 2,
+                            end.position().y() + correctionY / 2
+                    ));
+                }
+            }
+            findFenceJoint(pinnedJointId).orElseThrow().moveTo(target);
+            if (largestError < 0.001) {
+                break;
+            }
+        }
         synchronizeFenceRows(pixelsPerMeter);
         return true;
     }

@@ -433,7 +433,7 @@ Eelseadistused peavad kasutama sama objektide, seadmete ja elektriühenduste mud
 
 Keeruliste kujude jaoks lisatakse generaatorid vähemalt sirgele reale, kaarele ja ringile. Ringi puhul sisestab kasutaja raadiuse ning vajaduse korral sissepääsuava laiuse ja asukoha. Näiteks kastironimise jaoks saab luua **8 m raadiusega** aiaringi, milles on määratud kohas osalejate sissepääsuava. Kuna 3,5 m sirged aiad ainult lähendavad ringjoont, peab rakendus enne loomist näitama lõikude arvu, tekkiva hulknurga tegelikku kuju ja kõrvalekallet soovitud raadiusest.
 
-Esimene sirge aiaraja etapp on teostatud. Aiarida on tavalise joone asemel omaette plaaniobjekt, mis säilitab lõikude arvu, ühe lõigu pikkuse, suuna ja alguspunkti. Kahe kaardiklõpsu vaheline pikkus ümardatakse lähima täisarvu 3,5 m lõikudeni; rida saab tervikuna liigutada ning lõikude piirid kuvatakse kaardil. Üksiklõikude ühendamine, lahtiühendamine ja rea otspunktide pikkust säilitav muutmine jäävad järgmisse etappi.
+Sirge ja murtud aiaraja põhietapp on teostatud. Aiarida on tavalise joone asemel omaette plaaniobjekt, mis säilitab lõikude arvu, ühe lõigu pikkuse ja kaks jagatavat ühenduspunkti. Kahe kaardiklõpsu vaheline pikkus ümardatakse lähima täisarvu 3,5 m lõikudeni; ridu saab otspunktidest ühendada ja lahti võtta ning terve ühendatud võrk liigub ühe tervikuna. Jagatud ühenduspunkti lohistamisel deformeerub võrk ilma ühe rea alguseks määramiseta ja iga aiarida säilitab oma füüsilise pikkuse. Üksikute 3,5 m lõikude eraldi identiteet, lisamine ja eemaldamine ning kaare- ja ringigeneraatorid jäävad järgmistesse etappidesse.
 
 ### Inventarikokkuvõte
 
