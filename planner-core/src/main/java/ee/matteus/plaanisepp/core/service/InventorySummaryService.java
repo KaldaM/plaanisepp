@@ -1,10 +1,8 @@
 package ee.matteus.plaanisepp.core.service;
 
-import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.InventoryContainer;
-import ee.matteus.plaanisepp.core.model.InventoryItem;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.Tent;
 
@@ -14,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 public final class InventorySummaryService {
     private final FenceInventoryService fenceInventoryService;
@@ -29,39 +26,40 @@ public final class InventorySummaryService {
 
     public Summary summarize(EventPlan plan) {
         int tentCount = (int) plan.objects().stream().filter(Tent.class::isInstance).count();
-        List<CustomObject> customObjects = plan.objects().stream()
-                .filter(CustomObject.class::isInstance)
-                .map(CustomObject.class::cast)
-                .toList();
-        Map<String, Long> otherCounts = customObjects.stream()
-                .collect(Collectors.groupingBy(
-                        PlannerObject::name,
-                        () -> new TreeMap<>(String.CASE_INSENSITIVE_ORDER),
-                        Collectors.counting()
-                ));
-        List<NamedItem> otherItems = new ArrayList<>();
-        otherCounts.forEach((name, count) -> otherItems.add(new NamedItem(name, Math.toIntExact(count))));
         FenceInventoryService.Summary fences = fenceInventoryService.summarize(plan);
         List<FenceStoneNetwork> fenceStoneNetworks = fences.byNetwork().stream()
                 .map(network -> fenceStoneNetwork(plan, network))
                 .toList();
         Map<String, Integer> inventoryCounts = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        Map<String, List<ObjectInventoryContribution>> inventoryContributions =
+                new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         plan.objects().stream()
                 .filter(InventoryContainer.class::isInstance)
-                .map(InventoryContainer.class::cast)
-                .flatMap(container -> container.inventoryItems().stream())
-                .filter(item -> !item.name().isBlank() && item.quantity() > 0)
-                .forEach(item -> inventoryCounts.merge(item.name(), item.quantity(), Integer::sum));
+                .forEach(object -> ((InventoryContainer) object).inventoryItems().stream()
+                        .filter(item -> !item.name().isBlank() && item.quantity() > 0)
+                        .forEach(item -> {
+                            inventoryCounts.merge(item.name(), item.quantity(), Integer::sum);
+                            inventoryContributions.computeIfAbsent(item.name(), ignored -> new ArrayList<>())
+                                    .add(new ObjectInventoryContribution(
+                                            object.id(), object.name(), objectTypeName(object), item.quantity()
+                                    ));
+                        }));
         List<NamedItem> objectInventoryItems = inventoryCounts.entrySet().stream()
                 .map(entry -> new NamedItem(entry.getKey(), entry.getValue()))
+                .toList();
+        List<ObjectInventoryGroup> objectInventoryGroups = inventoryCounts.entrySet().stream()
+                .map(entry -> new ObjectInventoryGroup(
+                        entry.getKey(), entry.getValue(), inventoryContributions.get(entry.getKey())
+                ))
                 .toList();
         return new Summary(
                 fences,
                 tentCount,
                 fenceStoneNetworks,
                 plan.standaloneGardenStoneCount(),
-                otherItems,
-                objectInventoryItems
+                List.of(),
+                objectInventoryItems,
+                objectInventoryGroups
         );
     }
 
@@ -99,12 +97,14 @@ public final class InventorySummaryService {
             List<FenceStoneNetwork> fenceStoneNetworks,
             int standaloneGardenStoneCount,
             List<NamedItem> otherCustomItems,
-            List<NamedItem> objectInventoryItems
+            List<NamedItem> objectInventoryItems,
+            List<ObjectInventoryGroup> objectInventoryGroups
     ) {
         public Summary {
             fenceStoneNetworks = List.copyOf(fenceStoneNetworks);
             otherCustomItems = List.copyOf(otherCustomItems);
             objectInventoryItems = List.copyOf(objectInventoryItems);
+            objectInventoryGroups = List.copyOf(objectInventoryGroups);
         }
 
         public boolean isEmpty() {
@@ -139,5 +139,33 @@ public final class InventorySummaryService {
     }
 
     public record NamedItem(String name, int count) {
+    }
+
+    public record ObjectInventoryGroup(
+            String name,
+            int totalCount,
+            List<ObjectInventoryContribution> contributions
+    ) {
+        public ObjectInventoryGroup {
+            contributions = List.copyOf(contributions);
+        }
+    }
+
+    public record ObjectInventoryContribution(
+            String objectId,
+            String objectName,
+            String objectType,
+            int quantity
+    ) {
+    }
+
+    private String objectTypeName(PlannerObject object) {
+        if (object instanceof Tent) {
+            return "Telk";
+        }
+        if (object instanceof ee.matteus.plaanisepp.core.model.AreaObject) {
+            return "Ala";
+        }
+        return "Objekt";
     }
 }

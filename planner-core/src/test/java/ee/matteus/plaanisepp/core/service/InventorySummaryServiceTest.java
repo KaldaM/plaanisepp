@@ -42,16 +42,20 @@ class InventorySummaryServiceTest {
         assertEquals(6, summary.automaticGardenStoneCount());
         assertEquals(0, summary.standaloneGardenStoneCount());
         assertEquals(6, summary.gardenStoneCount());
-        assertEquals(3, summary.otherCustomItems().size());
-        assertEquals(2, summary.otherCustomItems().stream()
-                .filter(item -> item.name().equals("Laud"))
-                .findFirst().orElseThrow().count());
+        assertTrue(summary.otherCustomItems().isEmpty());
         assertEquals(4, summary.objectInventoryItems().stream()
                 .filter(item -> item.name().equals("Telgiraskus"))
                 .findFirst().orElseThrow().count());
         assertEquals(2, summary.objectInventoryItems().stream()
                 .filter(item -> item.name().equals("Laud"))
                 .findFirst().orElseThrow().count());
+        InventorySummaryService.ObjectInventoryGroup weights = summary.objectInventoryGroups().stream()
+                .filter(item -> item.name().equals("Telgiraskus"))
+                .findFirst().orElseThrow();
+        assertEquals(4, weights.totalCount());
+        assertEquals(1, weights.contributions().size());
+        assertEquals("Telk", weights.contributions().getFirst().objectName());
+        assertEquals("Telk", weights.contributions().getFirst().objectType());
     }
 
     @Test

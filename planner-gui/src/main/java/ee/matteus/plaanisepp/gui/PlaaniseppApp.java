@@ -10673,12 +10673,20 @@ public class PlaaniseppApp extends Application {
         if (inventory.tentCount() > 0) {
             inventoryContent.getChildren().add(new Label("Telgid: %d tk".formatted(inventory.tentCount())));
         }
-        inventory.otherCustomItems().forEach(item -> inventoryContent.getChildren().add(
-                new Label("%s: %d tk".formatted(item.name(), item.count()))
-        ));
-        inventory.objectInventoryItems().forEach(item -> inventoryContent.getChildren().add(
-                new Label("%s: %d tk".formatted(item.name(), item.count()))
-        ));
+        inventory.objectInventoryGroups().forEach(group -> {
+            VBox details = new VBox(3);
+            group.contributions().forEach(contribution -> details.getChildren().add(
+                    inventoryDetailLabel("%s (%s): %d tk".formatted(
+                            contribution.objectName(), contribution.objectType(), contribution.quantity()
+                    ))
+            ));
+            TitledPane pane = new TitledPane(
+                    "%s: %d tk".formatted(group.name(), group.totalCount()),
+                    details
+            );
+            pane.setExpanded(false);
+            inventoryContent.getChildren().add(pane);
+        });
     }
 
     private String signedCount(int count) {
