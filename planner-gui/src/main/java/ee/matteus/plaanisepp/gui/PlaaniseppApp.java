@@ -10383,9 +10383,14 @@ public class PlaaniseppApp extends Application {
             inventoryContent.getChildren().add(new Label("Telgid: %d tk".formatted(inventory.tentCount())));
         }
         if (inventory.gardenStoneCount() > 0) {
-            inventoryContent.getChildren().add(new Label(
-                    "Aiakivid: %d tk".formatted(inventory.gardenStoneCount())
-            ));
+            VBox gardenStones = new VBox(2,
+                    new Label("Aiakivid: %d tk".formatted(inventory.gardenStoneCount())),
+                    inventoryDetailLabel("Aiavõrkudest %d · eraldi lisatud %d".formatted(
+                            inventory.automaticGardenStoneCount(),
+                            inventory.additionalGardenStoneCount()
+                    ))
+            );
+            inventoryContent.getChildren().add(gardenStones);
         }
         inventory.otherCustomItems().forEach(item -> inventoryContent.getChildren().add(
                 new Label("%s: %d tk".formatted(item.name(), item.count()))

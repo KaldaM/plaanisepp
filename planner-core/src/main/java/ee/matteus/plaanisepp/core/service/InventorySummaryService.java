@@ -2,13 +2,16 @@ package ee.matteus.plaanisepp.core.service;
 
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.EventPlan;
+import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.Tent;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -29,9 +32,10 @@ public final class InventorySummaryService {
                 .filter(CustomObject.class::isInstance)
                 .map(CustomObject.class::cast)
                 .toList();
-        int gardenStoneCount = (int) customObjects.stream()
+        int additionalGardenStoneCount = (int) customObjects.stream()
                 .filter(this::isGardenStone)
                 .count();
+        int automaticGardenStoneCount = automaticGardenStoneCount(plan);
         Map<String, Long> otherCounts = customObjects.stream()
                 .filter(object -> !isGardenStone(object))
                 .collect(Collectors.groupingBy(
@@ -44,9 +48,29 @@ public final class InventorySummaryService {
         return new Summary(
                 fenceInventoryService.summarize(plan),
                 tentCount,
-                gardenStoneCount,
+                automaticGardenStoneCount,
+                additionalGardenStoneCount,
                 otherItems
         );
+    }
+
+    private int automaticGardenStoneCount(EventPlan plan) {
+        List<FenceRow> fenceRows = plan.objects().stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .toList();
+        Set<String> jointIds = new HashSet<>();
+        int internalSegmentBoundaries = 0;
+        for (FenceRow row : fenceRows) {
+            internalSegmentBoundaries += Math.max(0, row.segmentCount() - 1);
+            if (!row.startJointId().isBlank()) {
+                jointIds.add(row.startJointId());
+            }
+            if (!row.endJointId().isBlank()) {
+                jointIds.add(row.endJointId());
+            }
+        }
+        return internalSegmentBoundaries + jointIds.size();
     }
 
     private boolean isGardenStone(CustomObject object) {
@@ -56,7 +80,8 @@ public final class InventorySummaryService {
     public record Summary(
             FenceInventoryService.Summary fences,
             int tentCount,
-            int gardenStoneCount,
+            int automaticGardenStoneCount,
+            int additionalGardenStoneCount,
             List<NamedItem> otherCustomItems
     ) {
         public Summary {
@@ -66,8 +91,12 @@ public final class InventorySummaryService {
         public boolean isEmpty() {
             return fences.totalCount() == 0
                     && tentCount == 0
-                    && gardenStoneCount == 0
+                    && gardenStoneCount() == 0
                     && otherCustomItems.isEmpty();
+        }
+
+        public int gardenStoneCount() {
+            return automaticGardenStoneCount + additionalGardenStoneCount;
         }
     }
 
