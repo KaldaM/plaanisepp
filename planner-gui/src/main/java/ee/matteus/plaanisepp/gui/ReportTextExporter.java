@@ -21,24 +21,14 @@ import ee.matteus.plaanisepp.core.service.PowerSummaryService;
 import ee.matteus.plaanisepp.core.service.FenceInventoryService;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalDouble;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 final class ReportTextExporter {
-    private static final Pattern CABLE_LENGTH_PATTERN = Pattern.compile("\\d+(?:[,.]\\d+)?");
-    private static final Comparator<CableSummaryRow> CABLE_SUMMARY_ROW_COMPARATOR = Comparator
-            .comparing((CableSummaryRow row) -> row.connection().connectorType())
-            .thenComparing(row -> row.consumer().name(), String.CASE_INSENSITIVE_ORDER)
-            .thenComparing(row -> row.source().name(), String.CASE_INSENSITIVE_ORDER);
-
     private final PowerSummaryService powerSummaryService;
     private final FenceInventoryService fenceInventoryService = new FenceInventoryService();
+    private final CableInventorySummaryService cableInventorySummaryService = new CableInventorySummaryService();
 
     ReportTextExporter(PowerSummaryService powerSummaryService) {
         this.powerSummaryService = powerSummaryService;
@@ -248,11 +238,7 @@ final class ReportTextExporter {
             return;
         }
 
-        double totalLengthMeters = 0.0;
-        double totalNotedLengthMeters = 0.0;
-        boolean hasNotedLength = false;
-        List<CableSummaryRow> cableRows = new ArrayList<>();
-        Map<ConnectorType, CableTypeSummary> summariesByType = new EnumMap<>(ConnectorType.class);
+        List<CableInventorySummaryService.Input> inputs = new ArrayList<>();
         for (PowerConnection connection : plan.powerConnections()) {
             PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
             if (!(consumer instanceof PowerConsumer)) {
@@ -270,144 +256,33 @@ final class ReportTextExporter {
                     CablePathHelper.cablePath(consumer, source, connection, plan.pixelsPerMeter()),
                     plan.pixelsPerMeter()
             );
-            totalLengthMeters += lengthMeters;
-            OptionalDouble notedLengthMeters = notedCableLengthMeters(connection);
-            CableTypeSummary typeSummary = summariesByType.computeIfAbsent(
-                    connection.connectorType(),
-                    ignored -> new CableTypeSummary()
-            );
-            typeSummary.addMapLength(lengthMeters);
-            if (notedLengthMeters.isPresent()) {
-                totalNotedLengthMeters += notedLengthMeters.getAsDouble();
-                typeSummary.addNotedLength(notedLengthMeters.getAsDouble());
-                typeSummary.addPieces(cableLengthPieces(connection));
-                hasNotedLength = true;
-            }
-            cableRows.add(new CableSummaryRow(consumer, source, connection, lengthMeters, notedLengthMeters));
+            inputs.add(new CableInventorySummaryService.Input(
+                    consumer.name(), source.name(), connection, lengthMeters
+            ));
         }
 
-        if (cableRows.isEmpty()) {
+        CableInventorySummaryService.Summary summary = cableInventorySummaryService.summarize(inputs);
+        if (summary.isEmpty()) {
             return;
         }
 
         builder.append("Kaablid").append(lineSeparator);
-        cableRows.stream()
-                .sorted(CABLE_SUMMARY_ROW_COMPARATOR)
-                .map(this::cableSummaryRow)
+        summary.rows().stream()
+                .map(CableInventoryTextFormatter::connectionRow)
                 .forEach(row -> builder.append(row).append(lineSeparator));
-        if (hasNotedLength) {
-            builder.append("Kokku: %.1f m märgitud, %.1f m kaardil".formatted(totalNotedLengthMeters, totalLengthMeters)).append(lineSeparator);
+        if (summary.hasNotedLength()) {
+            builder.append("Kokku: %.1f m märgitud, %.1f m kaardil".formatted(
+                    summary.totalNotedLengthMeters(), summary.totalMapLengthMeters()
+            )).append(lineSeparator);
         } else {
-            builder.append("Kokku: %.1f m".formatted(totalLengthMeters)).append(lineSeparator);
+            builder.append("Kokku: %.1f m".formatted(summary.totalMapLengthMeters())).append(lineSeparator);
         }
-        for (String row : cableTypeSummaryRows(summariesByType)) {
+        for (String row : CableInventoryTextFormatter.typeSummaryRows(summary.byType())) {
             builder.append(row).append(lineSeparator);
         }
         builder.append(lineSeparator);
     }
 
-    private String cableNotesText(PowerConnection connection) {
-        return connection.cableNotes().isBlank() ? "" : " [%s]".formatted(connection.cableNotes());
-    }
-
-    private List<String> cableTypeSummaryRows(Map<ConnectorType, CableTypeSummary> summariesByType) {
-        List<String> rows = new ArrayList<>();
-        if (!summariesByType.isEmpty()) {
-            rows.add("Tüübi kaupa:");
-        }
-        for (ConnectorType connectorType : ConnectorType.values()) {
-            CableTypeSummary summary = summariesByType.get(connectorType);
-            if (summary == null) {
-                continue;
-            }
-            rows.add(cableTypeSummaryRow(connectorType, summary));
-            if (summary.hasPieces()) {
-                rows.add("    tükid: %s".formatted(cablePieceCountText(summary.pieceCounts())));
-            }
-        }
-        return rows;
-    }
-
-    private String cableTypeSummaryRow(ConnectorType connectorType, CableTypeSummary summary) {
-        if (summary.hasNotedLength()) {
-            return "  %s: %.1f m märgitud, %.1f m kaardil".formatted(
-                    CableDisplayHelper.shortTypeName(connectorType),
-                    summary.notedLengthMeters(),
-                    summary.mapLengthMeters()
-            );
-        }
-        return "  %s: %.1f m kaardil".formatted(CableDisplayHelper.shortTypeName(connectorType), summary.mapLengthMeters());
-    }
-
-    private String cableSummaryRow(CableSummaryRow row) {
-        String lengthText = row.notedLengthMeters().isPresent()
-                ? "%.1f m kaardil, %.1f m märgitud".formatted(row.mapLengthMeters(), row.notedLengthMeters().getAsDouble())
-                : "%.1f m".formatted(row.mapLengthMeters());
-        String connectionRole = row.connection().defaultForConsumer() ? "" : ", seadme erand";
-        return "  - %s -> %s (%s%s): %s%s".formatted(
-                row.consumer().name(),
-                row.source().name(),
-                row.connection().connectorType().displayName(),
-                connectionRole,
-                lengthText,
-                cableNotesText(row.connection()) + cableNoteWarningText(row.connection())
-        );
-    }
-
-    private String cableNoteWarningText(PowerConnection connection) {
-        return cableNoteNeedsReview(connection) ? " (tükid kontrollida)" : "";
-    }
-
-    private boolean cableNoteNeedsReview(PowerConnection connection) {
-        String notes = connection.cableLengthNotes();
-        if (notes.isBlank() || !notes.contains("+")) {
-            return false;
-        }
-
-        for (String part : notes.split("\\+")) {
-            if (!part.isBlank() && !CABLE_LENGTH_PATTERN.matcher(part).find()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private OptionalDouble notedCableLengthMeters(PowerConnection connection) {
-        List<Double> pieces = cableLengthPieces(connection);
-        if (pieces.isEmpty()) {
-            return OptionalDouble.empty();
-        }
-
-        double totalLengthMeters = 0.0;
-        for (double piece : pieces) {
-            totalLengthMeters += piece;
-        }
-        return OptionalDouble.of(totalLengthMeters);
-    }
-
-    private List<Double> cableLengthPieces(PowerConnection connection) {
-        List<Double> pieces = new ArrayList<>();
-        Matcher matcher = CABLE_LENGTH_PATTERN.matcher(connection.cableLengthNotes());
-        while (matcher.find()) {
-            pieces.add(Double.parseDouble(matcher.group().replace(',', '.')));
-        }
-        return pieces;
-    }
-
-    private String cablePieceCountText(Map<Double, Integer> pieceCounts) {
-        List<String> rows = new ArrayList<>();
-        for (Map.Entry<Double, Integer> entry : pieceCounts.entrySet()) {
-            rows.add("%s m x %d".formatted(formatCablePieceLength(entry.getKey()), entry.getValue()));
-        }
-        return String.join(", ", rows);
-    }
-
-    private String formatCablePieceLength(double lengthMeters) {
-        if (Math.abs(lengthMeters - Math.rint(lengthMeters)) < 0.0001) {
-            return Integer.toString((int) Math.rint(lengthMeters));
-        }
-        return "%.1f".formatted(lengthMeters);
-    }
 
     private void appendGroupReport(StringBuilder builder, EventPlan plan, String lineSeparator) {
         if (plan.objects().isEmpty()) {
@@ -525,54 +400,4 @@ final class ReportTextExporter {
         return "%.2f".formatted(meters);
     }
 
-    private record CableSummaryRow(
-            PlannerObject consumer,
-            PowerSource source,
-            PowerConnection connection,
-            double mapLengthMeters,
-            OptionalDouble notedLengthMeters
-    ) {
-    }
-
-    private static class CableTypeSummary {
-        private double mapLengthMeters;
-        private double notedLengthMeters;
-        private boolean hasNotedLength;
-        private final Map<Double, Integer> pieceCounts = new TreeMap<>();
-
-        void addMapLength(double lengthMeters) {
-            mapLengthMeters += lengthMeters;
-        }
-
-        void addNotedLength(double lengthMeters) {
-            notedLengthMeters += lengthMeters;
-            hasNotedLength = true;
-        }
-
-        void addPieces(List<Double> pieces) {
-            for (double piece : pieces) {
-                pieceCounts.merge(piece, 1, Integer::sum);
-            }
-        }
-
-        double mapLengthMeters() {
-            return mapLengthMeters;
-        }
-
-        double notedLengthMeters() {
-            return notedLengthMeters;
-        }
-
-        boolean hasNotedLength() {
-            return hasNotedLength;
-        }
-
-        boolean hasPieces() {
-            return !pieceCounts.isEmpty();
-        }
-
-        Map<Double, Integer> pieceCounts() {
-            return pieceCounts;
-        }
-    }
 }

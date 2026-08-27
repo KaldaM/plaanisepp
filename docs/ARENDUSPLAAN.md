@@ -461,7 +461,7 @@ Inventarikokkuvõtte esimene etapp on teostatud ning ootab käsitsi kontrolli. K
 
 Külgpaneelil on eraldi „Inventari” jaotis, mis on nähtav ka korraldajavaates. Seal kuvatakse ühendatud aiavõrgud tervikobjektide kaupa, telkide kogus ning nime järgi koondatud kohandatud objektid. Tavavaates lisandub kokkupandav kaabliinventar. „Voolu kokkuvõte” sisaldab ainult elektrikoormusi. Objektivaadet dubleeriv gruppide ja objektide loend ning aiasektoreid eraldi näidanud pikkusejaotus eemaldati.
 
-Inventari refaktori esimene etapp on teostatud: aedade tervikvõrgud, telgid ja kohandatud objektide kogused arvutatakse JavaFX-ist sõltumatus `InventorySummaryService` teenuses. Kaabliinventari pikkusmärkmed, tükid, tüübi koondid ja alternatiivühendused arvutab eraldi testitud `CableInventorySummaryService`. Külgpaneel ja TXT/PDF-raport kasutavad aedade tervikvõrkude jaoks sama `FenceInventoryService` tulemust. See vähendab `PlaaniseppApp` vastutust ning loob aluse hilisemale üldisele inventarimudelile.
+Inventari refaktori esimene etapp on teostatud: aedade tervikvõrgud, telgid ja kohandatud objektide kogused arvutatakse JavaFX-ist sõltumatus `InventorySummaryService` teenuses. Kaabliinventari pikkusmärkmed, tükid, tüübi koondid ja alternatiivühendused arvutab eraldi testitud `CableInventorySummaryService`. Külgpaneel ja TXT/PDF-raport kasutavad nii aedade tervikvõrkude jaoks sama `FenceInventoryService` tulemust kui ka kaabliinventari jaoks sama arvutus- ja tekstivormindusloogikat. See vähendab `PlaaniseppApp` vastutust ning loob aluse hilisemale üldisele inventarimudelile.
 
 ### Planeeritud inventarimudel
 

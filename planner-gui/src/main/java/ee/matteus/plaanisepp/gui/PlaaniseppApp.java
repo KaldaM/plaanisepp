@@ -10477,11 +10477,11 @@ public class PlaaniseppApp extends Application {
                 )
                 : "Kaablid: %.1f m".formatted(summary.totalMapLengthMeters());
         details.getChildren().addAll(summary.rows().stream()
-                .map(this::cableSummaryRow)
+                .map(CableInventoryTextFormatter::connectionRow)
                 .map(String::stripLeading)
                 .map(this::inventoryDetailLabel)
                 .toList());
-        for (String row : cableTypeSummaryRows(summary.byType())) {
+        for (String row : CableInventoryTextFormatter.typeSummaryRows(summary.byType())) {
             details.getChildren().add(inventoryDetailLabel(row.stripLeading()));
         }
         inventoryContent.getChildren().add(inventoryPane(
@@ -10637,55 +10637,6 @@ public class PlaaniseppApp extends Application {
         return reportTextExporter.export(plan, reportScope, true, true, true);
     }
 
-    private List<String> cableTypeSummaryRows(
-            Map<ConnectorType, CableInventorySummaryService.TypeSummary> summariesByType
-    ) {
-        List<String> rows = new ArrayList<>();
-        if (!summariesByType.isEmpty()) {
-            rows.add("Tüübi kaupa:");
-        }
-        for (ConnectorType connectorType : ConnectorType.values()) {
-            CableInventorySummaryService.TypeSummary summary = summariesByType.get(connectorType);
-            if (summary == null) {
-                continue;
-            }
-            rows.add(cableTypeSummaryRow(connectorType, summary));
-            if (!summary.pieceCounts().isEmpty()) {
-                rows.add("    tükid: %s".formatted(cablePieceCountText(summary.pieceCounts())));
-            }
-        }
-        return rows;
-    }
-
-    private String cableTypeSummaryRow(
-            ConnectorType connectorType,
-            CableInventorySummaryService.TypeSummary summary
-    ) {
-        if (summary.hasNotedLength()) {
-            return "  %s: %.1f m märgitud, %.1f m kaardil".formatted(
-                    CableDisplayHelper.shortTypeName(connectorType),
-                    summary.notedLengthMeters(),
-                    summary.mapLengthMeters()
-            );
-        }
-        return "  %s: %.1f m kaardil".formatted(CableDisplayHelper.shortTypeName(connectorType), summary.mapLengthMeters());
-    }
-
-    private String cableSummaryRow(CableInventorySummaryService.Row row) {
-        String lengthText = row.notedLengthMeters().isPresent()
-                ? "%.1f m kaardil, %.1f m märgitud".formatted(row.mapLengthMeters(), row.notedLengthMeters().getAsDouble())
-                : "%.1f m".formatted(row.mapLengthMeters());
-        String connectionRole = row.alternativeConnection() ? ", seadme erand" : "";
-        return "  - %s -> %s (%s%s): %s%s%s".formatted(
-                row.consumerName(),
-                row.sourceName(),
-                row.connectorType().displayName(),
-                connectionRole,
-                lengthText,
-                row.cableNotes().isBlank() ? "" : " [%s]".formatted(row.cableNotes()),
-                row.noteNeedsReview() ? " (tükid kontrollida)" : ""
-        );
-    }
 
     private record SummaryListItem(
             String text,
@@ -10746,21 +10697,6 @@ public class PlaaniseppApp extends Application {
     }
 
     private record MeasurementView(Position start, Position end, Label distanceLabel) {
-    }
-
-    private String cablePieceCountText(Map<Double, Integer> pieceCounts) {
-        List<String> rows = new ArrayList<>();
-        for (Map.Entry<Double, Integer> entry : pieceCounts.entrySet()) {
-            rows.add("%s m x %d".formatted(formatCablePieceLength(entry.getKey()), entry.getValue()));
-        }
-        return String.join(", ", rows);
-    }
-
-    private String formatCablePieceLength(double lengthMeters) {
-        if (Math.abs(lengthMeters - Math.rint(lengthMeters)) < 0.0001) {
-            return Integer.toString((int) Math.rint(lengthMeters));
-        }
-        return "%.1f".formatted(lengthMeters);
     }
 
     private void loadMapImage() {
