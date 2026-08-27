@@ -10675,11 +10675,20 @@ public class PlaaniseppApp extends Application {
         }
         inventory.objectInventoryGroups().forEach(group -> {
             VBox details = new VBox(3);
-            group.contributions().forEach(contribution -> details.getChildren().add(
-                    inventoryDetailLabel("%s (%s): %d tk".formatted(
-                            contribution.objectName(), contribution.objectType(), contribution.quantity()
-                    ))
-            ));
+            group.contributions().forEach(contribution -> {
+                Label contributionLabel = inventoryDetailLabel("%s (%s): %d tk%s".formatted(
+                        contribution.objectName(), contribution.objectType(), contribution.quantity(),
+                        contribution.notes().isBlank() ? "" : " · " + contribution.notes()
+                ));
+                Button decreaseButton = new Button("−");
+                decreaseButton.setOnAction(event -> adjustObjectInventoryContribution(contribution, -1));
+                Button increaseButton = new Button("+");
+                increaseButton.setOnAction(event -> adjustObjectInventoryContribution(contribution, 1));
+                HBox contributionRow = new HBox(6, contributionLabel, decreaseButton, increaseButton);
+                contributionRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                HBox.setHgrow(contributionLabel, Priority.ALWAYS);
+                details.getChildren().add(contributionRow);
+            });
             TitledPane pane = new TitledPane(
                     "%s: %d tk".formatted(group.name(), group.totalCount()),
                     details
@@ -10687,6 +10696,24 @@ public class PlaaniseppApp extends Application {
             pane.setExpanded(false);
             inventoryContent.getChildren().add(pane);
         });
+    }
+
+    private void adjustObjectInventoryContribution(
+            InventorySummaryService.ObjectInventoryContribution contribution,
+            int delta
+    ) {
+        plan.findObject(contribution.objectId())
+                .filter(InventoryContainer.class::isInstance)
+                .map(InventoryContainer.class::cast)
+                .filter(container -> contribution.itemIndex() >= 0
+                        && contribution.itemIndex() < container.inventoryItems().size())
+                .ifPresent(container -> {
+                    InventoryItem item = container.inventoryItems().get(contribution.itemIndex());
+                    item.setQuantity(Math.max(0, item.quantity() + delta));
+                    refreshInventory();
+                    refreshObjectInventoryList();
+                    markDirty();
+                });
     }
 
     private String signedCount(int count) {

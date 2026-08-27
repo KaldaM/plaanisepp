@@ -21,7 +21,7 @@ class InventorySummaryServiceTest {
         plan.addObject(second);
         plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
         Tent inventoryTent = new Tent("tent-1", "Telk", new Position(0, 100));
-        inventoryTent.addInventoryItem(new InventoryItem("Telgiraskus", 4, ""));
+        inventoryTent.addInventoryItem(new InventoryItem("Telgiraskus", 4, "Kaks igasse nurka"));
         inventoryTent.addInventoryItem(new InventoryItem("Laud", 2, ""));
         plan.addObject(inventoryTent);
         plan.addObject(new Tent("tent-2", "Telk", new Position(100, 100)));
@@ -56,6 +56,8 @@ class InventorySummaryServiceTest {
         assertEquals(1, weights.contributions().size());
         assertEquals("Telk", weights.contributions().getFirst().objectName());
         assertEquals("Telk", weights.contributions().getFirst().objectType());
+        assertEquals(0, weights.contributions().getFirst().itemIndex());
+        assertEquals("Kaks igasse nurka", weights.contributions().getFirst().notes());
     }
 
     @Test

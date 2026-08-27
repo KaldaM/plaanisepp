@@ -35,15 +35,22 @@ public final class InventorySummaryService {
                 new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         plan.objects().stream()
                 .filter(InventoryContainer.class::isInstance)
-                .forEach(object -> ((InventoryContainer) object).inventoryItems().stream()
-                        .filter(item -> !item.name().isBlank() && item.quantity() > 0)
-                        .forEach(item -> {
+                .forEach(object -> {
+                    List<ee.matteus.plaanisepp.core.model.InventoryItem> items =
+                            ((InventoryContainer) object).inventoryItems();
+                    for (int itemIndex = 0; itemIndex < items.size(); itemIndex++) {
+                        var item = items.get(itemIndex);
+                        if (item.name().isBlank() || item.quantity() <= 0) {
+                            continue;
+                        }
                             inventoryCounts.merge(item.name(), item.quantity(), Integer::sum);
                             inventoryContributions.computeIfAbsent(item.name(), ignored -> new ArrayList<>())
                                     .add(new ObjectInventoryContribution(
-                                            object.id(), object.name(), objectTypeName(object), item.quantity()
+                                            object.id(), object.name(), objectTypeName(object), itemIndex,
+                                            item.quantity(), item.notes()
                                     ));
-                        }));
+                    }
+                });
         List<NamedItem> objectInventoryItems = inventoryCounts.entrySet().stream()
                 .map(entry -> new NamedItem(entry.getKey(), entry.getValue()))
                 .toList();
@@ -155,7 +162,9 @@ public final class InventorySummaryService {
             String objectId,
             String objectName,
             String objectType,
-            int quantity
+            int itemIndex,
+            int quantity,
+            String notes
     ) {
     }
 
