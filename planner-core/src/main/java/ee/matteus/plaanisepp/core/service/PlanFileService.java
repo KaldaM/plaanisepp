@@ -49,7 +49,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 12;
+    public static final int CURRENT_FORMAT_VERSION = 13;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -789,6 +789,7 @@ public class PlanFileService {
         properties.setProperty(prefix + "inventoryLabelOffsetX", Double.toString(fenceRow.inventoryLabelOffset().x()));
         properties.setProperty(prefix + "inventoryLabelOffsetY", Double.toString(fenceRow.inventoryLabelOffset().y()));
         properties.setProperty(prefix + "gardenStoneAdjustment", Integer.toString(fenceRow.gardenStoneAdjustment()));
+        properties.setProperty(prefix + "showInventoryLabel", Boolean.toString(fenceRow.showInventoryLabel()));
     }
 
     private PlannerObject readObject(Properties properties, String prefix) {
@@ -863,6 +864,7 @@ public class PlanFileService {
             ));
         }
         fenceRow.setGardenStoneAdjustment(intValue(properties, prefix + "gardenStoneAdjustment", 0));
+        fenceRow.setShowInventoryLabel(booleanValue(properties, prefix + "showInventoryLabel", true));
         String connectedToFenceRowId = properties.getProperty(prefix + "connectedToFenceRowId", "");
         if (!connectedToFenceRowId.isBlank() && !connectedToFenceRowId.equals(fenceRow.id())) {
             fenceRow.connectStartTo(connectedToFenceRowId);

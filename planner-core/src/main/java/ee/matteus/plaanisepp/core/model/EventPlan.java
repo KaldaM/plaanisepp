@@ -500,6 +500,14 @@ public class EventPlan {
         rows.getFirst().setGardenStoneAdjustment(adjustment);
     }
 
+    public boolean showFenceNetworkInventoryLabel(String fenceRowId) {
+        return fenceNetworkRows(fenceRowId).stream().allMatch(FenceRow::showInventoryLabel);
+    }
+
+    public void setShowFenceNetworkInventoryLabel(String fenceRowId, boolean visible) {
+        fenceNetworkRows(fenceRowId).forEach(row -> row.setShowInventoryLabel(visible));
+    }
+
     public int standaloneGardenStoneCount() {
         return standaloneGardenStoneCount;
     }
@@ -535,6 +543,7 @@ public class EventPlan {
         continuation.setNotes(row.notes());
         continuation.setHidden(row.hidden());
         continuation.setShowMapLabel(row.showMapLabel());
+        continuation.setShowInventoryLabel(row.showInventoryLabel());
         if (row.customInventoryLabelPosition()) {
             continuation.setInventoryLabelOffset(row.inventoryLabelOffset());
         }

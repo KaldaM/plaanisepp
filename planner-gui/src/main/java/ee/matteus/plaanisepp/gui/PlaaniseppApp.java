@@ -148,6 +148,10 @@ public class PlaaniseppApp extends Application {
     private static final String OUTLET_SECTION = "outlet";
     private static final String SIDEBAR_SECTION_ORDER_PREFERENCE = "sidebarSectionOrder";
     private static final String PLACEMENT_SHOW_MAP_LABEL_PREFERENCE = "placementShowMapLabel";
+    private static final String PLACEMENT_SHOW_FENCE_INVENTORY_LABEL_PREFERENCE =
+            "placementShowFenceInventoryLabel";
+    private static final String PLACEMENT_FENCE_SEGMENT_LENGTH_PREFERENCE =
+            "placementFenceSegmentLengthMeters";
     private static final String MAP_LAYOUT_LOCKED_PREFERENCE = "mapLayoutLocked";
     private static final List<String> DEFAULT_SIDEBAR_SECTION_ORDER = List.of(
             OBJECT_LIST_SECTION,
@@ -322,6 +326,11 @@ public class PlaaniseppApp extends Application {
     private TextField fenceSegmentLengthField;
     private TextField fenceRotationField;
     private Label fenceTotalLengthLabel;
+    private Label fenceNetworkSummaryLabel;
+    private Label fenceNetworkStoneSummaryLabel;
+    private Button decreaseFenceNetworkStonesButton;
+    private Button increaseFenceNetworkStonesButton;
+    private CheckBox showFenceInventoryLabelCheckBox;
     private ColorPicker fenceColorPicker;
     private Slider fenceWidthSlider;
     private Button resetFenceInventoryLabelButton;
@@ -403,6 +412,8 @@ public class PlaaniseppApp extends Application {
     private Double pendingPlacementLineWidthPixels;
     private Double pendingPlacementFontSizePixels;
     private Boolean pendingPlacementShowMapLabel;
+    private Boolean pendingPlacementShowFenceInventoryLabel;
+    private Double pendingFenceSegmentLengthMeters;
     private CustomObjectShape pendingPlacementShape;
     private boolean pendingTentPlacement;
     private PlacementType pendingTentPlacementType;
@@ -3115,6 +3126,19 @@ public class PlaaniseppApp extends Application {
         fenceSegmentLengthField = new TextField();
         fenceRotationField = new TextField();
         fenceTotalLengthLabel = new Label("-");
+        fenceNetworkSummaryLabel = new Label("-");
+        fenceNetworkStoneSummaryLabel = new Label("-");
+        decreaseFenceNetworkStonesButton = new Button("−");
+        decreaseFenceNetworkStonesButton.setOnAction(event -> adjustSelectedFenceNetworkGardenStones(-1));
+        increaseFenceNetworkStonesButton = new Button("+");
+        increaseFenceNetworkStonesButton.setOnAction(event -> adjustSelectedFenceNetworkGardenStones(1));
+        HBox fenceStoneControl = new HBox(
+                6, fenceNetworkStoneSummaryLabel,
+                decreaseFenceNetworkStonesButton, increaseFenceNetworkStonesButton
+        );
+        fenceStoneControl.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        showFenceInventoryLabelCheckBox = new CheckBox("Näita kogusesilti");
+        showFenceInventoryLabelCheckBox.setOnAction(event -> updateSelectedFenceInventoryLabelVisibility());
         fenceColorPicker = new ColorPicker();
         fenceColorPicker.setOnAction(event -> autoApplySelectedColor());
         fenceWidthSlider = createPixelSlider(1, 50, FenceRow.DEFAULT_WIDTH_PIXELS);
@@ -3125,13 +3149,16 @@ public class PlaaniseppApp extends Application {
         configureTextCommit(fenceSegmentLengthField, this::autoApplyFenceRowGeometry);
         configureTextCommit(fenceRotationField, this::autoApplyFenceRowGeometry);
         GridPane fenceRowForm = detailGrid();
-        fenceRowForm.addRow(0, new Label("Aedade arv"), fenceSegmentCountField);
-        fenceRowForm.addRow(1, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
-        fenceRowForm.addRow(2, new Label("Suund °"), fenceRotationField);
-        fenceRowForm.addRow(3, new Label("Kogupikkus"), fenceTotalLengthLabel);
-        fenceRowForm.addRow(4, new Label("Värv"), fenceColorPicker);
-        fenceRowForm.addRow(5, new Label("Paksus"), pixelControl(fenceWidthSlider));
-        fenceRowForm.addRow(6, new Label("Sildi asukoht"), resetFenceInventoryLabelButton);
+        fenceRowForm.addRow(0, new Label("Kogumik"), fenceNetworkSummaryLabel);
+        fenceRowForm.addRow(1, new Label("Aiakivid"), fenceStoneControl);
+        fenceRowForm.addRow(2, new Label("Kogusesilt"), showFenceInventoryLabelCheckBox);
+        fenceRowForm.addRow(3, new Label("Valitud rea aedu"), fenceSegmentCountField);
+        fenceRowForm.addRow(4, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
+        fenceRowForm.addRow(5, new Label("Suund °"), fenceRotationField);
+        fenceRowForm.addRow(6, new Label("Rea kogupikkus"), fenceTotalLengthLabel);
+        fenceRowForm.addRow(7, new Label("Värv"), fenceColorPicker);
+        fenceRowForm.addRow(8, new Label("Paksus"), pixelControl(fenceWidthSlider));
+        fenceRowForm.addRow(9, new Label("Sildi asukoht"), resetFenceInventoryLabelButton);
         fenceRowPanel = new VBox(8, sectionLabel("Aiarida"), fenceRowForm);
 
         GridPane tentForm = detailGrid();
@@ -3575,8 +3602,20 @@ public class PlaaniseppApp extends Application {
         pendingPlacementShape = placementDetails.shape();
         pendingPlacementMarkerType = placementDetails.markerType();
         pendingPlacementShowMapLabel = placementDetails.showMapLabel();
+        pendingPlacementShowFenceInventoryLabel = placementDetails.showFenceInventoryLabel();
+        pendingFenceSegmentLengthMeters = placementDetails.fenceSegmentLengthMeters();
         pendingFenceRingRadiusMeters = placementDetails.fenceRadiusMeters();
         preferences.putBoolean(PLACEMENT_SHOW_MAP_LABEL_PREFERENCE, placementDetails.showMapLabel());
+        if (selectedType == PlacementType.FENCE_ROW || selectedType == PlacementType.FENCE_RING) {
+            preferences.putBoolean(
+                    PLACEMENT_SHOW_FENCE_INVENTORY_LABEL_PREFERENCE,
+                    placementDetails.showFenceInventoryLabel()
+            );
+            preferences.putDouble(
+                    PLACEMENT_FENCE_SEGMENT_LENGTH_PREFERENCE,
+                    placementDetails.fenceSegmentLengthMeters()
+            );
+        }
         pendingFenceRowPlacement = false;
         pendingFenceRingPlacement = false;
         pendingFenceStartJointId = null;
@@ -3643,6 +3682,11 @@ public class PlaaniseppApp extends Application {
                 placementType,
                 existingGroupNames(),
                 preferences.getBoolean(PLACEMENT_SHOW_MAP_LABEL_PREFERENCE, true),
+                preferences.getBoolean(PLACEMENT_SHOW_FENCE_INVENTORY_LABEL_PREFERENCE, true),
+                preferences.getDouble(
+                        PLACEMENT_FENCE_SEGMENT_LENGTH_PREFERENCE,
+                        FenceRow.DEFAULT_SEGMENT_LENGTH_METERS
+                ),
                 MIN_FONT_SIZE_PIXELS,
                 MAX_FONT_SIZE_PIXELS
         ).orElse(null);
@@ -3923,7 +3967,7 @@ public class PlaaniseppApp extends Application {
         FenceRingGenerator.Result generated = FenceRingGenerator.generate(
                 center,
                 pendingFenceRingRadiusMeters,
-                FenceRow.DEFAULT_SEGMENT_LENGTH_METERS,
+                pendingFenceSegmentLengthMetersOrDefault(),
                 pixelsPerMeter()
         );
         List<FenceRow> rows = new ArrayList<>();
@@ -3942,7 +3986,8 @@ public class PlaaniseppApp extends Application {
             row.setColorHex(placementColorHexOrDefault(PlacementType.FENCE_RING));
             row.setWidthPixels(pendingLineWidthPixelsOrDefault());
             row.setSegmentCount(1);
-            row.setSegmentLengthMeters(FenceRow.DEFAULT_SEGMENT_LENGTH_METERS);
+            row.setSegmentLengthMeters(pendingFenceSegmentLengthMetersOrDefault());
+            row.setShowInventoryLabel(pendingPlacementShowFenceInventoryLabelOrDefault());
             row.setRotationDegrees(Math.toDegrees(Math.atan2(end.y() - start.y(), end.x() - start.x())));
             plan.addObject(row);
             if (firstStartJointId == null) {
@@ -3987,7 +4032,7 @@ public class PlaaniseppApp extends Application {
                 .filter(FenceRow.class::isInstance)
                 .map(FenceRow.class::cast)
                 .map(FenceRow::segmentLengthMeters)
-                .orElse(FenceRow.DEFAULT_SEGMENT_LENGTH_METERS);
+                .orElse(pendingFenceSegmentLengthMetersOrDefault());
         int segmentCount = Math.max(
                 1,
                 (int) Math.round(distanceMeters / fenceSegmentLength)
@@ -4002,6 +4047,8 @@ public class PlaaniseppApp extends Application {
         fenceRow.setColorHex(placementColorHexOrDefault(PlacementType.FENCE_ROW));
         fenceRow.setWidthPixels(pendingLineWidthPixelsOrDefault());
         fenceRow.setSegmentCount(segmentCount);
+        fenceRow.setSegmentLengthMeters(fenceSegmentLength);
+        fenceRow.setShowInventoryLabel(pendingPlacementShowFenceInventoryLabelOrDefault());
         if (pendingFenceTemplateRowId != null) {
             plan.findObject(pendingFenceTemplateRowId)
                     .filter(FenceRow.class::isInstance)
@@ -4012,6 +4059,7 @@ public class PlaaniseppApp extends Application {
                         fenceRow.setColorHex(parent.colorHex());
                         fenceRow.setWidthPixels(parent.widthPixels());
                         fenceRow.setSegmentLengthMeters(parent.segmentLengthMeters());
+                        fenceRow.setShowInventoryLabel(parent.showInventoryLabel());
                     });
         }
         fenceRow.setRotationDegrees(Math.toDegrees(Math.atan2(deltaY, deltaX)));
@@ -4184,6 +4232,17 @@ public class PlaaniseppApp extends Application {
         return pendingPlacementShowMapLabel == null || pendingPlacementShowMapLabel;
     }
 
+    private boolean pendingPlacementShowFenceInventoryLabelOrDefault() {
+        return pendingPlacementShowFenceInventoryLabel == null
+                || pendingPlacementShowFenceInventoryLabel;
+    }
+
+    private double pendingFenceSegmentLengthMetersOrDefault() {
+        return pendingFenceSegmentLengthMeters == null
+                ? FenceRow.DEFAULT_SEGMENT_LENGTH_METERS
+                : pendingFenceSegmentLengthMeters;
+    }
+
     private void clearPendingPlacementDetails() {
         pendingPlacementName = null;
         pendingPlacementGroupName = null;
@@ -4196,6 +4255,8 @@ public class PlaaniseppApp extends Application {
         pendingPlacementShape = null;
         pendingPlacementMarkerType = null;
         pendingPlacementShowMapLabel = null;
+        pendingPlacementShowFenceInventoryLabel = null;
+        pendingFenceSegmentLengthMeters = null;
         pendingPowerSourcePlacementType = null;
         pendingShapePoints.clear();
     }
@@ -5563,7 +5624,13 @@ public class PlaaniseppApp extends Application {
             addMapLabel(fenceRow, center.x() + 8, center.y() + 8);
         }
         Label inventoryLabel = null;
-        if (plan.showFenceInventoryLabels() && plan.isFenceNetworkRepresentative(fenceRow)) {
+        boolean selectedFenceNetwork = selectedObject instanceof FenceRow selectedFence
+                && plan.fenceNetworkRows(selectedFence.id()).stream()
+                .anyMatch(row -> row.id().equals(fenceRow.id()));
+        if (plan.isFenceNetworkRepresentative(fenceRow)
+                && (selectedFenceNetwork
+                || plan.showFenceInventoryLabels()
+                && plan.showFenceNetworkInventoryLabel(fenceRow.id()))) {
             List<FenceRow> networkRows = plan.fenceNetworkRows(fenceRow.id());
             int fenceCount = networkRows.stream().mapToInt(FenceRow::segmentCount).sum();
             double totalLength = networkRows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
@@ -7744,6 +7811,9 @@ public class PlaaniseppApp extends Application {
         lineColorPicker.setDisable(!lineSelected);
         fenceColorPicker.setDisable(!fenceRowSelected);
         fenceWidthSlider.setDisable(!fenceRowSelected);
+        decreaseFenceNetworkStonesButton.setDisable(!fenceRowSelected);
+        increaseFenceNetworkStonesButton.setDisable(!fenceRowSelected);
+        showFenceInventoryLabelCheckBox.setDisable(!fenceRowSelected);
         resetFenceInventoryLabelButton.setDisable(
                 !fenceRowSelected || !((FenceRow) selectedObject).customInventoryLabelPosition()
         );
@@ -7862,6 +7932,9 @@ public class PlaaniseppApp extends Application {
             fenceSegmentLengthField.clear();
             fenceRotationField.clear();
             fenceTotalLengthLabel.setText("-");
+            fenceNetworkSummaryLabel.setText("-");
+            fenceNetworkStoneSummaryLabel.setText("-");
+            showFenceInventoryLabelCheckBox.setSelected(true);
             fenceWidthSlider.setValue(FenceRow.DEFAULT_WIDTH_PIXELS);
             customObjectWidthField.clear();
             customObjectHeightField.clear();
@@ -7993,6 +8066,26 @@ public class PlaaniseppApp extends Application {
             cableLengthNotesField.clear();
             cableNotesField.clear();
         } else if (selectedObject instanceof FenceRow fenceRow) {
+            List<FenceRow> networkRows = plan.fenceNetworkRows(fenceRow.id());
+            int networkFenceCount = networkRows.stream().mapToInt(FenceRow::segmentCount).sum();
+            double networkLength = networkRows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
+            InventorySummaryService.FenceStoneNetwork stoneSummary = fenceStoneNetworkSummary(
+                    plan.isFenceNetworkRepresentative(fenceRow)
+                            ? fenceRow
+                            : networkRows.getFirst()
+            );
+            fenceNetworkSummaryLabel.setText("%d aeda · %s m".formatted(
+                    networkFenceCount, formatMeters(networkLength)
+            ));
+            fenceNetworkStoneSummaryLabel.setText("%d automaatne · %s · %d kokku".formatted(
+                    stoneSummary.automaticCount(),
+                    signedCount(stoneSummary.adjustment()),
+                    stoneSummary.totalCount()
+            ));
+            decreaseFenceNetworkStonesButton.setDisable(stoneSummary.totalCount() == 0);
+            showFenceInventoryLabelCheckBox.setSelected(
+                    plan.showFenceNetworkInventoryLabel(fenceRow.id())
+            );
             fenceSegmentCountField.setText(Integer.toString(fenceRow.segmentCount()));
             fenceSegmentLengthField.setText(formatMeters(fenceRow.segmentLengthMeters()));
             fenceRotationField.setText(formatDegrees(fenceRow.rotationDegrees()));
@@ -8623,6 +8716,7 @@ public class PlaaniseppApp extends Application {
                         row.widthPixels(),
                         row.opacity(),
                         row.gardenStoneAdjustment(),
+                        row.showInventoryLabel(),
                         row.customInventoryLabelPosition() ? row.inventoryLabelOffset() : null,
                         row.startJointId(),
                         row.endJointId()
@@ -8714,6 +8808,7 @@ public class PlaaniseppApp extends Application {
             pastedRow.setWidthPixels(copiedRow.widthPixels());
             pastedRow.setOpacity(copiedRow.opacity());
             pastedRow.setGardenStoneAdjustment(copiedRow.gardenStoneAdjustment());
+            pastedRow.setShowInventoryLabel(copiedRow.showInventoryLabel());
             if (copiedRow.inventoryLabelOffset() != null) {
                 pastedRow.setInventoryLabelOffset(copiedRow.inventoryLabelOffset());
             }
@@ -8823,6 +8918,7 @@ public class PlaaniseppApp extends Application {
             fenceCopy.setRotationDegrees(fenceRow.rotationDegrees());
             fenceCopy.setColorHex(fenceRow.colorHex());
             fenceCopy.setWidthPixels(fenceRow.widthPixels());
+            fenceCopy.setShowInventoryLabel(fenceRow.showInventoryLabel());
             if (fenceRow.customInventoryLabelPosition()) {
                 fenceCopy.setInventoryLabelOffset(fenceRow.inventoryLabelOffset());
             }
@@ -10463,6 +10559,27 @@ public class PlaaniseppApp extends Application {
         markDirty();
     }
 
+    private void adjustSelectedFenceNetworkGardenStones(int delta) {
+        if (!(selectedObject instanceof FenceRow fenceRow)) {
+            return;
+        }
+        List<FenceRow> rows = plan.fenceNetworkRows(fenceRow.id());
+        FenceRow representative = rows.getFirst();
+        adjustFenceNetworkGardenStones(fenceStoneNetworkSummary(representative), delta);
+        refreshDetails();
+    }
+
+    private void updateSelectedFenceInventoryLabelVisibility() {
+        if (updatingDetailControls || !(selectedObject instanceof FenceRow fenceRow)) {
+            return;
+        }
+        plan.setShowFenceNetworkInventoryLabel(
+                fenceRow.id(), showFenceInventoryLabelCheckBox.isSelected()
+        );
+        redrawMap();
+        markDirty();
+    }
+
     private void adjustStandaloneGardenStones(int delta) {
         plan.setStandaloneGardenStoneCount(plan.standaloneGardenStoneCount() + delta);
         refreshInventory();
@@ -10904,6 +11021,7 @@ public class PlaaniseppApp extends Application {
             double widthPixels,
             double opacity,
             int gardenStoneAdjustment,
+            boolean showInventoryLabel,
             Position inventoryLabelOffset,
             String startJointId,
             String endJointId

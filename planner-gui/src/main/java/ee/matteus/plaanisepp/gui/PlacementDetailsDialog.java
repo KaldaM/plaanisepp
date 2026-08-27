@@ -35,6 +35,8 @@ final class PlacementDetailsDialog {
             PlacementType placementType,
             List<String> existingGroupNames,
             boolean initialShowMapLabel,
+            boolean initialShowFenceInventoryLabel,
+            double initialFenceSegmentLengthMeters,
             double minimumFontSize,
             double maximumFontSize
     ) {
@@ -64,6 +66,9 @@ final class PlacementDetailsDialog {
         );
         ComboBox<MarkerType> markerTypeComboBox = createMarkerTypeComboBox();
         TextField fenceRadiusField = new TextField("8");
+        TextField fenceSegmentLengthField = new TextField(Double.toString(initialFenceSegmentLengthMeters));
+        CheckBox showFenceInventoryLabelCheckBox = new CheckBox("Näita kogusesilti");
+        showFenceInventoryLabelCheckBox.setSelected(initialShowFenceInventoryLabel);
         Label fenceRingPreviewLabel = new Label();
         fenceRingPreviewLabel.setWrapText(true);
 
@@ -100,14 +105,20 @@ final class PlacementDetailsDialog {
                 fontSizeSlider,
                 markerTypeComboBox,
                 fenceRadiusField,
+                fenceSegmentLengthField,
+                showFenceInventoryLabelCheckBox,
                 fenceRingPreviewLabel
         );
         if (placementType == PlacementType.FENCE_RING) {
             Runnable updatePreview = () -> updateFenceRingPreview(
                     fenceRadiusField,
+                    fenceSegmentLengthField,
                     fenceRingPreviewLabel
             );
             fenceRadiusField.textProperty().addListener((observable, oldValue, newValue) -> updatePreview.run());
+            fenceSegmentLengthField.textProperty().addListener(
+                    (observable, oldValue, newValue) -> updatePreview.run()
+            );
             updatePreview.run();
         }
         if (placementType != PlacementType.TEXT_OBJECT) {
@@ -138,7 +149,9 @@ final class PlacementDetailsDialog {
                 fontSizeSlider,
                 markerTypeComboBox,
                 showMapLabelCheckBox,
-                fenceRadiusField
+                fenceRadiusField,
+                fenceSegmentLengthField,
+                showFenceInventoryLabelCheckBox
         );
     }
 
@@ -219,6 +232,8 @@ final class PlacementDetailsDialog {
             Slider fontSizeSlider,
             ComboBox<MarkerType> markerTypeComboBox,
             TextField fenceRadiusField,
+            TextField fenceSegmentLengthField,
+            CheckBox showFenceInventoryLabelCheckBox,
             Label fenceRingPreviewLabel
     ) {
         GridPane form = detailGrid();
@@ -239,9 +254,15 @@ final class PlacementDetailsDialog {
             form.addRow(2, new Label("Läbipaistvus"), opacityControl(opacitySlider));
         } else if (placementType == PlacementType.FENCE_RING) {
             form.addRow(2, new Label("Raadius m"), fenceRadiusField);
+            form.addRow(3, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
+            form.addRow(4, new Label("Paksus"), pixelControl(lineWidthSlider));
+            form.addRow(5, new Label("Kogusesilt"), showFenceInventoryLabelCheckBox);
+            form.addRow(6, new Label("Eelvaade"), fenceRingPreviewLabel);
+        } else if (placementType == PlacementType.FENCE_ROW) {
+            form.addRow(2, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
             form.addRow(3, new Label("Paksus"), pixelControl(lineWidthSlider));
-            form.addRow(4, new Label("Eelvaade"), fenceRingPreviewLabel);
-        } else if (placementType == PlacementType.LINE_OBJECT || placementType == PlacementType.FENCE_ROW) {
+            form.addRow(4, new Label("Kogusesilt"), showFenceInventoryLabelCheckBox);
+        } else if (placementType == PlacementType.LINE_OBJECT) {
             form.addRow(2, new Label("Paksus"), pixelControl(lineWidthSlider));
         } else if (placementType == PlacementType.TEXT_OBJECT) {
             form.addRow(2, new Label("Suurus"), pixelControl(fontSizeSlider));
@@ -256,8 +277,9 @@ final class PlacementDetailsDialog {
         return switch (placementType) {
             case TENT, DJ_TRUCK -> 5;
             case CUSTOM_OBJECT -> 6;
-            case FENCE_RING -> 5;
-            case MARKER_OBJECT, AREA_OBJECT, LINE_OBJECT, FENCE_ROW, TEXT_OBJECT -> 3;
+            case FENCE_RING -> 7;
+            case FENCE_ROW -> 5;
+            case MARKER_OBJECT, AREA_OBJECT, LINE_OBJECT, TEXT_OBJECT -> 3;
             case POWER_SOURCE, DISTRIBUTION_PANEL -> 2;
         };
     }
@@ -278,7 +300,9 @@ final class PlacementDetailsDialog {
             Slider fontSizeSlider,
             ComboBox<MarkerType> markerTypeComboBox,
             CheckBox showMapLabelCheckBox,
-            TextField fenceRadiusField
+            TextField fenceRadiusField,
+            TextField fenceSegmentLengthField,
+            CheckBox showFenceInventoryLabelCheckBox
     ) {
         String groupName = groupComboBox.getEditor().getText().trim();
         if (groupName.isBlank()) {
@@ -305,6 +329,12 @@ final class PlacementDetailsDialog {
         if (fenceRingValues == null) {
             return Optional.empty();
         }
+        double fenceSegmentLength = readFenceSegmentLength(
+                owner, placementType, fenceSegmentLengthField
+        );
+        if (Double.isNaN(fenceSegmentLength)) {
+            return Optional.empty();
+        }
         String name = nameField.getText().trim();
         if (name.isBlank()) {
             name = placementType == PlacementType.MARKER_OBJECT
@@ -328,8 +358,32 @@ final class PlacementDetailsDialog {
                 dimensions.shape(),
                 markerType,
                 showMapLabelCheckBox.isSelected(),
-                fenceRingValues.radiusMeters()
+                fenceRingValues.radiusMeters(),
+                fenceSegmentLength,
+                showFenceInventoryLabelCheckBox.isSelected()
         ));
+    }
+
+    private static double readFenceSegmentLength(
+            Stage owner,
+            PlacementType placementType,
+            TextField lengthField
+    ) {
+        if (placementType != PlacementType.FENCE_ROW && placementType != PlacementType.FENCE_RING) {
+            return FenceRow.DEFAULT_SEGMENT_LENGTH_METERS;
+        }
+        try {
+            double length = parseDouble(lengthField.getText());
+            if (length <= 0) {
+                throw new IllegalArgumentException("Aia pikkus peab olema positiivne.");
+            }
+            return length;
+        } catch (NumberFormatException exception) {
+            showError(owner, "Aeda ei lisatud", "Sisesta aia pikkus arvuna meetrites.");
+        } catch (IllegalArgumentException exception) {
+            showError(owner, "Aeda ei lisatud", exception.getMessage());
+        }
+        return Double.NaN;
     }
 
     private static FenceRingValues readFenceRingValues(
@@ -357,13 +411,14 @@ final class PlacementDetailsDialog {
 
     private static void updateFenceRingPreview(
             TextField radiusField,
+            TextField segmentLengthField,
             Label previewLabel
     ) {
         try {
             FenceRingGenerator.Result preview = FenceRingGenerator.generate(
                     new Position(0, 0),
                     parseDouble(radiusField.getText()),
-                    FenceRow.DEFAULT_SEGMENT_LENGTH_METERS,
+                    parseDouble(segmentLengthField.getText()),
                     1
             );
             previewLabel.setText(
@@ -603,7 +658,9 @@ record PlacementDetails(
         CustomObjectShape shape,
         MarkerType markerType,
         boolean showMapLabel,
-        double fenceRadiusMeters
+        double fenceRadiusMeters,
+        double fenceSegmentLengthMeters,
+        boolean showFenceInventoryLabel
 ) {
 }
 

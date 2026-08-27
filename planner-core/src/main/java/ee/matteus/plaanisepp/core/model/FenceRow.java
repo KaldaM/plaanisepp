@@ -14,6 +14,7 @@ public class FenceRow extends PlannerObject {
     private String startJointId;
     private String endJointId;
     private boolean customInventoryLabelPosition;
+    private boolean showInventoryLabel = true;
     private Position inventoryLabelOffset;
     private int gardenStoneAdjustment;
 
@@ -130,6 +131,14 @@ public class FenceRow extends PlannerObject {
 
     public boolean customInventoryLabelPosition() {
         return customInventoryLabelPosition;
+    }
+
+    public boolean showInventoryLabel() {
+        return showInventoryLabel;
+    }
+
+    public void setShowInventoryLabel(boolean showInventoryLabel) {
+        this.showInventoryLabel = showInventoryLabel;
     }
 
     public Position inventoryLabelOffset() {
