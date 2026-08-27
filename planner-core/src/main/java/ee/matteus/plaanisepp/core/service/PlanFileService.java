@@ -49,7 +49,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 10;
+    public static final int CURRENT_FORMAT_VERSION = 11;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -715,6 +715,8 @@ public class PlanFileService {
     }
 
     private void writePowerOutlets(Properties properties, String prefix, PowerSource source) {
+        properties.setProperty(prefix + "colorHex", source.colorHex());
+        properties.setProperty(prefix + "sizePixels", Double.toString(source.sizePixels()));
         properties.setProperty(prefix + "outlets.count", Integer.toString(source.outlets().size()));
         for (int index = 0; index < source.outlets().size(); index++) {
             PowerOutlet outlet = source.outlets().get(index);
@@ -885,6 +887,8 @@ public class PlanFileService {
                 properties.getProperty(prefix + "name", "Kapp"),
                 readPosition(properties, prefix)
         );
+        source.setColorHex(properties.getProperty(prefix + "colorHex", PowerSource.DEFAULT_COLOR_HEX));
+        source.setSizePixels(doubleValue(properties, prefix + "sizePixels", PowerSource.DEFAULT_SIZE_PIXELS));
         readPowerOutlets(properties, prefix, source);
         return source;
     }
@@ -895,6 +899,8 @@ public class PlanFileService {
                 properties.getProperty(prefix + "name", "Alajaotuskilp"),
                 readPosition(properties, prefix)
         );
+        panel.setColorHex(properties.getProperty(prefix + "colorHex", DistributionPanel.DEFAULT_COLOR_HEX));
+        panel.setSizePixels(doubleValue(properties, prefix + "sizePixels", PowerSource.DEFAULT_SIZE_PIXELS));
         readPowerOutlets(properties, prefix, panel);
         return panel;
     }

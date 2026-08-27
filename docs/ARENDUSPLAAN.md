@@ -9,7 +9,7 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 
 ## Tööjärjekord ja hetkeseis
 
-1. **Tehtud:** alajaotuskilbid, seadmete vaiketoide ja seadmepõhised toitevalikud.
+1. **Tehtud:** alajaotuskilbid, seadmete vaiketoide ja seadmepõhised toitevalikud. Elektrikilpide ja alajaotuskilpide värvi ning kaardil kuvatavat suurust saab muuta; alajaotuskilbil on elektrikapist eristuv oranž vaikevärv.
 2. **Tehtud:** interaktiivne elektri kokkuvõte ja väljundite koormusribad.
 3. **Tehtud:** külgpaneeli ja objektide kontekstimenüüd, üksikobjektide nähtavus ning külgpaneeli jaotiste järjestamine.
 4. **Tehtud:** objektide kiirotsing kahekordse Shift-klahviga.
@@ -464,6 +464,10 @@ Külgpaneelil on eraldi „Inventari” jaotis, mis on nähtav ka korraldajavaat
 Inventari refaktori esimene etapp on teostatud: aedade tervikvõrgud, telgid ja kohandatud objektide kogused arvutatakse JavaFX-ist sõltumatus `InventorySummaryService` teenuses. Kaabliinventari pikkusmärkmed, tükid, tüübi koondid ja alternatiivühendused arvutab eraldi testitud `CableInventorySummaryService`. Külgpaneel ja TXT/PDF-raport kasutavad nii aedade tervikvõrkude jaoks sama `FenceInventoryService` tulemust kui ka kaabliinventari jaoks sama arvutus- ja tekstivormindusloogikat. See vähendab `PlaaniseppApp` vastutust ning loob aluse hilisemale üldisele inventarimudelile.
 
 Voolukokkuvõtte refaktor on samuti teostatud. `PowerHierarchyService` koostab ühe testitud allika-, väljundi-, tarbija- ja seadmepuu koos ühendamata tarbijatega. Seda kasutavad nii külgpaneel, TXT/PDF-raport kui ka lihtne `PowerSummaryService`, mistõttu kapi ja väljundi koormusi ning seadmepõhiseid alternatiivühendusi ei arvutata enam eri vaadetes eraldi. TXT/PDF-raporti osad on eraldatud väikestesse vormindajatesse: `PlanOverviewTextFormatter`, `PowerReportTextFormatter`, `CableReportTextFormatter`, `FenceReportTextFormatter` ja `ObjectReportTextFormatter`. `ReportTextExporter` määrab nüüd ainult osade järjekorra ja kasutaja valitud ulatuse. `CableInventorySummaryService` oskab koostada kokkuvõtte otse tervest plaanist, nii et raport ja külgpaneel ei ehita enam kaabliarvutuse sisendit kumbki eraldi. Plaani üldandmete, gruppide ja tekstimärkmete raportiväljund on kaetud regressioonitestidega.
+
+### Elektrikilpide visuaalne eristus
+
+Elektrikilpide ja alajaotuskilpide muutmisvaates saab muuta objekti värvi ning kaardil kuvatavat suurust. Alajaotuskilbi oranž vaikevärv eristab seda elektrikapi sinisest vaikevärvist, kuid mõlemad on muudetavad. Muudatused rakenduvad kohe kaardil, säilivad `.pplan` versioon 11 failis, kopeeritakse koos objektiga ning osalevad undo/redo ajaloos.
 
 ### Planeeritud inventarimudel
 

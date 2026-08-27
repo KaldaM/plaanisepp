@@ -300,6 +300,8 @@ public class PlaaniseppApp extends Application {
     private TextField tentRotationField;
     private ColorPicker tentColorPicker;
     private Slider tentOpacitySlider;
+    private ColorPicker powerSourceColorPicker;
+    private Slider powerSourceSizeSlider;
     private ComboBox<CustomObjectShape> customObjectShapeComboBox;
     private ColorPicker customObjectColorPicker;
     private Slider customObjectOpacitySlider;
@@ -358,6 +360,7 @@ public class PlaaniseppApp extends Application {
     private VBox linePanel;
     private VBox fenceRowPanel;
     private VBox tentPanel;
+    private VBox powerSourcePanel;
     private VBox powerConnectionPanel;
     private VBox equipmentPanel;
     private VBox outletPanel;
@@ -2653,8 +2656,8 @@ public class PlaaniseppApp extends Application {
         if (object instanceof Tent tent) {
             return tent.colorHex();
         }
-        if (object instanceof PowerSource) {
-            return "#2563eb";
+        if (object instanceof PowerSource powerSource) {
+            return powerSource.colorHex();
         }
         if (object instanceof CustomObject customObject) {
             return customObject.colorHex();
@@ -2935,6 +2938,8 @@ public class PlaaniseppApp extends Application {
         tentColorPicker = new ColorPicker();
         tentOpacitySlider = createOpacitySlider(Tent.DEFAULT_OPACITY * 100.0);
         configureOpacityPreview(tentOpacitySlider);
+        powerSourceColorPicker = new ColorPicker();
+        powerSourceSizeSlider = createPixelSlider(8, 100, PowerSource.DEFAULT_SIZE_PIXELS);
         customObjectShapeComboBox = new ComboBox<>();
         customObjectShapeComboBox.getItems().addAll(CustomObjectShape.values());
         customObjectShapeComboBox.setConverter(customObjectShapeConverter());
@@ -3125,6 +3130,11 @@ public class PlaaniseppApp extends Application {
         tentForm.addRow(3, new Label("Värv"), tentColorPicker);
         tentPanel = new VBox(8, sectionLabel("Telk"), tentForm);
 
+        GridPane powerSourceForm = detailGrid();
+        powerSourceForm.addRow(0, new Label("Värv"), powerSourceColorPicker);
+        powerSourceForm.addRow(1, new Label("Suurus"), pixelControl(powerSourceSizeSlider));
+        powerSourcePanel = new VBox(8, sectionLabel("Elektrikilp"), powerSourceForm);
+
         choosePowerSourceButton = new Button("Vali kapp kaardilt");
         choosePowerSourceButton.setOnAction(event -> startPowerSourceSelectionFromMap());
         powerSourceComboBox.setMaxWidth(Double.MAX_VALUE);
@@ -3188,6 +3198,7 @@ public class PlaaniseppApp extends Application {
                 linePanel,
                 fenceRowPanel,
                 tentPanel,
+                powerSourcePanel,
                 powerConnectionPanel,
                 equipmentSection,
                 outletSection,
@@ -3316,6 +3327,7 @@ public class PlaaniseppApp extends Application {
         configureTextCommit(customObjectRotationField, this::autoApplyCustomObjectRotation);
 
         tentColorPicker.setOnAction(event -> autoApplySelectedColor());
+        powerSourceColorPicker.setOnAction(event -> autoApplySelectedColor());
         customObjectColorPicker.setOnAction(event -> autoApplySelectedColor());
         textObjectColorPicker.setOnAction(event -> autoApplySelectedColor());
         markerColorPicker.setOnAction(event -> autoApplySelectedColor());
@@ -3342,6 +3354,7 @@ public class PlaaniseppApp extends Application {
         connectionOutletComboBox.setOnAction(event -> autoApplySelectedPowerConnection());
         configureDetailSliderPreview(textObjectFontSizeSlider);
         configureDetailSliderPreview(lineWidthSlider);
+        configureDetailSliderPreview(powerSourceSizeSlider);
     }
 
     private void configureTextCommit(TextField field, Runnable action) {
@@ -3384,6 +3397,10 @@ public class PlaaniseppApp extends Application {
         }
         if (slider == fenceWidthSlider && selectedObject instanceof FenceRow fenceRow) {
             plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setWidthPixels(value));
+            return true;
+        }
+        if (slider == powerSourceSizeSlider && selectedObject instanceof PowerSource powerSource) {
+            powerSource.setSizePixels(value);
             return true;
         }
         return false;
@@ -4621,7 +4638,9 @@ public class PlaaniseppApp extends Application {
                 addSelectionOutline(outline, Color.web(row.colorHex()));
             }
         } else if (selectedObject instanceof PowerSource source) {
-            addSelectionOutline(new Circle(source.position().x(), source.position().y(), 16), highlightColor);
+            addSelectionOutline(new Circle(
+                    source.position().x(), source.position().y(), source.sizePixels() / 2 + 4
+            ), highlightColor);
         } else if (selectedObject instanceof MarkerObject marker) {
             addSelectionOutline(new Rectangle(marker.position().x() - 2, marker.position().y() - 2, 32, 32), highlightColor);
         }
@@ -5366,8 +5385,9 @@ public class PlaaniseppApp extends Application {
     }
 
     private void drawPowerSource(PowerSource source) {
-        Circle circle = new Circle(source.position().x(), source.position().y(), 12);
-        circle.setFill(Color.web("#2563eb"));
+        double radius = source.sizePixels() / 2;
+        Circle circle = new Circle(source.position().x(), source.position().y(), radius);
+        circle.setFill(Color.web(source.colorHex()));
         circle.setStroke(Color.web("#111827"));
         circle.setStrokeWidth(isSelected(source) ? 4 : 1);
         circle.setOpacity(source.opacity());
@@ -5377,7 +5397,7 @@ public class PlaaniseppApp extends Application {
 
         mapPane.getChildren().add(circle);
         addRotationHandleIfActive(source, circle);
-        addMapLabel(source, source.position().x() + 16, source.position().y() - 12);
+        addMapLabel(source, source.position().x() + radius + 4, source.position().y() - radius);
     }
 
     private void drawCustomObject(CustomObject object) {
@@ -7721,6 +7741,8 @@ public class PlaaniseppApp extends Application {
         tentRotationField.setDisable(!tentSelected);
         tentColorPicker.setDisable(!tentSelected);
         tentOpacitySlider.setDisable(!tentSelected);
+        powerSourceColorPicker.setDisable(!powerSourceSelected);
+        powerSourceSizeSlider.setDisable(!powerSourceSelected);
         powerConnectionComboBox.setDisable(!powerConsumerSelected);
         powerSourceComboBox.setDisable(!powerConsumerSelected);
         connectionOutletComboBox.setDisable(!powerConsumerSelected);
@@ -7784,6 +7806,7 @@ public class PlaaniseppApp extends Application {
         setSectionVisible(linePanel, lineSelected);
         setSectionVisible(fenceRowPanel, fenceRowSelected);
         setSectionVisible(tentPanel, tentSelected);
+        setSectionVisible(powerSourcePanel, powerSourceSelected);
         setSectionVisible(powerConnectionPanel, powerConsumerSelected && !organizerView);
         setSectionVisible(equipmentSection, equipmentContainerSelected && !organizerView);
         setSectionVisible(outletSection, powerSourceSelected && !organizerView);
@@ -7804,6 +7827,8 @@ public class PlaaniseppApp extends Application {
             tentRotationField.clear();
             tentColorPicker.setValue(Color.web("#e74c3c"));
             setOpacitySliderValue(tentOpacitySlider, Tent.DEFAULT_OPACITY * 100.0);
+            powerSourceColorPicker.setValue(Color.web(PowerSource.DEFAULT_COLOR_HEX));
+            powerSourceSizeSlider.setValue(PowerSource.DEFAULT_SIZE_PIXELS);
             customObjectShapeComboBox.getSelectionModel().select(CustomObjectShape.SQUARE);
             customObjectColorPicker.setValue(Color.web("#9ca3af"));
             textObjectColorPicker.setValue(Color.web("#111827"));
@@ -7874,6 +7899,17 @@ public class PlaaniseppApp extends Application {
             cableNotesField.setText(plan.findPowerConnectionForConsumer(tent.id())
                     .map(PowerConnection::cableNotes)
                     .orElse(""));
+        } else if (selectedObject instanceof PowerSource powerSource) {
+            tentWidthField.clear();
+            tentHeightField.clear();
+            tentRotationField.clear();
+            powerSourceColorPicker.setValue(Color.web(powerSource.colorHex()));
+            powerSourceSizeSlider.setValue(powerSource.sizePixels());
+            customObjectWidthField.clear();
+            customObjectHeightField.clear();
+            customObjectRotationField.clear();
+            cableLengthNotesField.clear();
+            cableNotesField.clear();
         } else if (selectedObject instanceof CustomObject customObject) {
             tentWidthField.clear();
             tentHeightField.clear();
@@ -8450,6 +8486,8 @@ public class PlaaniseppApp extends Application {
         PlanSnapshot before = planSnapshotService.create(plan);
         if (selectedObject instanceof Tent tent) {
             tent.setColorHex(toHex(tentColorPicker.getValue()));
+        } else if (selectedObject instanceof PowerSource powerSource) {
+            powerSource.setColorHex(toHex(powerSourceColorPicker.getValue()));
         } else if (selectedObject instanceof CustomObject customObject) {
             customObject.setColorHex(toHex(customObjectColorPicker.getValue()));
         } else if (selectedObject instanceof TextObject textObject) {
@@ -8726,6 +8764,8 @@ public class PlaaniseppApp extends Application {
             PowerSource sourceCopy = original instanceof DistributionPanel
                     ? new DistributionPanel(planFactory.newId(), copyName, copyPosition)
                     : new PowerSource(planFactory.newId(), copyName, copyPosition);
+            sourceCopy.setColorHex(source.colorHex());
+            sourceCopy.setSizePixels(source.sizePixels());
             for (PowerOutlet outlet : source.outlets()) {
                 sourceCopy.addOutlet(new PowerOutlet(
                         planFactory.newId(),

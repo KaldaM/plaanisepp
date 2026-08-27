@@ -115,7 +115,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(10, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(11, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -173,6 +173,42 @@ class PlanFileServiceTest {
         assertEquals(false, loadedPlan.showFenceInventoryLabels());
         FenceRow loadedContinuation = (FenceRow) loadedPlan.findObject("fence-2").orElseThrow();
         assertEquals(loadedRow.endJointId(), loadedContinuation.startJointId());
+    }
+
+    @Test
+    void savesAndLoadsPowerSourceAppearance() throws IOException {
+        EventPlan plan = new EventPlan("Elektrikilbid");
+        PowerSource source = new PowerSource("source", "Põhikilp", new Position(12, 34));
+        source.setColorHex("#123456");
+        source.setSizePixels(42);
+        DistributionPanel panel = new DistributionPanel("panel", "Alajaotus", new Position(56, 78));
+        panel.setColorHex("#abcdef");
+        panel.setSizePixels(31);
+        plan.addObject(source);
+        plan.addObject(panel);
+        Path file = tempDirectory.resolve("power-source-appearance.pplan");
+
+        service.save(plan, file);
+        EventPlan loadedPlan = service.load(file);
+
+        PowerSource loadedSource = (PowerSource) loadedPlan.findObject("source").orElseThrow();
+        DistributionPanel loadedPanel = (DistributionPanel) loadedPlan.findObject("panel").orElseThrow();
+        assertEquals("#123456", loadedSource.colorHex());
+        assertEquals(42, loadedSource.sizePixels());
+        assertEquals("#abcdef", loadedPanel.colorHex());
+        assertEquals(31, loadedPanel.sizePixels());
+    }
+
+    @Test
+    void usesDistinctDefaultColorsForPowerSourcesAndDistributionPanels() {
+        PowerSource source = new PowerSource("source", "Põhikilp", new Position(0, 0));
+        DistributionPanel panel = new DistributionPanel("panel", "Alajaotus", new Position(0, 0));
+
+        assertEquals(PowerSource.DEFAULT_COLOR_HEX, source.colorHex());
+        assertEquals(DistributionPanel.DEFAULT_COLOR_HEX, panel.colorHex());
+        assertFalse(source.colorHex().equals(panel.colorHex()));
+        panel.setColorHex("");
+        assertEquals(DistributionPanel.DEFAULT_COLOR_HEX, panel.colorHex());
     }
 
     @Test
@@ -689,7 +725,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(10, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(11, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()
