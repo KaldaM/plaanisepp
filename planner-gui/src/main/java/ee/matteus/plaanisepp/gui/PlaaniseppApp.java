@@ -1889,7 +1889,8 @@ public class PlaaniseppApp extends Application {
         objectList.setTooltip(new Tooltip(
                 "Topeltklõps viib kaardil objektini\n"
                         + "Ctrl+klõps lisab või eemaldab objekti valikust\n"
-                        + "Ctrl+Shift+klõps valib nähtavate ridade vahemiku"
+                        + "Ctrl+Shift+klõps valib nähtavate ridade vahemiku\n"
+                        + "Ctrl+klõps grupipäisel valib grupi nähtavad objektid"
         ));
         objectList.setCellFactory(list -> new ListCell<>() {
             @Override
@@ -1989,10 +1990,12 @@ public class PlaaniseppApp extends Application {
             if (event.getButton() != MouseButton.PRIMARY || !event.isControlDown()) {
                 return;
             }
-            if (entry == null || entry.isGroup()) {
+            if (entry == null) {
                 return;
             }
-            if (event.isShiftDown()) {
+            if (entry.isGroup()) {
+                selectObjectGroup(entry.groupName());
+            } else if (event.isShiftDown()) {
                 selectObjectRange(entry.objectItem().object());
             } else {
                 toggleObjectSelection(entry.objectItem().object());
@@ -2088,6 +2091,36 @@ public class PlaaniseppApp extends Application {
         refreshDetails();
         refreshObjectList();
         revealObjectInPowerSummary(target);
+        redrawMap();
+    }
+
+    private void selectObjectGroup(String groupName) {
+        String query = objectSearchField == null ? "" : objectSearchField.getText().trim().toLowerCase();
+        List<PlannerObject> groupObjects = plan.objects().stream()
+                .filter(object -> !organizerView || !(object instanceof PowerSource))
+                .filter(object -> !(object instanceof FenceRow fenceRow)
+                        || plan.isFenceNetworkRepresentative(fenceRow))
+                .filter(object -> groupNameForFilter(object).equals(groupName))
+                .filter(object -> objectListItemMatches(new ObjectListItem(
+                        object,
+                        objectTypeName(object),
+                        groupNameForFilter(object),
+                        "",
+                        isObjectVisibleOnMap(object)
+                ), query))
+                .toList();
+        if (groupObjects.isEmpty()) {
+            return;
+        }
+        if (selectedObject != null && !updatingDetailControls) {
+            commitPendingDetailFieldsBeforeSelectionChange();
+        }
+        groupObjects.forEach(object -> selectedObjectIds.addAll(logicalObjectIds(object)));
+        selectedObject = groupObjects.getLast();
+        selectionRangeAnchorObjectId = selectedObject.id();
+        refreshDetails();
+        refreshObjectList();
+        revealObjectInPowerSummary(selectedObject);
         redrawMap();
     }
 
