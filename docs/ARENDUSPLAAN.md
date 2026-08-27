@@ -20,7 +20,7 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 9. **Tehtud:** plaanipõhine checklist ja soovituste kontrollnimekiri.
 10. **Tehtud:** automaatsed Linuxi ja Windowsi paketid, GitHub Releases, versioonikontroll ning kontrollsummaga allalaadimine.
 11. **Pooleli:** objektieelseadistuste alus ja Red Bull DJ Truck on tehtud; järgmised PA-seadmed ning kinnitatud tegelikud elektrivajadused on lisamata.
-12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud on tehtud ning aiaringi generaator ja detailne inventarikokkuvõte on teostatud, kuid ootavad käsitsi kontrolli; üksiklõikude täielik identiteet on lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
+12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud, aiaringi generaator ning Inventari jaotise esimene etapp on tehtud. Lisamata on automaatselt arvutatavad aiakivid, telgiraskused, lauad ja pingid, objektipõhine inventar ning käsitsi koguseparandused. Üksiklõikude täielik identiteet on samuti lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
 13. **Tehtud:** rippvalikud, kaardilt vooluallika valimine, automaatne rakendamine ja objektide kiirklahvid.
 14. **Tehtud:** kogu kaardi geomeetriat kaitsev paigutuslukustus.
 15. **Tegemata:** kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog.
@@ -457,9 +457,27 @@ Aiaringi generaatori esimene etapp on teostatud. „Aiaring” on eraldi lisamis
 
 ### Inventarikokkuvõte
 
-Detailne inventarikokkuvõte on teostatud ning ootab käsitsi kontrolli. Külgpaneel, TXT-raport ja PDF-raport kasutavad sama aedade koguarvu ja kogupikkust. Ühendatud aiavõrk kuvatakse ühe loogilise objektina, kuid selle kõik füüsilised lõigud lähevad kogusesse.
+Inventarikokkuvõtte esimene etapp on teostatud ning ootab käsitsi kontrolli. Külgpaneel, TXT-raport ja PDF-raport kasutavad sama aedade koguarvu ja kogupikkust. Ühendatud aiavõrk kuvatakse ühe loogilise objektina, kuid selle kõik füüsilised lõigud lähevad kogusesse.
 
-Külgpaneelil on eraldi „Inventari” jaotis, mis on nähtav ka korraldajavaates. Seal kuvatakse ühendatud aiavõrgud tervikobjektide kaupa, telkide kogus ning nime järgi koondatud kohandatud objektid, sealhulgas aiakivid. Tavavaates lisandub kokkupandav kaabliinventar. „Voolu kokkuvõte” sisaldab ainult elektrikoormusi. Objektivaadet dubleeriv gruppide ja objektide loend ning aiasektoreid eraldi näidanud pikkusejaotus eemaldati.
+Külgpaneelil on eraldi „Inventari” jaotis, mis on nähtav ka korraldajavaates. Seal kuvatakse ühendatud aiavõrgud tervikobjektide kaupa, telkide kogus ning nime järgi koondatud kohandatud objektid. Tavavaates lisandub kokkupandav kaabliinventar. „Voolu kokkuvõte” sisaldab ainult elektrikoormusi. Objektivaadet dubleeriv gruppide ja objektide loend ning aiasektoreid eraldi näidanud pikkusejaotus eemaldati.
+
+Inventari refaktori esimene etapp on teostatud: aedade tervikvõrgud, telgid ja kohandatud objektide kogused arvutatakse JavaFX-ist sõltumatus `InventorySummaryService` teenuses. Kaabliinventari pikkusmärkmed, tükid, tüübi koondid ja alternatiivühendused arvutab eraldi testitud `CableInventorySummaryService`. Külgpaneel ja TXT/PDF-raport kasutavad aedade tervikvõrkude jaoks sama `FenceInventoryService` tulemust. See vähendab `PlaaniseppApp` vastutust ning loob aluse hilisemale üldisele inventarimudelile.
+
+### Planeeritud inventarimudel
+
+- **Aiakivid arvutatakse aia geomeetriast automaatselt.** Iga füüsilise aia kahe lõigu vahel ning iga vaba otspunkti juures on üks aiakivi. Kui ühes ühenduspunktis kohtuvad kolm, neli või rohkem aeda, läheb inventari siiski ainult üks aiakivi. Suletud N lõiguga ring vajab seega N aiakivi ja avatud N lõiguga ahel N + 1 aiakivi. Arvestus peab kasutama unikaalseid füüsilisi ühenduspunkte, mitte `FenceRow` objektide arvu.
+- **Telgiraskused, lauad ja pingid** on päris inventariliigid. Neid saab määrata eraldi telgile ja alale; kogused liidetakse automaatselt kogu plaani inventari.
+- **Kujuobjektidele** saab lisada vabalt valitud inventariridu ja koguseid. Sama üldist objektipõhist inventarimudelit kasutatakse telkide ja alade jaoks, et uusi inventariliike ei peaks eraldi koodi sisse ehitama.
+- Inventarikirjel on vähemalt nimetus, kogus ja vajaduse korral märkus. Objekti kopeerimisel kopeeritakse selle inventar kaasa; kustutamisel kaob selle panus koondinventarist; muudatused osalevad undo/redo ajaloos ja säilivad `.pplan` failis.
+
+### Käsitsi koguseparandused
+
+- Iga Inventari jaotises kuvatava liigi juures näidatakse selgelt kolm väärtust: **automaatselt arvutatud**, **käsitsi parandus** ja **lõplik kogus**.
+- Kasutaja saab iga liigi kogust käsitsi suurendada või vähendada. Näited: kõlarite stabiliseerimiseks lisatud telgiraskused, tegelikust lahendusest tulenevalt kaks aiakivi vähem või telgi ja alaga sidumata lauad ning pingid.
+- Parandus ei kirjuta automaatselt arvutatud väärtust üle, vaid salvestatakse eraldi pluss- või miinusväärtusena. Nii jääb nähtavaks, millest lõplik kogus tekkis, ning plaani muutmisel saab automaatset osa turvaliselt uuesti arvutada.
+- Negatiivne parandus ei tohi muuta lõplikku kogust alla nulli. Parandust peab saama nullida ning võimaluse korral lisada sellele lühikese põhjenduse.
+- Käsitsi parandused on plaanipõhised, säilivad salvestamisel, osalevad undo/redo ajaloos ning jõuavad TXT- ja PDF-raportisse.
+- Need täiendused on planeeritud hilisemaks tööks ja neid ei võeta ette bussis tehtava arendussessiooni ajal.
 
 ### Vastuvõtukriteeriumid
 
@@ -468,6 +486,9 @@ Külgpaneelil on eraldi „Inventari” jaotis, mis on nähtav ka korraldajavaat
 - rea saab valitud ühenduskohast lahti võtta ja hiljem uuesti ühendada;
 - 8 m raadiusega ringi saab luua suletud aiavõrguna ning rakendus kuvab enne kinnitamist vajaliku aedade arvu ja tegeliku raadiuse;
 - aiaridade salvestamine, avamine, undo/redo ja raportitesse lisamine säilitavad sama geomeetria ning inventarikoguse;
+- aiakivide arv vastab unikaalsete füüsiliste otspunktide ja ühenduspunktide arvule ka hargnevas aiavõrgus;
+- telgi, ala ja kujuobjekti inventar liitub koondisse ning kopeerimine, kustutamine ja salvestamine säilitavad õiged kogused;
+- käsitsi pluss- ja miinusparandus on automaatsest kogusest eristatav ning lõplik kogus ei lange alla nulli;
 - versioonita ning varasemate `.pplan` versioonide avamine jääb muutmata.
 
 ## 14. Kiirem objektitöö ja ühtne rakendamisloogika

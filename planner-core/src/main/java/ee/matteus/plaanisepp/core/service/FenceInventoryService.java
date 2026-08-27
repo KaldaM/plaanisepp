@@ -34,7 +34,26 @@ public final class FenceInventoryService {
         lengths.forEach((segmentLength, breakdown) -> byLength.add(new LengthBreakdown(
                 segmentLength, breakdown.count, breakdown.totalLengthMeters
         )));
-        return new Summary(totalCount, totalLengthMeters, byGroup, byLength);
+        List<NetworkBreakdown> byNetwork = rows.stream()
+                .filter(plan::isFenceNetworkRepresentative)
+                .map(representative -> networkBreakdown(plan, representative))
+                .toList();
+        return new Summary(totalCount, totalLengthMeters, byGroup, byLength, byNetwork);
+    }
+
+    private NetworkBreakdown networkBreakdown(EventPlan plan, FenceRow representative) {
+        List<FenceRow> rows = plan.fenceNetworkRows(representative.id());
+        boolean uniformSegmentLength = rows.stream().allMatch(
+                row -> Math.abs(row.segmentLengthMeters() - representative.segmentLengthMeters()) < 0.000001
+        );
+        return new NetworkBreakdown(
+                representative.id(),
+                representative.name(),
+                rows.stream().mapToInt(FenceRow::segmentCount).sum(),
+                rows.stream().mapToDouble(FenceRow::totalLengthMeters).sum(),
+                uniformSegmentLength,
+                representative.segmentLengthMeters()
+        );
     }
 
     private String groupName(FenceRow row) {
@@ -45,11 +64,13 @@ public final class FenceInventoryService {
             int totalCount,
             double totalLengthMeters,
             List<GroupBreakdown> byGroup,
-            List<LengthBreakdown> byLength
+            List<LengthBreakdown> byLength,
+            List<NetworkBreakdown> byNetwork
     ) {
         public Summary {
             byGroup = List.copyOf(byGroup);
             byLength = List.copyOf(byLength);
+            byNetwork = List.copyOf(byNetwork);
         }
     }
 
@@ -57,6 +78,16 @@ public final class FenceInventoryService {
     }
 
     public record LengthBreakdown(double segmentLengthMeters, int count, double totalLengthMeters) {
+    }
+
+    public record NetworkBreakdown(
+            String representativeId,
+            String name,
+            int count,
+            double totalLengthMeters,
+            boolean uniformSegmentLength,
+            double segmentLengthMeters
+    ) {
     }
 
     private static final class MutableBreakdown {

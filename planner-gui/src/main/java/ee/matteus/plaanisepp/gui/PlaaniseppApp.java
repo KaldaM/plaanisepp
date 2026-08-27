@@ -34,7 +34,7 @@ import ee.matteus.plaanisepp.core.service.FenceRingGenerator;
 import ee.matteus.plaanisepp.core.service.GeometryCalculator;
 import ee.matteus.plaanisepp.core.service.PowerSummary;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
-import ee.matteus.plaanisepp.core.service.FenceInventoryService;
+import ee.matteus.plaanisepp.core.service.InventorySummaryService;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.animation.KeyFrame;
@@ -128,12 +128,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.prefs.Preferences;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class PlaaniseppApp extends Application {
     private static final String DEFAULT_MAP_PATH = "classpath:/maps/tavakaart.png";
@@ -159,11 +156,6 @@ public class PlaaniseppApp extends Application {
             INVENTORY_SECTION,
             SUMMARY_SECTION
     );
-    private static final Pattern CABLE_LENGTH_PATTERN = Pattern.compile("\\d+(?:[,.]\\d+)?");
-    private static final Comparator<CableSummaryRow> CABLE_SUMMARY_ROW_COMPARATOR = Comparator
-            .comparing((CableSummaryRow row) -> row.connection().connectorType())
-            .thenComparing(row -> row.consumer().name(), String.CASE_INSENSITIVE_ORDER)
-            .thenComparing(row -> row.source().name(), String.CASE_INSENSITIVE_ORDER);
     private static final double MIN_MAP_WIDTH = 760.0;
     private static final double MIN_MAP_HEIGHT = 560.0;
     private static final double MAP_CLICK_DRAG_TOLERANCE_PX = 6.0;
@@ -191,7 +183,8 @@ public class PlaaniseppApp extends Application {
 
     private final PlanFactory planFactory = new PlanFactory();
     private final PowerSummaryService powerSummaryService = new PowerSummaryService();
-    private final FenceInventoryService fenceInventoryService = new FenceInventoryService();
+    private final InventorySummaryService inventorySummaryService = new InventorySummaryService();
+    private final CableInventorySummaryService cableInventorySummaryService = new CableInventorySummaryService();
     private final ReportTextExporter reportTextExporter = new ReportTextExporter(powerSummaryService);
     private final PlanFileSession planFileSession = new PlanFileSession();
     private final PlanDocumentState planDocumentState = new PlanDocumentState();
@@ -10311,8 +10304,9 @@ public class PlaaniseppApp extends Application {
             return;
         }
         inventoryContent.getChildren().clear();
-        addFenceInventory();
-        addObjectInventory();
+        InventorySummaryService.Summary summary = inventorySummaryService.summarize(plan);
+        addFenceInventory(summary);
+        addObjectInventory(summary);
         if (!organizerView) {
             addCableInventory();
         }
@@ -10321,56 +10315,38 @@ public class PlaaniseppApp extends Application {
         }
     }
 
-    private void addFenceInventory() {
-        FenceInventoryService.Summary summary = fenceInventoryService.summarize(plan);
-        if (summary.totalCount() == 0) {
+    private void addFenceInventory(InventorySummaryService.Summary inventory) {
+        if (inventory.fences().totalCount() == 0) {
             return;
         }
         VBox details = new VBox(3);
-        for (FenceRow representative : plan.objects().stream()
-                .filter(FenceRow.class::isInstance)
-                .map(FenceRow.class::cast)
-                .filter(plan::isFenceNetworkRepresentative)
-                .toList()) {
-            List<FenceRow> rows = plan.fenceNetworkRows(representative.id());
-            int count = rows.stream().mapToInt(FenceRow::segmentCount).sum();
-            double length = rows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
+        for (var network : inventory.fences().byNetwork()) {
             details.getChildren().add(inventoryDetailLabel("%s: %d tk · %s m".formatted(
-                    representative.name(), count, formatMeters(length)
+                    network.name(), network.count(), formatMeters(network.totalLengthMeters())
             )));
         }
         inventoryContent.getChildren().add(inventoryPane(
-                "Aiad: %d tk · %s m".formatted(summary.totalCount(), formatMeters(summary.totalLengthMeters())),
+                "Aiad: %d tk · %s m".formatted(
+                        inventory.fences().totalCount(),
+                        formatMeters(inventory.fences().totalLengthMeters())
+                ),
                 details,
                 fenceInventoryExpanded,
                 expanded -> fenceInventoryExpanded = expanded
         ));
     }
 
-    private void addObjectInventory() {
-        long tentCount = plan.objects().stream().filter(Tent.class::isInstance).count();
-        if (tentCount > 0) {
-            inventoryContent.getChildren().add(new Label("Telgid: %d tk".formatted(tentCount)));
+    private void addObjectInventory(InventorySummaryService.Summary inventory) {
+        if (inventory.tentCount() > 0) {
+            inventoryContent.getChildren().add(new Label("Telgid: %d tk".formatted(inventory.tentCount())));
         }
-        List<CustomObject> customObjects = plan.objects().stream()
-                .filter(CustomObject.class::isInstance)
-                .map(CustomObject.class::cast)
-                .toList();
-        long gardenStoneCount = customObjects.stream()
-                .filter(object -> object.name().toLowerCase(java.util.Locale.ROOT).contains("aiakivi"))
-                .count();
-        if (gardenStoneCount > 0) {
-            inventoryContent.getChildren().add(new Label("Aiakivid: %d tk".formatted(gardenStoneCount)));
+        if (inventory.gardenStoneCount() > 0) {
+            inventoryContent.getChildren().add(new Label(
+                    "Aiakivid: %d tk".formatted(inventory.gardenStoneCount())
+            ));
         }
-        Map<String, Long> customObjectsByName = customObjects.stream()
-                .filter(object -> !object.name().toLowerCase(java.util.Locale.ROOT).contains("aiakivi"))
-                .collect(java.util.stream.Collectors.groupingBy(
-                        PlannerObject::name,
-                        () -> new TreeMap<>(String.CASE_INSENSITIVE_ORDER),
-                        java.util.stream.Collectors.counting()
-                ));
-        customObjectsByName.forEach((name, count) -> inventoryContent.getChildren().add(
-                new Label("%s: %d tk".formatted(name, count))
+        inventory.otherCustomItems().forEach(item -> inventoryContent.getChildren().add(
+                new Label("%s: %d tk".formatted(item.name(), item.count()))
         ));
     }
 
@@ -10467,11 +10443,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
 
-        List<CableSummaryRow> cableRows = new ArrayList<>();
-        double totalLengthMeters = 0.0;
-        double totalNotedLengthMeters = 0.0;
-        boolean hasNotedLength = false;
-        Map<ConnectorType, CableTypeSummary> summariesByType = new EnumMap<>(ConnectorType.class);
+        List<CableInventorySummaryService.Input> inputs = new ArrayList<>();
 
         for (PowerConnection connection : plan.powerConnections()) {
             PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
@@ -10488,39 +10460,28 @@ public class PlaaniseppApp extends Application {
             }
 
             double lengthMeters = CableDisplayHelper.lengthMeters(cablePath(consumer, source, connection), pixelsPerMeter());
-            totalLengthMeters += lengthMeters;
-            OptionalDouble notedLengthMeters = notedCableLengthMeters(connection);
-            CableTypeSummary typeSummary = summariesByType.computeIfAbsent(
-                    connection.connectorType(),
-                    ignored -> new CableTypeSummary()
-            );
-            typeSummary.addMapLength(lengthMeters);
-            if (notedLengthMeters.isPresent()) {
-                totalNotedLengthMeters += notedLengthMeters.getAsDouble();
-                typeSummary.addNotedLength(notedLengthMeters.getAsDouble());
-                typeSummary.addPieces(cableLengthPieces(connection));
-                hasNotedLength = true;
-            }
-            cableRows.add(new CableSummaryRow(consumer, source, connection, lengthMeters, notedLengthMeters));
+            inputs.add(new CableInventorySummaryService.Input(
+                    consumer.name(), source.name(), connection, lengthMeters
+            ));
         }
 
-        if (cableRows.isEmpty()) {
+        CableInventorySummaryService.Summary summary = cableInventorySummaryService.summarize(inputs);
+        if (summary.isEmpty()) {
             return;
         }
 
         VBox details = new VBox(3);
-        String cableTotalText = hasNotedLength
+        String cableTotalText = summary.hasNotedLength()
                 ? "Kaablid: %.1f m märgitud · %.1f m kaardil".formatted(
-                        totalNotedLengthMeters, totalLengthMeters
+                        summary.totalNotedLengthMeters(), summary.totalMapLengthMeters()
                 )
-                : "Kaablid: %.1f m".formatted(totalLengthMeters);
-        details.getChildren().addAll(cableRows.stream()
-                .sorted(CABLE_SUMMARY_ROW_COMPARATOR)
+                : "Kaablid: %.1f m".formatted(summary.totalMapLengthMeters());
+        details.getChildren().addAll(summary.rows().stream()
                 .map(this::cableSummaryRow)
                 .map(String::stripLeading)
                 .map(this::inventoryDetailLabel)
                 .toList());
-        for (String row : cableTypeSummaryRows(summariesByType)) {
+        for (String row : cableTypeSummaryRows(summary.byType())) {
             details.getChildren().add(inventoryDetailLabel(row.stripLeading()));
         }
         inventoryContent.getChildren().add(inventoryPane(
@@ -10529,21 +10490,6 @@ public class PlaaniseppApp extends Application {
                 cableInventoryExpanded,
                 expanded -> cableInventoryExpanded = expanded
         ));
-    }
-
-    private void addSummarySpacerIfNeeded() {
-        if (!summaryList.getItems().isEmpty()) {
-            summaryList.getItems().add(SummaryListItem.text(""));
-        }
-    }
-
-    private Map<String, List<PlannerObject>> objectsByGroup() {
-        Map<String, List<PlannerObject>> objectsByGroup = new TreeMap<>();
-        for (PlannerObject object : plan.objects()) {
-            String groupName = object.groupName().isBlank() ? "Määramata" : object.groupName();
-            objectsByGroup.computeIfAbsent(groupName, ignored -> new ArrayList<>()).add(object);
-        }
-        return objectsByGroup;
     }
 
     private boolean savePlan() {
@@ -10691,29 +10637,30 @@ public class PlaaniseppApp extends Application {
         return reportTextExporter.export(plan, reportScope, true, true, true);
     }
 
-    private String cableNotesText(PowerConnection connection) {
-        return connection.cableNotes().isBlank() ? "" : " [%s]".formatted(connection.cableNotes());
-    }
-
-    private List<String> cableTypeSummaryRows(Map<ConnectorType, CableTypeSummary> summariesByType) {
+    private List<String> cableTypeSummaryRows(
+            Map<ConnectorType, CableInventorySummaryService.TypeSummary> summariesByType
+    ) {
         List<String> rows = new ArrayList<>();
         if (!summariesByType.isEmpty()) {
             rows.add("Tüübi kaupa:");
         }
         for (ConnectorType connectorType : ConnectorType.values()) {
-            CableTypeSummary summary = summariesByType.get(connectorType);
+            CableInventorySummaryService.TypeSummary summary = summariesByType.get(connectorType);
             if (summary == null) {
                 continue;
             }
             rows.add(cableTypeSummaryRow(connectorType, summary));
-            if (summary.hasPieces()) {
+            if (!summary.pieceCounts().isEmpty()) {
                 rows.add("    tükid: %s".formatted(cablePieceCountText(summary.pieceCounts())));
             }
         }
         return rows;
     }
 
-    private String cableTypeSummaryRow(ConnectorType connectorType, CableTypeSummary summary) {
+    private String cableTypeSummaryRow(
+            ConnectorType connectorType,
+            CableInventorySummaryService.TypeSummary summary
+    ) {
         if (summary.hasNotedLength()) {
             return "  %s: %.1f m märgitud, %.1f m kaardil".formatted(
                     CableDisplayHelper.shortTypeName(connectorType),
@@ -10724,28 +10671,20 @@ public class PlaaniseppApp extends Application {
         return "  %s: %.1f m kaardil".formatted(CableDisplayHelper.shortTypeName(connectorType), summary.mapLengthMeters());
     }
 
-    private String cableSummaryRow(CableSummaryRow row) {
+    private String cableSummaryRow(CableInventorySummaryService.Row row) {
         String lengthText = row.notedLengthMeters().isPresent()
                 ? "%.1f m kaardil, %.1f m märgitud".formatted(row.mapLengthMeters(), row.notedLengthMeters().getAsDouble())
                 : "%.1f m".formatted(row.mapLengthMeters());
-        String connectionRole = row.connection().defaultForConsumer() ? "" : ", seadme erand";
-        return "  - %s -> %s (%s%s): %s%s".formatted(
-                row.consumer().name(),
-                row.source().name(),
-                row.connection().connectorType().displayName(),
+        String connectionRole = row.alternativeConnection() ? ", seadme erand" : "";
+        return "  - %s -> %s (%s%s): %s%s%s".formatted(
+                row.consumerName(),
+                row.sourceName(),
+                row.connectorType().displayName(),
                 connectionRole,
                 lengthText,
-                cableNotesText(row.connection()) + cableNoteWarningText(row.connection())
+                row.cableNotes().isBlank() ? "" : " [%s]".formatted(row.cableNotes()),
+                row.noteNeedsReview() ? " (tükid kontrollida)" : ""
         );
-    }
-
-    private record CableSummaryRow(
-            PlannerObject consumer,
-            PowerSource source,
-            PowerConnection connection,
-            double mapLengthMeters,
-            OptionalDouble notedLengthMeters
-    ) {
     }
 
     private record SummaryListItem(
@@ -10809,46 +10748,6 @@ public class PlaaniseppApp extends Application {
     private record MeasurementView(Position start, Position end, Label distanceLabel) {
     }
 
-    private String cableNoteWarningText(PowerConnection connection) {
-        return cableNoteNeedsReview(connection) ? " (tükid kontrollida)" : "";
-    }
-
-    private boolean cableNoteNeedsReview(PowerConnection connection) {
-        String notes = connection.cableLengthNotes();
-        if (notes.isBlank() || !notes.contains("+")) {
-            return false;
-        }
-
-        for (String part : notes.split("\\+")) {
-            if (!part.isBlank() && !CABLE_LENGTH_PATTERN.matcher(part).find()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private OptionalDouble notedCableLengthMeters(PowerConnection connection) {
-        List<Double> pieces = cableLengthPieces(connection);
-        if (pieces.isEmpty()) {
-            return OptionalDouble.empty();
-        }
-
-        double totalLengthMeters = 0.0;
-        for (double piece : pieces) {
-            totalLengthMeters += piece;
-        }
-        return OptionalDouble.of(totalLengthMeters);
-    }
-
-    private List<Double> cableLengthPieces(PowerConnection connection) {
-        List<Double> pieces = new ArrayList<>();
-        Matcher matcher = CABLE_LENGTH_PATTERN.matcher(connection.cableLengthNotes());
-        while (matcher.find()) {
-            pieces.add(Double.parseDouble(matcher.group().replace(',', '.')));
-        }
-        return pieces;
-    }
-
     private String cablePieceCountText(Map<Double, Integer> pieceCounts) {
         List<String> rows = new ArrayList<>();
         for (Map.Entry<Double, Integer> entry : pieceCounts.entrySet()) {
@@ -10862,48 +10761,6 @@ public class PlaaniseppApp extends Application {
             return Integer.toString((int) Math.rint(lengthMeters));
         }
         return "%.1f".formatted(lengthMeters);
-    }
-
-    private static class CableTypeSummary {
-        private double mapLengthMeters;
-        private double notedLengthMeters;
-        private boolean hasNotedLength;
-        private final Map<Double, Integer> pieceCounts = new TreeMap<>();
-
-        void addMapLength(double lengthMeters) {
-            mapLengthMeters += lengthMeters;
-        }
-
-        void addNotedLength(double lengthMeters) {
-            notedLengthMeters += lengthMeters;
-            hasNotedLength = true;
-        }
-
-        void addPieces(List<Double> pieces) {
-            for (double piece : pieces) {
-                pieceCounts.merge(piece, 1, Integer::sum);
-            }
-        }
-
-        double mapLengthMeters() {
-            return mapLengthMeters;
-        }
-
-        double notedLengthMeters() {
-            return notedLengthMeters;
-        }
-
-        boolean hasNotedLength() {
-            return hasNotedLength;
-        }
-
-        boolean hasPieces() {
-            return !pieceCounts.isEmpty();
-        }
-
-        Map<Double, Integer> pieceCounts() {
-            return pieceCounts;
-        }
     }
 
     private void loadMapImage() {

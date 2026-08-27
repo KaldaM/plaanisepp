@@ -77,28 +77,23 @@ final class ReportTextExporter {
             return;
         }
         builder.append("Aiad").append(lineSeparator);
-        for (FenceRow fenceRow : fenceRows.stream().filter(plan::isFenceNetworkRepresentative).toList()) {
-            List<FenceRow> networkRows = plan.fenceNetworkRows(fenceRow.id());
-            int segmentCount = networkRows.stream().mapToInt(FenceRow::segmentCount).sum();
-            double totalLengthMeters = networkRows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
-            boolean uniformLength = networkRows.stream()
-                    .allMatch(row -> Math.abs(row.segmentLengthMeters() - fenceRow.segmentLengthMeters()) < 0.000001);
+        FenceInventoryService.Summary summary = fenceInventoryService.summarize(plan);
+        for (FenceInventoryService.NetworkBreakdown network : summary.byNetwork()) {
             builder.append("  - ")
-                    .append(fenceRow.name())
+                    .append(network.name())
                     .append(": ")
-                    .append(segmentCount);
-            if (uniformLength) {
+                    .append(network.count());
+            if (network.uniformSegmentLength()) {
                 builder.append(" × ")
-                        .append(formatMeters(fenceRow.segmentLengthMeters()))
+                        .append(formatMeters(network.segmentLengthMeters()))
                         .append(" m = ");
             } else {
                 builder.append(" aeda = ");
             }
-            builder.append(formatMeters(totalLengthMeters))
+            builder.append(formatMeters(network.totalLengthMeters()))
                     .append(" m")
                     .append(lineSeparator);
         }
-        FenceInventoryService.Summary summary = fenceInventoryService.summarize(plan);
         builder.append("Kokku: ").append(summary.totalCount()).append(" aeda, ")
                 .append(formatMeters(summary.totalLengthMeters())).append(" m").append(lineSeparator);
         builder.append("Pikkuse järgi:").append(lineSeparator);
