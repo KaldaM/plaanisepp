@@ -259,6 +259,7 @@ public class PlaaniseppApp extends Application {
     private final Set<String> visibleGroups = new HashSet<>();
     private final Set<String> collapsedSummaryKeys = new HashSet<>();
     private final Set<String> collapsedObjectGroups = new HashSet<>();
+    private final Set<String> expandedObjectInventoryKeys = new HashSet<>();
     private final Set<String> selectedObjectIds = new LinkedHashSet<>();
     private String selectionRangeAnchorObjectId;
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
@@ -9845,13 +9846,25 @@ public class PlaaniseppApp extends Application {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
                     setText(null);
+                    setGraphic(null);
                     setContextMenu(null);
                     return;
                 }
-                setText("%s: %d tk%s".formatted(
+                Label label = new Label("%s: %d tk%s".formatted(
                         item.name(), item.quantity(),
                         item.notes().isBlank() ? "" : " · " + item.notes()
                 ));
+                label.setWrapText(true);
+                Button decreaseButton = new Button("−");
+                decreaseButton.setDisable(item.quantity() == 0);
+                decreaseButton.setOnAction(event -> adjustSelectedObjectInventoryItem(item, -1));
+                Button increaseButton = new Button("+");
+                increaseButton.setOnAction(event -> adjustSelectedObjectInventoryItem(item, 1));
+                HBox row = new HBox(6, label, decreaseButton, increaseButton);
+                row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                HBox.setHgrow(label, Priority.ALWAYS);
+                setText(null);
+                setGraphic(row);
                 MenuItem editItem = new MenuItem("Muuda");
                 editItem.setOnAction(event -> showObjectInventoryDialog(item));
                 MenuItem removeItem = new MenuItem("Eemalda");
@@ -9926,6 +9939,13 @@ public class PlaaniseppApp extends Application {
             refreshInventory();
             markDirty();
         }
+    }
+
+    private void adjustSelectedObjectInventoryItem(InventoryItem item, int delta) {
+        item.setQuantity(Math.max(0, item.quantity() + delta));
+        refreshObjectInventoryList();
+        refreshInventory();
+        markDirty();
     }
 
     private void refreshObjectInventoryList() {
@@ -10689,11 +10709,20 @@ public class PlaaniseppApp extends Application {
                 HBox.setHgrow(contributionLabel, Priority.ALWAYS);
                 details.getChildren().add(contributionRow);
             });
+            String groupKey = group.name().toLowerCase(java.util.Locale.ROOT);
             TitledPane pane = new TitledPane(
                     "%s: %d tk".formatted(group.name(), group.totalCount()),
                     details
             );
-            pane.setExpanded(false);
+            pane.setExpanded(expandedObjectInventoryKeys.contains(groupKey));
+            pane.expandedProperty().addListener((observable, oldValue, expanded) -> {
+                if (expanded) {
+                    expandedObjectInventoryKeys.add(groupKey);
+                } else {
+                    expandedObjectInventoryKeys.remove(groupKey);
+                }
+            });
+            pane.setAnimated(false);
             inventoryContent.getChildren().add(pane);
         });
     }
