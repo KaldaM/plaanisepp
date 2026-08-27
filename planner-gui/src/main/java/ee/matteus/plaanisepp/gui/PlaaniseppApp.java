@@ -6265,7 +6265,9 @@ public class PlaaniseppApp extends Application {
     private void makeDraggable(Node node, PlannerObject object) {
         final Delta dragDelta = new Delta();
         final boolean[] fenceDragged = {false};
+        final boolean[] dragArmed = {false};
         node.setOnMousePressed(event -> {
+            dragArmed[0] = false;
             if (event.getButton() != MouseButton.PRIMARY || measuringActive || addingCablePoint) {
                 return;
             }
@@ -6297,6 +6299,7 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             beginPlanDrag();
+            dragArmed[0] = true;
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
             if (multiObjectDragInProgress || object instanceof FenceRow) {
                 fenceDragged[0] = false;
@@ -6313,6 +6316,10 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         node.setOnMouseDragged(event -> {
+            if (!dragArmed[0]) {
+                event.consume();
+                return;
+            }
             if (measuringActive || addingCablePoint || mapLayoutLocked) {
                 return;
             }
@@ -6348,6 +6355,11 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         node.setOnMouseReleased(event -> {
+            boolean wasArmed = dragArmed[0];
+            dragArmed[0] = false;
+            if (!wasArmed) {
+                return;
+            }
             if (multiObjectDragInProgress) {
                 return;
             } else if (object instanceof FenceRow) {
@@ -6454,9 +6466,11 @@ public class PlaaniseppApp extends Application {
         }
         Position center;
         double handleDistance;
+        double handleStartRotationDegrees;
         if (multiObjectRotationState != null) {
             center = multiObjectRotationState.center();
             handleDistance = multiObjectRotationState.handleDistance();
+            handleStartRotationDegrees = multiObjectRotationState.handleStartRotationDegrees();
         } else {
             List<Bounds> bounds = selectedObjects().stream()
                     .map(object -> mapObjectNodes.get(object.id()))
@@ -6471,10 +6485,19 @@ public class PlaaniseppApp extends Application {
             double minY = bounds.stream().mapToDouble(Bounds::getMinY).min().orElse(0);
             double maxY = bounds.stream().mapToDouble(Bounds::getMaxY).max().orElse(0);
             center = new Position((minX + maxX) / 2, (minY + maxY) / 2);
-            handleDistance = Math.max(32, Math.max(maxX - minX, maxY - minY) / 2 + 24);
+            double naturalDistance = Math.max(32, Math.max(maxX - minX, maxY - minY) / 2 + 24);
+            Position visibleHandle = constrainRotationHandleToViewport(new Position(
+                    center.x(), center.y() - naturalDistance
+            ));
+            handleDistance = Math.max(16, Math.hypot(
+                    visibleHandle.x() - center.x(), visibleHandle.y() - center.y()
+            ));
+            handleStartRotationDegrees = pointerRotationDegrees(
+                    new Point2D(visibleHandle.x(), visibleHandle.y()), center
+            );
         }
 
-        double radians = Math.toRadians(multiObjectRotationDelta - 90);
+        double radians = Math.toRadians(handleStartRotationDegrees + multiObjectRotationDelta - 90);
         double handleX = center.x() + Math.cos(radians) * handleDistance;
         double handleY = center.y() + Math.sin(radians) * handleDistance;
         Line guide = new Line(center.x(), center.y(), handleX, handleY);
@@ -6493,7 +6516,10 @@ public class PlaaniseppApp extends Application {
             }
             Point2D pointer = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
             multiObjectRotationState = createMultiObjectRotationState(
-                    center, handleDistance, pointerRotationDegrees(pointer, center)
+                    center,
+                    handleDistance,
+                    handleStartRotationDegrees,
+                    pointerRotationDegrees(pointer, center)
             );
             multiObjectRotationDelta = 0;
             mapScrollPane.setPannable(false);
@@ -6503,9 +6529,29 @@ public class PlaaniseppApp extends Application {
         mapPane.getChildren().addAll(guide, handle);
     }
 
+    private Position constrainRotationHandleToViewport(Position desiredPosition) {
+        Node viewport = mapScrollPane.lookup(".viewport");
+        if (viewport == null) {
+            return desiredPosition;
+        }
+        Bounds viewportSceneBounds = viewport.localToScene(viewport.getBoundsInLocal());
+        Point2D topLeft = mapPane.sceneToLocal(
+                viewportSceneBounds.getMinX(), viewportSceneBounds.getMinY()
+        );
+        Point2D bottomRight = mapPane.sceneToLocal(
+                viewportSceneBounds.getMaxX(), viewportSceneBounds.getMaxY()
+        );
+        double padding = 14 / Math.max(zoomLevel, 0.1);
+        return new Position(
+                clamp(desiredPosition.x(), topLeft.getX() + padding, bottomRight.getX() - padding),
+                clamp(desiredPosition.y(), topLeft.getY() + padding, bottomRight.getY() - padding)
+        );
+    }
+
     private MultiObjectRotationState createMultiObjectRotationState(
             Position center,
             double handleDistance,
+            double handleStartRotationDegrees,
             double pointerStartRotationDegrees
     ) {
         Map<String, MultiObjectRotationObjectState> objectStates = new HashMap<>();
@@ -6530,6 +6576,7 @@ public class PlaaniseppApp extends Application {
         return new MultiObjectRotationState(
                 center,
                 handleDistance,
+                handleStartRotationDegrees,
                 pointerStartRotationDegrees,
                 Map.copyOf(objectStates),
                 Map.copyOf(fenceJointPositions)
@@ -10571,6 +10618,7 @@ public class PlaaniseppApp extends Application {
     private record MultiObjectRotationState(
             Position center,
             double handleDistance,
+            double handleStartRotationDegrees,
             double pointerStartRotationDegrees,
             Map<String, MultiObjectRotationObjectState> objectStates,
             Map<String, Position> fenceJointPositions
