@@ -1173,7 +1173,8 @@ public class PlaaniseppApp extends Application {
             dialog.setContentText("Paigaldatud versioon: " + applicationVersion()
                     + "\nUusim avaldatud versioon: " + latestRelease.version()
                     + "\n\n" + updateStatus
-                    + "\nGitHub Releasesis on saadaval paigalduspaketid ja varasemad versioonid.");
+                    + "\nGitHub Releasesis on saadaval paigalduspaketid ja varasemad versioonid."
+                    + "\n\nUuenduse kontrollversioon: 0.4.2.");
         }));
     }
 
