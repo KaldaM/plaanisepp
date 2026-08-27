@@ -663,6 +663,8 @@ Kui kasutaja hoiab `Ctrl`-i all ja lohistab kaardil vasaku hiirenupuga, kuvataks
 
 Valitud objektid peavad olema kaardil ja külgpaneelil ühtemoodi märgatavad. `Escape` tühistab poolelioleva valikukasti ning mitme valiku tühistamiseks saab teha tavalise klõpsu tühjal kaardialal. Kõik valikupõhised tegevused peavad olema kasutatavad ka klaviatuurita hiirega ning nende olekud peavad olema nähtavad.
 
+Mitmikvaliku nähtavust tuleb veel parandada: kõik aktiivsed objektid peavad olema nii kaardil kui külgpaneelis selgelt eristatavad ning kasutajaliides peab kuvama valitud objektide koguarvu. Külgpaneelis lisatakse `Ctrl + Shift + M1` vahemikuvalik, mis valib viimati valitud objektirea ja klõpsatud objektirea vahele jäävad objektid. Grupi päised ei kuulu vahemikku ning filtreeritud või kokkupandud loendi korral peab valik lähtuma parajasti nähtavatest objektiridadest.
+
 ### Vastuvõtukriteeriumid
 
 - pööramispunkt muudab valitud objekti nurka loomulikult ja jätab keskpunkti paigale;

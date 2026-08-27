@@ -219,11 +219,18 @@ public class PlaaniseppApp extends Application {
     private String editingCableConnectionId;
     private String rotatingObjectId;
     private RotationDragState rotationDragState;
+    private boolean rotatingMultipleObjects;
+    private MultiObjectRotationState multiObjectRotationState;
+    private double multiObjectRotationDelta;
     private boolean mapDraggedSincePress;
     private boolean planDragInProgress;
     private boolean planDragRecorded;
     private boolean synchronizingSidebarSelection;
     private boolean preservingSidebarMultiSelection;
+    private boolean multiObjectDragInProgress;
+    private boolean multiObjectDragChanged;
+    private MultiObjectDragState multiObjectDragState;
+    private boolean suppressNextObjectClick;
     private Position selectionBoxStart;
     private Rectangle selectionBox;
     private boolean startupPlanFileProvided;
@@ -404,6 +411,8 @@ public class PlaaniseppApp extends Application {
     private MarkerType pendingPlacementMarkerType;
     private PlannerObject copiedObject;
     private FenceNetworkClipboard copiedFenceNetwork;
+    private List<MultiObjectClipboardEntry> copiedObjects = List.of();
+    private Position copiedObjectsOrigin;
     private int keyboardPasteCount;
     private boolean updatingOpacityControls;
     private boolean opacityDragChanged;
@@ -463,7 +472,40 @@ public class PlaaniseppApp extends Application {
                 deactivateQuickObjectSearch();
             }
         });
+        scene.addEventFilter(MouseEvent.MOUSE_DRAGGED, event -> {
+            if (multiObjectRotationState != null) {
+                Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+                multiObjectRotationDelta = normalizeAngleDelta(
+                        pointerRotationDegrees(mapPoint, multiObjectRotationState.center())
+                                - multiObjectRotationState.pointerStartRotationDegrees()
+                );
+                applyMultiObjectRotation(multiObjectRotationDelta);
+                redrawMap();
+                refreshSummary();
+                recordPlanDragChange();
+                event.consume();
+                return;
+            }
+            if (!multiObjectDragInProgress || multiObjectDragState == null) {
+                return;
+            }
+            Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+            applyMultiObjectDrag(mapPoint);
+            multiObjectDragChanged = true;
+            redrawMap();
+            refreshSummary();
+            recordPlanDragChange();
+            event.consume();
+        });
         scene.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> {
+            if (multiObjectRotationState != null) {
+                finishObjectRotation();
+                event.consume();
+            }
+            if (multiObjectDragInProgress) {
+                finishMultiObjectDrag();
+                event.consume();
+            }
             planDragInProgress = false;
             planDragRecorded = false;
         });
@@ -555,7 +597,7 @@ public class PlaaniseppApp extends Application {
                 && event.isControlDown()
                 && !event.isAltDown()
                 && !event.isShiftDown()
-                && copiedObject != null) {
+                && hasCopiedObjects()) {
             pasteCopiedObjectWithOffset();
             event.consume();
             return;
@@ -886,7 +928,7 @@ public class PlaaniseppApp extends Application {
             boolean objectSelected = selectedObject != null;
             editObjectItem.setDisable(!objectSelected);
             copyObjectItem.setDisable(!objectSelected);
-            pasteObjectItem.setDisable(copiedObject == null || mapLayoutLocked);
+            pasteObjectItem.setDisable(!hasCopiedObjects() || mapLayoutLocked);
             lockObjectItem.setDisable(!objectSelected);
             visibilityItem.setDisable(!objectSelected);
             deleteObjectItem.setDisable(!objectSelected || mapLayoutLocked
@@ -3386,7 +3428,7 @@ public class PlaaniseppApp extends Application {
             addMenu.getItems().add(addItem);
         }
         MenuItem pasteItem = new MenuItem("Kleebi");
-        pasteItem.setDisable(copiedObject == null || mapLayoutLocked);
+        pasteItem.setDisable(!hasCopiedObjects() || mapLayoutLocked);
         pasteItem.setOnAction(event -> pasteCopiedObject(position));
         showContextMenu(new ContextMenu(addMenu, pasteItem), mapPane, screenX, screenY);
     }
@@ -4284,6 +4326,7 @@ public class PlaaniseppApp extends Application {
             }
         }
         drawSelectedObjectHighlight();
+        addMultiObjectRotationHandleIfActive();
         fenceInteractionNodes.forEach(Node::toFront);
         powerConnectionAnchorMarkers.forEach(Node::toFront);
         drawPendingShapePreview();
@@ -6140,6 +6183,11 @@ public class PlaaniseppApp extends Application {
             if (event.getButton() != MouseButton.PRIMARY) {
                 return;
             }
+            if (suppressNextObjectClick) {
+                suppressNextObjectClick = false;
+                event.consume();
+                return;
+            }
             if (pendingTentPlacement) {
                 Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
                 placeTent(new Position(mapPoint.getX(), mapPoint.getY()));
@@ -6230,22 +6278,34 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
-            if (object instanceof FenceRow) {
+            boolean draggingMultipleObjects = isSelected(object) && selectedLogicalObjects().size() > 1;
+            if (draggingMultipleObjects && selectedObjects().stream().anyMatch(PlannerObject::locked)) {
+                event.consume();
+                return;
+            }
+            if (draggingMultipleObjects) {
+                multiObjectDragInProgress = true;
+                multiObjectDragChanged = false;
+            } else if (object instanceof FenceRow) {
                 selectFenceRowForDrag(object);
             } else {
                 selectObject(object);
             }
             if (mapLayoutLocked) {
+                multiObjectDragInProgress = false;
                 event.consume();
                 return;
             }
             beginPlanDrag();
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-            if (object instanceof FenceRow) {
+            if (multiObjectDragInProgress || object instanceof FenceRow) {
                 fenceDragged[0] = false;
                 mapScrollPane.setPannable(false);
                 dragDelta.x = event.getSceneX();
                 dragDelta.y = event.getSceneY();
+                if (multiObjectDragInProgress) {
+                    multiObjectDragState = createMultiObjectDragState(mapPoint);
+                }
             } else {
                 dragDelta.x = mapPoint.getX() - object.position().x();
                 dragDelta.y = mapPoint.getY() - object.position().y();
@@ -6259,7 +6319,9 @@ public class PlaaniseppApp extends Application {
             if (object.locked()) {
                 return;
             }
-            if (object instanceof FenceRow fenceRow) {
+            if (multiObjectDragInProgress) {
+                return;
+            } else if (object instanceof FenceRow fenceRow) {
                 boolean moved = plan.translateFenceNetwork(
                         fenceRow.id(),
                         (event.getSceneX() - dragDelta.x) / zoomLevel,
@@ -6286,7 +6348,9 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         node.setOnMouseReleased(event -> {
-            if (object instanceof FenceRow) {
+            if (multiObjectDragInProgress) {
+                return;
+            } else if (object instanceof FenceRow) {
                 mapScrollPane.setPannable(true);
                 if (fenceDragged[0]) {
                     redrawMap();
@@ -6297,18 +6361,80 @@ public class PlaaniseppApp extends Application {
         });
     }
 
+    private void finishMultiObjectDrag() {
+        multiObjectDragInProgress = false;
+        multiObjectDragState = null;
+        mapScrollPane.setPannable(true);
+        if (!multiObjectDragChanged) {
+            return;
+        }
+        multiObjectDragChanged = false;
+        suppressNextObjectClick = true;
+        Platform.runLater(() -> suppressNextObjectClick = false);
+        redrawMap();
+        refreshDetails();
+    }
+
+    private MultiObjectDragState createMultiObjectDragState(Point2D pointerStart) {
+        Map<String, Position> objectPositions = new HashMap<>();
+        Map<String, Position> fenceJointPositions = new HashMap<>();
+        for (PlannerObject object : selectedLogicalObjects()) {
+            if (object instanceof FenceRow fenceRow) {
+                for (FenceRow row : plan.fenceNetworkRows(fenceRow.id())) {
+                    plan.findFenceJoint(row.startJointId()).ifPresent(joint ->
+                            fenceJointPositions.put(joint.id(), joint.position()));
+                    plan.findFenceJoint(row.endJointId()).ifPresent(joint ->
+                            fenceJointPositions.put(joint.id(), joint.position()));
+                }
+            } else {
+                objectPositions.put(object.id(), object.position());
+            }
+        }
+        return new MultiObjectDragState(
+                new Position(pointerStart.getX(), pointerStart.getY()),
+                Map.copyOf(objectPositions),
+                Map.copyOf(fenceJointPositions)
+        );
+    }
+
+    private void applyMultiObjectDrag(Point2D pointer) {
+        if (multiObjectDragState == null) {
+            return;
+        }
+        double deltaX = pointer.getX() - multiObjectDragState.pointerStart().x();
+        double deltaY = pointer.getY() - multiObjectDragState.pointerStart().y();
+        multiObjectDragState.objectPositions().forEach((objectId, originalPosition) ->
+                plan.findObject(objectId).ifPresent(object -> object.moveTo(new Position(
+                        originalPosition.x() + deltaX,
+                        originalPosition.y() + deltaY
+                )))
+        );
+        multiObjectDragState.fenceJointPositions().forEach((jointId, originalPosition) ->
+                plan.findFenceJoint(jointId).ifPresent(joint -> joint.moveTo(new Position(
+                        originalPosition.x() + deltaX,
+                        originalPosition.y() + deltaY
+                )))
+        );
+        plan.synchronizeFenceRows(pixelsPerMeter());
+    }
+
     private void startObjectRotation(PlannerObject object) {
         if (!supportsInteractiveRotation(object)) {
             showError("Objekti ei saa pöörata", "Pööramine on praegu toetatud telkidele ja nelinurksetele objektidele.");
             return;
         }
+        boolean multipleObjects = isSelected(object) && selectedLogicalObjects().size() > 1;
         boolean lockedFenceNetwork = object instanceof FenceRow fenceRow
                 && plan.fenceNetworkRows(fenceRow.id()).stream().anyMatch(PlannerObject::locked);
-        if (mapLayoutLocked || object.locked() || lockedFenceNetwork) {
+        boolean lockedSelection = multipleObjects && selectedObjects().stream().anyMatch(PlannerObject::locked);
+        if (mapLayoutLocked || object.locked() || lockedFenceNetwork || lockedSelection) {
             showMapLayoutLockedMessage();
             return;
         }
-        selectObject(object);
+        if (!multipleObjects) {
+            selectObject(object);
+        }
+        rotatingMultipleObjects = multipleObjects;
         rotatingObjectId = object.id();
         updateMapToolStatus();
         redrawMap();
@@ -6319,7 +6445,126 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean isObjectRotationActive(PlannerObject object) {
-        return object != null && object.id().equals(rotatingObjectId);
+        return !rotatingMultipleObjects && object != null && object.id().equals(rotatingObjectId);
+    }
+
+    private void addMultiObjectRotationHandleIfActive() {
+        if (!rotatingMultipleObjects || rotatingObjectId == null || selectedObjects().isEmpty()) {
+            return;
+        }
+        Position center;
+        double handleDistance;
+        if (multiObjectRotationState != null) {
+            center = multiObjectRotationState.center();
+            handleDistance = multiObjectRotationState.handleDistance();
+        } else {
+            List<Bounds> bounds = selectedObjects().stream()
+                    .map(object -> mapObjectNodes.get(object.id()))
+                    .filter(java.util.Objects::nonNull)
+                    .map(Node::getBoundsInParent)
+                    .toList();
+            if (bounds.isEmpty()) {
+                return;
+            }
+            double minX = bounds.stream().mapToDouble(Bounds::getMinX).min().orElse(0);
+            double maxX = bounds.stream().mapToDouble(Bounds::getMaxX).max().orElse(0);
+            double minY = bounds.stream().mapToDouble(Bounds::getMinY).min().orElse(0);
+            double maxY = bounds.stream().mapToDouble(Bounds::getMaxY).max().orElse(0);
+            center = new Position((minX + maxX) / 2, (minY + maxY) / 2);
+            handleDistance = Math.max(32, Math.max(maxX - minX, maxY - minY) / 2 + 24);
+        }
+
+        double radians = Math.toRadians(multiObjectRotationDelta - 90);
+        double handleX = center.x() + Math.cos(radians) * handleDistance;
+        double handleY = center.y() + Math.sin(radians) * handleDistance;
+        Line guide = new Line(center.x(), center.y(), handleX, handleY);
+        guide.setStroke(Color.web("#7c3aed"));
+        guide.setStrokeWidth(2);
+        guide.setMouseTransparent(true);
+        Circle handle = new Circle(handleX, handleY, 8, Color.WHITE);
+        handle.setStroke(Color.web("#7c3aed"));
+        handle.setStrokeWidth(3);
+        handle.setCursor(Cursor.HAND);
+        handle.setOnMousePressed(event -> {
+            if (event.getButton() != MouseButton.PRIMARY
+                    || mapLayoutLocked
+                    || selectedObjects().stream().anyMatch(PlannerObject::locked)) {
+                return;
+            }
+            Point2D pointer = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+            multiObjectRotationState = createMultiObjectRotationState(
+                    center, handleDistance, pointerRotationDegrees(pointer, center)
+            );
+            multiObjectRotationDelta = 0;
+            mapScrollPane.setPannable(false);
+            beginPlanDrag();
+            event.consume();
+        });
+        mapPane.getChildren().addAll(guide, handle);
+    }
+
+    private MultiObjectRotationState createMultiObjectRotationState(
+            Position center,
+            double handleDistance,
+            double pointerStartRotationDegrees
+    ) {
+        Map<String, MultiObjectRotationObjectState> objectStates = new HashMap<>();
+        Map<String, Position> fenceJointPositions = new HashMap<>();
+        for (PlannerObject object : selectedLogicalObjects()) {
+            if (object instanceof FenceRow fenceRow) {
+                for (FenceRow row : plan.fenceNetworkRows(fenceRow.id())) {
+                    plan.findFenceJoint(row.startJointId()).ifPresent(joint ->
+                            fenceJointPositions.put(joint.id(), joint.position()));
+                    plan.findFenceJoint(row.endJointId()).ifPresent(joint ->
+                            fenceJointPositions.put(joint.id(), joint.position()));
+                }
+                continue;
+            }
+            objectStates.put(object.id(), new MultiObjectRotationObjectState(
+                    object.position(),
+                    CablePathHelper.objectCenter(object, pixelsPerMeter()),
+                    object.rotationDegrees(),
+                    rotationPoints(object)
+            ));
+        }
+        return new MultiObjectRotationState(
+                center,
+                handleDistance,
+                pointerStartRotationDegrees,
+                Map.copyOf(objectStates),
+                Map.copyOf(fenceJointPositions)
+        );
+    }
+
+    private void applyMultiObjectRotation(double deltaDegrees) {
+        if (multiObjectRotationState == null) {
+            return;
+        }
+        Position center = multiObjectRotationState.center();
+        multiObjectRotationState.objectStates().forEach((objectId, state) ->
+                plan.findObject(objectId).ifPresent(object -> {
+                    if (object instanceof AreaObject areaObject) {
+                        areaObject.setPoints(rotatePositions(state.points(), center, deltaDegrees));
+                    } else if (object instanceof LineObject lineObject) {
+                        lineObject.setPoints(rotatePositions(state.points(), center, deltaDegrees));
+                    } else {
+                        Position rotatedCenter = rotatePositions(
+                                List.of(state.visualCenter()), center, deltaDegrees
+                        ).getFirst();
+                        object.moveTo(new Position(
+                                state.position().x() + rotatedCenter.x() - state.visualCenter().x(),
+                                state.position().y() + rotatedCenter.y() - state.visualCenter().y()
+                        ));
+                    }
+                    object.setRotationDegrees(state.rotationDegrees() + deltaDegrees);
+                })
+        );
+        multiObjectRotationState.fenceJointPositions().forEach((jointId, position) ->
+                plan.findFenceJoint(jointId).ifPresent(joint ->
+                        joint.moveTo(rotatePositions(List.of(position), center, deltaDegrees).getFirst())
+                )
+        );
+        plan.synchronizeFenceRows(pixelsPerMeter());
     }
 
     private void addRotationHandleIfActive(
@@ -6534,6 +6779,9 @@ public class PlaaniseppApp extends Application {
         }
         rotatingObjectId = null;
         rotationDragState = null;
+        rotatingMultipleObjects = false;
+        multiObjectRotationState = null;
+        multiObjectRotationDelta = 0;
         mapScrollPane.setPannable(true);
         refreshDetails();
         updateMapToolStatus();
@@ -6565,12 +6813,12 @@ public class PlaaniseppApp extends Application {
         editItem.setDisable(selectionCount > 1);
         editItem.setOnAction(event -> editObject(object));
         MenuItem rotateItem = new MenuItem("Pööra");
-        rotateItem.setDisable(selectionCount > 1
-                || !supportsInteractiveRotation(object) || mapLayoutLocked || object.locked());
+        rotateItem.setDisable(!supportsInteractiveRotation(object)
+                || mapLayoutLocked
+                || selectedObjects().stream().anyMatch(PlannerObject::locked));
         rotateItem.setOnAction(event -> startObjectRotation(object));
         MenuItem copyItem = new MenuItem("Kopeeri");
-        copyItem.setDisable(selectionCount > 1);
-        copyItem.setOnAction(event -> copyObject(object));
+        copyItem.setOnAction(event -> copySelectedObject());
         MenuItem visibilityItem = new MenuItem(allSelectedObjectsHidden() ? "Kuva valitud" : "Peida valitud");
         visibilityItem.setOnAction(event -> toggleSelectedObjectsHidden());
         MenuItem lockItem = new MenuItem(allSelectedObjectsLocked()
@@ -7886,7 +8134,25 @@ public class PlaaniseppApp extends Application {
         if (selectedObject == null) {
             return;
         }
-        copyObject(selectedObject);
+        List<PlannerObject> logicalSelection = selectedLogicalObjects();
+        if (logicalSelection.size() == 1) {
+            copyObject(selectedObject);
+            return;
+        }
+        double originX = logicalSelection.stream().mapToDouble(object -> object.position().x()).min().orElse(0);
+        double originY = logicalSelection.stream().mapToDouble(object -> object.position().y()).min().orElse(0);
+        copiedObjectsOrigin = new Position(originX, originY);
+        copiedObjects = logicalSelection.stream()
+                .map(object -> new MultiObjectClipboardEntry(
+                        copyObjectAt(object, object.position(), object.name()),
+                        new Position(object.position().x() - originX, object.position().y() - originY),
+                        object instanceof FenceRow fenceRow ? createFenceNetworkClipboard(fenceRow) : null
+                ))
+                .filter(entry -> entry.template() != null)
+                .toList();
+        copiedObject = null;
+        copiedFenceNetwork = null;
+        keyboardPasteCount = 0;
     }
 
     private void copyObject(PlannerObject object) {
@@ -7894,7 +8160,13 @@ public class PlaaniseppApp extends Application {
         copiedFenceNetwork = object instanceof FenceRow fenceRow
                 ? createFenceNetworkClipboard(fenceRow)
                 : null;
+        copiedObjects = List.of();
+        copiedObjectsOrigin = null;
         keyboardPasteCount = 0;
+    }
+
+    private boolean hasCopiedObjects() {
+        return copiedObject != null || !copiedObjects.isEmpty();
     }
 
     private FenceNetworkClipboard createFenceNetworkClipboard(FenceRow selectedRow) {
@@ -7919,6 +8191,7 @@ public class PlaaniseppApp extends Application {
                         row.segmentLengthMeters(),
                         row.colorHex(),
                         row.widthPixels(),
+                        row.opacity(),
                         row.customInventoryLabelPosition() ? row.inventoryLabelOffset() : null,
                         row.startJointId(),
                         row.endJointId()
@@ -7928,10 +8201,17 @@ public class PlaaniseppApp extends Application {
     }
 
     private void pasteCopiedObjectWithOffset() {
-        if (copiedObject == null) {
+        if (!hasCopiedObjects()) {
             return;
         }
         keyboardPasteCount++;
+        if (!copiedObjects.isEmpty()) {
+            pasteCopiedObjectGroup(new Position(
+                    copiedObjectsOrigin.x() + 32.0 * keyboardPasteCount,
+                    copiedObjectsOrigin.y() + 32.0 * keyboardPasteCount
+            ));
+            return;
+        }
         pasteCopiedObject(new Position(
                 copiedObject.position().x() + 32.0 * keyboardPasteCount,
                 copiedObject.position().y() + 32.0 * keyboardPasteCount
@@ -7939,11 +8219,15 @@ public class PlaaniseppApp extends Application {
     }
 
     private void pasteCopiedObject(Position position) {
-        if (copiedObject == null) {
+        if (!hasCopiedObjects()) {
             return;
         }
         if (mapLayoutLocked) {
             showMapLayoutLockedMessage();
+            return;
+        }
+        if (!copiedObjects.isEmpty()) {
+            pasteCopiedObjectGroup(position);
             return;
         }
         if (copiedFenceNetwork != null) {
@@ -7964,15 +8248,28 @@ public class PlaaniseppApp extends Application {
     }
 
     private void pasteCopiedFenceNetwork(Position position) {
+        List<FenceRow> pastedRows = pasteFenceNetworkAt(copiedFenceNetwork, copiedObject.name(), position);
+        FenceRow firstRow = pastedRows.getFirst();
+        refreshGroupFilters();
+        selectObject(firstRow);
+        refreshSummary();
+        markDirty();
+    }
+
+    private List<FenceRow> pasteFenceNetworkAt(
+            FenceNetworkClipboard clipboard,
+            String sourceName,
+            Position position
+    ) {
         Map<String, String> pastedJointIds = new HashMap<>();
-        copiedFenceNetwork.relativeJoints().forEach((sourceJointId, relativePosition) ->
+        clipboard.relativeJoints().forEach((sourceJointId, relativePosition) ->
                 pastedJointIds.put(sourceJointId, plan.createFenceJoint(new Position(
                         position.x() + relativePosition.x(),
                         position.y() + relativePosition.y()
                 ))));
         List<FenceRow> pastedRows = new ArrayList<>();
-        String pastedName = duplicateName(copiedObject);
-        for (FenceRowClipboard copiedRow : copiedFenceNetwork.rows()) {
+        String pastedName = sourceName.isBlank() ? "Koopia" : sourceName + " koopia";
+        for (FenceRowClipboard copiedRow : clipboard.rows()) {
             Position startPosition = plan.findFenceJoint(pastedJointIds.get(copiedRow.startJointId()))
                     .orElseThrow()
                     .position();
@@ -7984,6 +8281,7 @@ public class PlaaniseppApp extends Application {
             pastedRow.setSegmentLengthMeters(copiedRow.segmentLengthMeters());
             pastedRow.setColorHex(copiedRow.colorHex());
             pastedRow.setWidthPixels(copiedRow.widthPixels());
+            pastedRow.setOpacity(copiedRow.opacity());
             if (copiedRow.inventoryLabelOffset() != null) {
                 pastedRow.setInventoryLabelOffset(copiedRow.inventoryLabelOffset());
             }
@@ -7996,9 +8294,44 @@ public class PlaaniseppApp extends Application {
         }
         FenceRow firstRow = pastedRows.getFirst();
         plan.setFenceRowJoints(firstRow, firstRow.startJointId(), firstRow.endJointId());
+        return pastedRows;
+    }
+
+    private void pasteCopiedObjectGroup(Position origin) {
+        if (mapLayoutLocked || copiedObjects.isEmpty()) {
+            return;
+        }
+        List<PlannerObject> pastedObjects = new ArrayList<>();
+        for (MultiObjectClipboardEntry entry : copiedObjects) {
+            Position target = new Position(
+                    origin.x() + entry.relativePosition().x(),
+                    origin.y() + entry.relativePosition().y()
+            );
+            if (entry.fenceNetwork() != null) {
+                pastedObjects.addAll(pasteFenceNetworkAt(
+                        entry.fenceNetwork(), entry.template().name(), target
+                ));
+            } else {
+                PlannerObject copy = copyObjectAt(
+                        entry.template(), target, duplicateName(entry.template())
+                );
+                if (copy != null) {
+                    plan.addObject(copy);
+                    pastedObjects.add(copy);
+                }
+            }
+        }
+        if (pastedObjects.isEmpty()) {
+            return;
+        }
+        selectedObject = pastedObjects.getFirst();
+        selectedObjectIds.clear();
+        pastedObjects.forEach(object -> selectedObjectIds.add(object.id()));
         refreshGroupFilters();
-        selectObject(firstRow);
+        refreshObjectList();
+        redrawMap();
         refreshSummary();
+        refreshDetails();
         markDirty();
     }
 
@@ -8089,7 +8422,12 @@ public class PlaaniseppApp extends Application {
         copy.setGroupName(original.groupName());
         copy.setNotes(original.notes());
         copy.setShowMapLabel(original.showMapLabel());
+        copy.setOpacity(original.opacity());
+        copy.setRotationDegrees(original.rotationDegrees());
         copy.setLocked(false);
+        if (original instanceof TextObject originalText && copy instanceof TextObject copiedText) {
+            copiedText.setTextOpacity(originalText.textOpacity());
+        }
         if (original.customMapLabelPosition()) {
             copy.setMapLabelOffset(original.mapLabelOffset());
         }
@@ -8148,7 +8486,7 @@ public class PlaaniseppApp extends Application {
                 ? "Kas kustutada %d valitud objekti?".formatted(logicalSelection.size())
                 : "Kas kustutada \"%s\"?".formatted(selectedObject.name()));
         alert.setContentText(logicalSelection.size() > 1
-                ? "Valitud objektid ja nendega seotud andmed kustutatakse. Seda tegevust ei saa tagasi võtta."
+                ? "Valitud objektid ja nendega seotud andmed kustutatakse. Kustutamise saab tagasi võtta käsuga Ctrl+Z."
                 : deleteConfirmationText(selectedObject));
         return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
     }
@@ -8174,9 +8512,10 @@ public class PlaaniseppApp extends Application {
             }
         }
         if (warnings.isEmpty()) {
-            return "Seda tegevust ei saa tagasi võtta.";
+            return "Kustutamise saab tagasi võtta käsuga Ctrl+Z.";
         }
-        return "%s%n%nSeda tegevust ei saa tagasi võtta.".formatted(String.join(System.lineSeparator(), warnings));
+        return "%s%n%nKustutamise saab tagasi võtta käsuga Ctrl+Z."
+                .formatted(String.join(System.lineSeparator(), warnings));
     }
 
     private void setMeasuringActive(boolean measuringActive) {
@@ -10215,6 +10554,37 @@ public class PlaaniseppApp extends Application {
     ) {
     }
 
+    private record MultiObjectClipboardEntry(
+            PlannerObject template,
+            Position relativePosition,
+            FenceNetworkClipboard fenceNetwork
+    ) {
+    }
+
+    private record MultiObjectDragState(
+            Position pointerStart,
+            Map<String, Position> objectPositions,
+            Map<String, Position> fenceJointPositions
+    ) {
+    }
+
+    private record MultiObjectRotationState(
+            Position center,
+            double handleDistance,
+            double pointerStartRotationDegrees,
+            Map<String, MultiObjectRotationObjectState> objectStates,
+            Map<String, Position> fenceJointPositions
+    ) {
+    }
+
+    private record MultiObjectRotationObjectState(
+            Position position,
+            Position visualCenter,
+            double rotationDegrees,
+            List<Position> points
+    ) {
+    }
+
     private record FenceRowClipboard(
             String name,
             String groupName,
@@ -10224,6 +10594,7 @@ public class PlaaniseppApp extends Application {
             double segmentLengthMeters,
             String colorHex,
             double widthPixels,
+            double opacity,
             Position inventoryLabelOffset,
             String startJointId,
             String endJointId
