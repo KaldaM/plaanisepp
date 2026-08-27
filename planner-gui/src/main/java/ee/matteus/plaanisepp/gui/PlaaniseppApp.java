@@ -320,6 +320,7 @@ public class PlaaniseppApp extends Application {
     private TextField fenceRotationField;
     private Label fenceTotalLengthLabel;
     private ColorPicker fenceColorPicker;
+    private Slider fenceWidthSlider;
     private Button resetFenceInventoryLabelButton;
     private Label customObjectWidthLabel;
     private Label customObjectHeightLabel;
@@ -3096,6 +3097,8 @@ public class PlaaniseppApp extends Application {
         fenceTotalLengthLabel = new Label("-");
         fenceColorPicker = new ColorPicker();
         fenceColorPicker.setOnAction(event -> autoApplySelectedColor());
+        fenceWidthSlider = createPixelSlider(1, 50, FenceRow.DEFAULT_WIDTH_PIXELS);
+        configureDetailSliderPreview(fenceWidthSlider);
         resetFenceInventoryLabelButton = new Button("Lähtesta kogusesildi asukoht");
         resetFenceInventoryLabelButton.setOnAction(event -> resetFenceInventoryLabelPosition());
         configureTextCommit(fenceSegmentCountField, this::autoApplyFenceRowGeometry);
@@ -3107,7 +3110,8 @@ public class PlaaniseppApp extends Application {
         fenceRowForm.addRow(2, new Label("Suund °"), fenceRotationField);
         fenceRowForm.addRow(3, new Label("Kogupikkus"), fenceTotalLengthLabel);
         fenceRowForm.addRow(4, new Label("Värv"), fenceColorPicker);
-        fenceRowForm.addRow(5, new Label("Sildi asukoht"), resetFenceInventoryLabelButton);
+        fenceRowForm.addRow(5, new Label("Paksus"), pixelControl(fenceWidthSlider));
+        fenceRowForm.addRow(6, new Label("Sildi asukoht"), resetFenceInventoryLabelButton);
         fenceRowPanel = new VBox(8, sectionLabel("Aiarida"), fenceRowForm);
 
         GridPane tentForm = detailGrid();
@@ -3372,6 +3376,10 @@ public class PlaaniseppApp extends Application {
         }
         if (slider == lineWidthSlider && selectedObject instanceof LineObject lineObject) {
             lineObject.setWidthPixels(value);
+            return true;
+        }
+        if (slider == fenceWidthSlider && selectedObject instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setWidthPixels(value));
             return true;
         }
         return false;
@@ -7656,6 +7664,7 @@ public class PlaaniseppApp extends Application {
         areaOpacitySlider.setDisable(!areaSelected);
         lineColorPicker.setDisable(!lineSelected);
         fenceColorPicker.setDisable(!fenceRowSelected);
+        fenceWidthSlider.setDisable(!fenceRowSelected);
         resetFenceInventoryLabelButton.setDisable(
                 !fenceRowSelected || !((FenceRow) selectedObject).customInventoryLabelPosition()
         );
@@ -7769,6 +7778,7 @@ public class PlaaniseppApp extends Application {
             fenceSegmentLengthField.clear();
             fenceRotationField.clear();
             fenceTotalLengthLabel.setText("-");
+            fenceWidthSlider.setValue(FenceRow.DEFAULT_WIDTH_PIXELS);
             customObjectWidthField.clear();
             customObjectHeightField.clear();
             customObjectRotationField.clear();
@@ -7893,6 +7903,7 @@ public class PlaaniseppApp extends Application {
             fenceRotationField.setText(formatDegrees(fenceRow.rotationDegrees()));
             refreshFenceRowLengthLabel(fenceRow);
             fenceColorPicker.setValue(Color.web(fenceRow.colorHex()));
+            fenceWidthSlider.setValue(fenceRow.widthPixels());
             cableLengthNotesField.clear();
             cableNotesField.clear();
         } else if (selectedObject instanceof LineObject lineObject) {
