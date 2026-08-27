@@ -253,6 +253,7 @@ public class PlaaniseppApp extends Application {
     private final Set<String> collapsedPowerSummaryKeys = new HashSet<>();
     private final Set<String> collapsedObjectGroups = new HashSet<>();
     private final Set<String> selectedObjectIds = new LinkedHashSet<>();
+    private String selectionRangeAnchorObjectId;
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private final Map<String, Node> mapObjectNodes = new HashMap<>();
@@ -276,6 +277,7 @@ public class PlaaniseppApp extends Application {
     private ListView<ChecklistSuggestion> checklistSuggestionList;
     private TextField checklistItemField;
     private Button revealObjectButton;
+    private Label activeSelectionCountLabel;
     private TitledPane objectListSection;
     private TitledPane selectedObjectSection;
     private TitledPane powerSummarySection;
@@ -1884,7 +1886,11 @@ public class PlaaniseppApp extends Application {
         });
         objectList = new ListView<>();
         objectList.setPrefHeight(objectListHeight);
-        objectList.setTooltip(new Tooltip("Topeltklõps viib kaardil objektini"));
+        objectList.setTooltip(new Tooltip(
+                "Topeltklõps viib kaardil objektini\n"
+                        + "Ctrl+klõps lisab või eemaldab objekti valikust\n"
+                        + "Ctrl+Shift+klõps valib nähtavate ridade vahemiku"
+        ));
         objectList.setCellFactory(list -> new ListCell<>() {
             @Override
             protected void updateItem(ObjectListEntry entry, boolean empty) {
@@ -1956,7 +1962,9 @@ public class PlaaniseppApp extends Application {
                         ? ""
                         : "-fx-text-fill: #6b7280; -fx-font-style: italic;";
                 String selectionStyle = PlaaniseppApp.this.isSelected(item.object())
-                        ? "-fx-background-color: rgba(37,99,235,0.18);"
+                        ? "-fx-background-color: rgba(37,99,235,0.24);"
+                                + "-fx-border-color: transparent transparent transparent #2563eb;"
+                                + "-fx-border-width: 0 0 0 3;"
                         : "";
                 setStyle(visibilityStyle + selectionStyle);
                 setOnContextMenuRequested(event -> {
@@ -1984,7 +1992,11 @@ public class PlaaniseppApp extends Application {
             if (entry == null || entry.isGroup()) {
                 return;
             }
-            toggleObjectSelection(entry.objectItem().object());
+            if (event.isShiftDown()) {
+                selectObjectRange(entry.objectItem().object());
+            } else {
+                toggleObjectSelection(entry.objectItem().object());
+            }
             event.consume();
         });
         objectList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
@@ -2023,9 +2035,19 @@ public class PlaaniseppApp extends Application {
         });
         revealObjectButton = new Button("Näita kaardil");
         revealObjectButton.setOnAction(event -> revealSelectedObjectOnMap());
+        activeSelectionCountLabel = new Label();
+        activeSelectionCountLabel.setStyle("-fx-text-fill: #475569; -fx-font-size: 11;");
+        updateActiveSelectionCountLabel();
         updateRevealObjectButton();
         refreshObjectList();
-        return new VBox(8, objectSearchField, objectList, createObjectListResizeHandle(), revealObjectButton);
+        return new VBox(
+                8,
+                objectSearchField,
+                objectList,
+                createObjectListResizeHandle(),
+                activeSelectionCountLabel,
+                revealObjectButton
+        );
     }
 
     private ObjectListEntry objectListEntryAt(MouseEvent event) {
@@ -2037,6 +2059,54 @@ public class PlaaniseppApp extends Application {
             return entry;
         }
         return null;
+    }
+
+    private void selectObjectRange(PlannerObject target) {
+        if (target == null) {
+            return;
+        }
+        List<PlannerObject> visibleObjects = objectList.getItems().stream()
+                .filter(entry -> !entry.isGroup())
+                .map(entry -> entry.objectItem().object())
+                .toList();
+        int targetIndex = indexOfVisibleObject(visibleObjects, target);
+        int anchorIndex = indexOfVisibleObjectById(visibleObjects, selectionRangeAnchorObjectId);
+        if (targetIndex < 0 || anchorIndex < 0) {
+            toggleObjectSelection(target);
+            return;
+        }
+        if (selectedObject != null && !updatingDetailControls) {
+            commitPendingDetailFieldsBeforeSelectionChange();
+        }
+        int from = Math.min(anchorIndex, targetIndex);
+        int to = Math.max(anchorIndex, targetIndex);
+        for (int index = from; index <= to; index++) {
+            selectedObjectIds.addAll(logicalObjectIds(visibleObjects.get(index)));
+        }
+        selectedObject = target;
+        selectionRangeAnchorObjectId = target.id();
+        refreshDetails();
+        refreshObjectList();
+        revealObjectInPowerSummary(target);
+        redrawMap();
+    }
+
+    private int indexOfVisibleObject(List<PlannerObject> objects, PlannerObject target) {
+        for (int index = 0; index < objects.size(); index++) {
+            if (logicalObjectIds(objects.get(index)).contains(target.id())) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private int indexOfVisibleObjectById(List<PlannerObject> objects, String objectId) {
+        if (objectId == null) {
+            return -1;
+        }
+        return plan.findObject(objectId)
+                .map(anchor -> indexOfVisibleObject(objects, anchor))
+                .orElse(-1);
     }
 
     private VBox createChecklistPanel() {
@@ -4326,6 +4396,7 @@ public class PlaaniseppApp extends Application {
             }
         }
         drawSelectedObjectHighlight();
+        drawMultiSelectionBounds();
         addMultiObjectRotationHandleIfActive();
         fenceInteractionNodes.forEach(Node::toFront);
         powerConnectionAnchorMarkers.forEach(Node::toFront);
@@ -4336,6 +4407,7 @@ public class PlaaniseppApp extends Application {
     private void synchronizeSelectionState() {
         if (selectedObject == null) {
             selectedObjectIds.clear();
+            selectionRangeAnchorObjectId = null;
             return;
         }
         Set<String> currentObjectIds = plan.objects().stream()
@@ -4345,6 +4417,10 @@ public class PlaaniseppApp extends Application {
         if (!selectedObjectIds.contains(selectedObject.id())) {
             selectedObjectIds.clear();
             selectedObjectIds.addAll(logicalObjectIds(selectedObject));
+        }
+        if (selectionRangeAnchorObjectId == null
+                || !selectedObjectIds.contains(selectionRangeAnchorObjectId)) {
+            selectionRangeAnchorObjectId = selectedObject.id();
         }
     }
 
@@ -4391,6 +4467,38 @@ public class PlaaniseppApp extends Application {
         } else if (selectedObject instanceof MarkerObject marker) {
             addSelectionOutline(new Rectangle(marker.position().x() - 2, marker.position().y() - 2, 32, 32), highlightColor);
         }
+    }
+
+    private void drawMultiSelectionBounds() {
+        if (selectedLogicalObjects().size() < 2 || rotatingObjectId != null) {
+            return;
+        }
+        List<Bounds> bounds = selectedObjects().stream()
+                .map(object -> mapObjectNodes.get(object.id()))
+                .filter(java.util.Objects::nonNull)
+                .map(Node::getBoundsInParent)
+                .toList();
+        if (bounds.size() < 2) {
+            return;
+        }
+        double minX = bounds.stream().mapToDouble(Bounds::getMinX).min().orElse(0);
+        double maxX = bounds.stream().mapToDouble(Bounds::getMaxX).max().orElse(0);
+        double minY = bounds.stream().mapToDouble(Bounds::getMinY).min().orElse(0);
+        double maxY = bounds.stream().mapToDouble(Bounds::getMaxY).max().orElse(0);
+        double scale = Math.max(zoomLevel, 0.1);
+        double padding = 8 / scale;
+        Rectangle outline = new Rectangle(
+                minX - padding,
+                minY - padding,
+                Math.max(1, maxX - minX + padding * 2),
+                Math.max(1, maxY - minY + padding * 2)
+        );
+        outline.setFill(Color.TRANSPARENT);
+        outline.setStroke(Color.web("#2563eb", 0.72));
+        outline.setStrokeWidth(1.25 / scale);
+        outline.getStrokeDashArray().addAll(6.0 / scale, 5.0 / scale);
+        outline.setMouseTransparent(true);
+        mapPane.getChildren().add(outline);
     }
 
     private void addSelectionOutline(javafx.scene.shape.Shape outline, Color color) {
@@ -6988,6 +7096,7 @@ public class PlaaniseppApp extends Application {
         selectedObject = object;
         selectedObjectIds.clear();
         selectedObjectIds.addAll(logicalObjectIds(object));
+        selectionRangeAnchorObjectId = object == null ? null : object.id();
         clearObjectSearchIfItHides(object);
         refreshDetails();
         revealObjectInObjectList(object);
@@ -7008,9 +7117,13 @@ public class PlaaniseppApp extends Application {
             if (selectedObject != null && logicalIds.contains(selectedObject.id())) {
                 selectedObject = firstSelectedObject().orElse(null);
             }
+            if (logicalIds.contains(selectionRangeAnchorObjectId)) {
+                selectionRangeAnchorObjectId = selectedObject == null ? null : selectedObject.id();
+            }
         } else {
             selectedObjectIds.addAll(logicalIds);
             selectedObject = object;
+            selectionRangeAnchorObjectId = object.id();
         }
         clearObjectSearchIfItHides(selectedObject);
         refreshDetails();
@@ -7050,6 +7163,21 @@ public class PlaaniseppApp extends Application {
             handledIds.addAll(logicalObjectIds(object));
         }
         return result;
+    }
+
+    private void updateActiveSelectionCountLabel() {
+        if (activeSelectionCountLabel == null) {
+            return;
+        }
+        int count = selectedLogicalObjects().size();
+        activeSelectionCountLabel.setText(switch (count) {
+            case 0 -> "Ühtegi aktiivset objekti pole";
+            case 1 -> "1 aktiivne objekt";
+            default -> "%d aktiivset objekti".formatted(count);
+        });
+        activeSelectionCountLabel.setStyle(count > 1
+                ? "-fx-text-fill: #1d4ed8; -fx-font-size: 11; -fx-font-weight: bold;"
+                : "-fx-text-fill: #475569; -fx-font-size: 11;");
     }
 
     private boolean allSelectedObjectsHidden() {
@@ -7323,6 +7451,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void refreshDetails() {
+        updateActiveSelectionCountLabel();
         updatingDetailControls = true;
         try {
             refreshDetailControls();
