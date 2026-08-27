@@ -512,7 +512,10 @@ public class PlaaniseppApp extends Application {
             planDragRecorded = false;
         });
         scene.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.ENTER && isShapePlacementPending()) {
+            if (event.getCode() == KeyCode.ESCAPE && selectionBox != null) {
+                cancelSelectionBox();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ENTER && isShapePlacementPending()) {
                 finishPendingShapePlacement();
                 event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && rotatingObjectId != null) {
@@ -523,6 +526,9 @@ public class PlaaniseppApp extends Application {
                 event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && addingCablePoint) {
                 finishEditingCableRoute();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE && selectedLogicalObjects().size() > 1) {
+                selectObject(null);
                 event.consume();
             }
         });
@@ -1645,6 +1651,13 @@ public class PlaaniseppApp extends Application {
             }
             if (measuringActive && !mapDraggedSincePress) {
                 handleMeasureClick(new Position(event.getX(), event.getY()));
+                return;
+            }
+            if (event.getButton() == MouseButton.PRIMARY
+                    && !event.isControlDown()
+                    && !mapDraggedSincePress
+                    && (event.getTarget() == mapPane || event.getTarget() == mapImageView)) {
+                selectObject(null);
             }
         });
         mapContentPane = new Pane(mapPane);
@@ -1839,6 +1852,15 @@ public class PlaaniseppApp extends Application {
         selectionBox.toFront();
     }
 
+    private void cancelSelectionBox() {
+        if (selectionBox != null) {
+            mapPane.getChildren().remove(selectionBox);
+        }
+        selectionBox = null;
+        selectionBoxStart = null;
+        mapScrollPane.setPannable(true);
+    }
+
     private void finishSelectionBox() {
         Rectangle completedBox = selectionBox;
         selectionBox = null;
@@ -2030,6 +2052,13 @@ public class PlaaniseppApp extends Application {
             }
             if (quickObjectSearchActive) {
                 activateQuickObjectSearchResult(selectedEntry);
+                event.consume();
+            } else if (!event.isControlDown()
+                    && event.getClickCount() == 1
+                    && (selectedLogicalObjects().size() > 1
+                    || selectedObject == null
+                    || !selectedObject.id().equals(selectedEntry.objectItem().object().id()))) {
+                selectObject(selectedEntry.objectItem().object());
                 event.consume();
             } else if (event.getClickCount() == 2) {
                 centerMapOnObject(selectedEntry.objectItem().object());
@@ -7132,7 +7161,7 @@ public class PlaaniseppApp extends Application {
         selectionRangeAnchorObjectId = object == null ? null : object.id();
         clearObjectSearchIfItHides(object);
         refreshDetails();
-        revealObjectInObjectList(object);
+        refreshObjectList();
         revealObjectInPowerSummary(object);
         redrawMap();
     }
@@ -7495,6 +7524,7 @@ public class PlaaniseppApp extends Application {
 
     private void refreshDetailControls() {
         boolean hasSelection = selectedObject != null;
+        List<PlannerObject> currentSelection = selectedObjects();
         boolean tentSelected = selectedObject instanceof Tent;
         boolean powerSourceSelected = selectedObject instanceof PowerSource;
         boolean customObjectSelected = selectedObject instanceof CustomObject;
@@ -7513,7 +7543,9 @@ public class PlaaniseppApp extends Application {
         groupField.setDisable(!hasSelection);
         notesArea.setDisable(!hasSelection);
         lockedCheckBox.setDisable(!hasSelection);
-        showMapLabelCheckBox.setDisable(!hasSelection || textObjectSelected);
+        boolean selectionHasMapLabels = currentSelection.stream()
+                .anyMatch(object -> !(object instanceof TextObject));
+        showMapLabelCheckBox.setDisable(!selectionHasMapLabels);
         boolean customMapLabelPosition = hasSelection && !textObjectSelected && selectedObject.customMapLabelPosition();
         resetMapLabelButton.setDisable(!customMapLabelPosition || mapLayoutLocked);
         selectedObjectOpacitySlider.setDisable(!hasSelection);
@@ -7678,7 +7710,11 @@ public class PlaaniseppApp extends Application {
         refreshGroupChoices(selectedObject.groupName());
         notesArea.setText(selectedObject.notes());
         lockedCheckBox.setSelected(allSelectedObjectsLocked());
-        showMapLabelCheckBox.setSelected(selectedObject.showMapLabel());
+        List<PlannerObject> mapLabelObjects = currentSelection.stream()
+                .filter(object -> !(object instanceof TextObject))
+                .toList();
+        showMapLabelCheckBox.setSelected(!mapLabelObjects.isEmpty()
+                && mapLabelObjects.stream().allMatch(PlannerObject::showMapLabel));
         setOpacitySliderValue(selectedObjectOpacitySlider, selectedObject.opacity() * 100.0);
         generalRotationField.setText(formatDegrees(selectedObject.rotationDegrees()));
         if (selectedObject instanceof Tent tent) {
@@ -7958,16 +7994,14 @@ public class PlaaniseppApp extends Application {
     }
 
     private void updateSelectedMapLabelVisibility() {
-        if (selectedObject == null || selectedObject instanceof TextObject) {
+        if (selectedObject == null) {
             return;
         }
-        if (selectedObject instanceof FenceRow fenceRow) {
-            plan.fenceNetworkRows(fenceRow.id())
-                    .forEach(row -> row.setShowMapLabel(showMapLabelCheckBox.isSelected()));
-        } else {
-            selectedObject.setShowMapLabel(showMapLabelCheckBox.isSelected());
-        }
+        selectedObjects().stream()
+                .filter(object -> !(object instanceof TextObject))
+                .forEach(object -> object.setShowMapLabel(showMapLabelCheckBox.isSelected()));
         redrawMap();
+        refreshDetails();
         markDirty();
     }
 
@@ -8141,14 +8175,11 @@ public class PlaaniseppApp extends Application {
             return;
         }
         String groupName = groupField.getEditor().getText();
-        if (selectedObject.groupName().equals(groupName)) {
+        List<PlannerObject> objects = selectedObjects();
+        if (objects.stream().allMatch(object -> object.groupName().equals(groupName))) {
             return;
         }
-        if (selectedObject instanceof FenceRow fenceRow) {
-            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setGroupName(groupName));
-        } else {
-            selectedObject.setGroupName(groupName);
-        }
+        objects.forEach(object -> object.setGroupName(groupName));
         finishAutoAppliedDetailsChange(true);
     }
 

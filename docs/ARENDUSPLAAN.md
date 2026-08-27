@@ -7,27 +7,27 @@
 
 Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab toetama eri organisatsioonide ja eri tüüpi ürituste alaplaanide koostamist, säilitades olemasolevate `.pplan` failide avatavuse ning elektri- ja kaabliplaneerimise tugevused.
 
-## Soovituslik tööjärjekord
+## Tööjärjekord ja hetkeseis
 
-1. lisada enne sügist alajaotuskilbid ning seadmete vaiketoide ja seadmepõhised toitevalikud;
-2. kujundada elektri kokkuvõte uue mudeli põhjal interaktiivseks ning lisada väljundite koormusribad;
-3. lisada külgpaneeli ja objektide kontekstimenüüd, üksikobjektide nähtavus ning külgpaneeli jaotiste järjestamine;
-4. lisada objektide kiirotsing kahekordse Shift-klahviga;
-5. asendada suumi `+` ja `-` nupud liuguriga ning lisada `Alt + hiirerull`;
-6. lisada salvestamise klahvikombinatsioonid `Ctrl + S` ja `Ctrl + Shift + S`;
-7. lisada rakenduse käivitamisel hiljutiste plaanide ja uue plaani loomise avavaade;
-8. lisada plaani muudatuste tagasivõtmine `Ctrl + Z` ja uuestitegemine `Ctrl + Alt + Z` abil;
-9. lisada plaanipõhine checklist ja soovituslike objektide kontrollnimekiri;
-10. avaldada versioonitud paigalduspaketid GitHub Releasesis ning võimaldada nende leidmist rakendusest;
-11. lisada tulevase PA-planeerimise juurde mõõtude ja elektrivajadusega objektieelseadistused;
-12. lisada fikseeritud pikkusega lõikudest koosnev aedade planeerimise tööriist ja inventarikokkuvõte;
-13. kiirendada objektide omaduste muutmist rippvalikute, kaardilt valimise, ühtse rakendamisloogika ja klahvikombinatsioonidega;
-14. lisada kogu kaardi geomeetriat kaitsev paigutuslukustus;
-15. lisada kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog;
-16. lisada tehnikakihita korraldajavaade ning plaanipõhine kommenteerimine;
-17. uuendada rakenduse visuaalne keel ja vähendada JavaFX-i vaikekomponentide vananenud ilmet;
-18. lisada loomulikum objekti pööramine ning mitme objekti valimine ja ühistoimingud;
-19. jätkata `PlaaniseppApp` refaktoreerimist väikeste, funktsioonidega seotud sammudena.
+1. **Tehtud:** alajaotuskilbid, seadmete vaiketoide ja seadmepõhised toitevalikud.
+2. **Tehtud:** interaktiivne elektri kokkuvõte ja väljundite koormusribad.
+3. **Tehtud:** külgpaneeli ja objektide kontekstimenüüd, üksikobjektide nähtavus ning külgpaneeli jaotiste järjestamine.
+4. **Tehtud:** objektide kiirotsing kahekordse Shift-klahviga.
+5. **Tehtud:** suumiliugur, 100% taastamine ja `Alt + hiirerull`.
+6. **Tehtud:** salvestamise ja plaanihalduse klahvikombinatsioonid.
+7. **Tehtud:** hiljutiste plaanide ja uue plaani loomise avavaade.
+8. **Tehtud:** plaani muudatuste tagasivõtmine ja uuestitegemine.
+9. **Tehtud:** plaanipõhine checklist ja soovituste kontrollnimekiri.
+10. **Tehtud:** automaatsed Linuxi ja Windowsi paketid, GitHub Releases, versioonikontroll ning kontrollsummaga allalaadimine.
+11. **Pooleli:** objektieelseadistuste alus ja Red Bull DJ Truck on tehtud; järgmised PA-seadmed ning kinnitatud tegelikud elektrivajadused on lisamata.
+12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud on tehtud; üksiklõikude täielik identiteet, kaare- ja ringigeneraatorid ning detailsem inventarivaade on lisamata.
+13. **Tehtud:** rippvalikud, kaardilt vooluallika valimine, automaatne rakendamine ja objektide kiirklahvid.
+14. **Tehtud:** kogu kaardi geomeetriat kaitsev paigutuslukustus.
+15. **Tegemata:** kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog.
+16. **Pooleli:** tehnikakihita korraldajavaate esimene etapp on tehtud; kuvaprofiilid, korraldaja eksport ja kommentaarid on lisamata.
+17. **Tegemata:** terviklik visuaalse keele uuendus.
+18. **Peaaegu tehtud:** interaktiivne pööramine, mitmikvalik, valikukast ja põhilised ühistoimingud töötavad; ühise grupi ja nimesildi nähtavuse hulgi muutmine on teostatud ning viimased mitmikvaliku mugavused ootavad käsitsi kontrolli.
+19. **Jätkuv töö:** `PlaaniseppApp` refaktoreerimine väikeste funktsioonipõhiste sammudena.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
@@ -71,6 +71,19 @@ Tänase töö täielik kokkuvõte põhineb päeva commit'idel `e32eac2` kuni `8d
 
 - Lisati „Vaade” menüüst lülitatav korraldajavaade. See peidab kaablid, elektrikapid ja alajaotuskilbid kaardilt, elektriandmed külgpaneelilt ning tehnilised objektitüübid lisamisvalikutest, muutmata plaaniandmeid või varasemaid kihivalikuid.
 - Lisati aiaridade esimene etapp: kahe kaardipunktiga saab luua sirge rea, mis ümardatakse lähima täisarvu 3,5 m aialõikudeni. Kaart, külgpaneeli kokkuvõte ning TXT-raport kuvavad vajalike aedade arvu. `.pplan` versioon 10 säilitab read jagatud ühenduspunktide võrguna, mis võib olla avatud, hargnev või suletud ilma kunstliku esimese reata.
+
+## Teostatud 27. augustil 2026
+
+- Kõigile sobivatele objektitüüpidele lisati loomulik lohistatav pööramispunkt, püsiv pöördenurk ja kohene eelvaade. Telgid, ristkülikud, tekstid, jooned, alad ning ühendatud aiavõrgud pöörduvad oma õige keskpunkti ümber.
+- Ühtlustati objektide läbipaistvuse muutmine ning valitud, väga läbipaistvate objektide leidmiseks lisati tagasihoidlik valiku esiletõste.
+- Joone-, ala- ja aiapunktide lohistamisel uuenevad kuju, lõikude keskpunktid, pööramisgeomeetria ja valiku esiletõste otse liigutamise ajal.
+- Lisati `Ctrl`-klõpsuga mitmikvalik kaardil ja objektide külgpaneelil ning `Ctrl`-lohistamisega valikukast.
+- Mitmikvalikuga töötavad kopeerimine ja kleepimine suhtelist paigutust säilitades, kustutamine koos undo võimalusega, peitmine ja kuvamine, lukustamine ja lukust vabastamine, liigutamine ning ühise keskpunkti ümber pööramine.
+- Lukustatud objekti sisaldava valiku geomeetriamuudatus blokeeritakse tervikuna ning suure valiku pööramispunkt hoitakse nähtava kaardiala lähedal.
+- Külgpaneeli kontekstimenüü säilitab mitmikvaliku ja rakendab ühistoimingu kogu valikule.
+- Valiku nähtavust parandati külgpaneeli tugevama valikuoleku, kaardi ühise katkendliku piirjoone ja aktiivsete objektide arvu näiduga.
+- Külgpaneelile lisati `Ctrl + Shift + M1` nähtavate objektiridade vahemikuvalik ning `Ctrl + M1` grupipäisel valib grupi nähtavad ja otsingule vastavad objektid. Need viimased mugavused ootavad veel käsitsi kontrolli.
+- Valmistati ette ja avaldati versioon `v0.2.0`, mis sisaldab automaatselt loodud Linuxi ja Windowsi paigalduspakette ning SHA-256 kontrollsummasid.
 
 ## 1. Rakenduse nimi
 
@@ -639,6 +652,8 @@ FXML-vaateid saab visuaalselt kujundada Gluon Scene Builderiga ning IntelliJ IDE
 
 ## 21. Objekti pööramine ja mitme objekti valimine
 
+**Seis 27. augusti õhtul:** põhifunktsioonid on teostatud ja käsitsi kontrollitud. Allolev kirjeldus säilib funktsiooni nõuete ning järelejäänud töö piiritlemiseks.
+
 ### Interaktiivne pööramine
 
 Objekti või objektirea kontekstimenüüst „Pööra” alustades kuvatakse objekti kõrval lohistatav pööramispunkt. Pööramispunkti liigutamine muudab objekti nurka hiire asukoha järgi ning jätab objekti keskpunkti paigale. Sama töövoog peab olema kättesaadav ka objektide külgpaneeli kontekstimenüüst. Pööramise lõpetab hiirenupu vabastamine või `Escape`; pööramise alustamiseks lisatakse kiirklahv `Ctrl + R`, kui see ei ole mõne olemasoleva tegevusega vastuolus.
@@ -663,7 +678,13 @@ Kui kasutaja hoiab `Ctrl`-i all ja lohistab kaardil vasaku hiirenupuga, kuvataks
 
 Valitud objektid peavad olema kaardil ja külgpaneelil ühtemoodi märgatavad. `Escape` tühistab poolelioleva valikukasti ning mitme valiku tühistamiseks saab teha tavalise klõpsu tühjal kaardialal. Kõik valikupõhised tegevused peavad olema kasutatavad ka klaviatuurita hiirega ning nende olekud peavad olema nähtavad.
 
-Mitmikvaliku nähtavust tuleb veel parandada: kõik aktiivsed objektid peavad olema nii kaardil kui külgpaneelis selgelt eristatavad ning kasutajaliides peab kuvama valitud objektide koguarvu. Külgpaneelis lisatakse `Ctrl + Shift + M1` vahemikuvalik, mis valib viimati valitud objektirea ja klõpsatud objektirea vahele jäävad objektid. Grupi päised ei kuulu vahemikku ning filtreeritud või kokkupandud loendi korral peab valik lähtuma parajasti nähtavatest objektiridadest.
+Valitud objektid on külgpaneelis tugevamalt eristatavad, kaardil ümbritseb mitmikvalikut ühine tagasihoidlik piirjoon ning loendi all kuvatakse aktiivsete objektide arv. Külgpaneelis valib `Ctrl + Shift + M1` viimati valitud objektirea ja klõpsatud objektirea vahele jäävad nähtavad objektid. `Ctrl + M1` grupipäisel valib grupi parajasti nähtavad ja otsingule vastavad objektid ka siis, kui grupp on kokku pakitud. Need 27. augustil lisatud mugavused ootavad veel käsitsi kontrolli.
+
+### Järelejäänud töö
+
+- kontrollida käsitsi grupipäise valikut, vahemikuvalikut, valitud objektide arvu ning kaardi ja külgpaneeli esiletõsteid;
+- kontrollida käsitsi kogu valikule ühise grupi ja nimesildi nähtavuse määramist;
+- kontrollida käsitsi `Escape`-klahvi ning tühjal kaardil klõpsamisega mitmikvaliku lõpetamist.
 
 ### Vastuvõtukriteeriumid
 
