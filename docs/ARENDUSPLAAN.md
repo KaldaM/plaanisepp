@@ -457,7 +457,9 @@ Aiaringi generaatori esimene etapp on teostatud. „Aiaring” on eraldi lisamis
 
 ### Inventarikokkuvõte
 
-Detailne inventarikokkuvõte on teostatud ning ootab käsitsi kontrolli. Külgpaneel ja TXT-raport kasutavad sama arvestust: kuvatakse aedade koguarv ja kogupikkus ning jaotus grupi ja füüsilise lõigupikkuse järgi. Ühendatud aiavõrk kuvatakse raportis ühe loogilise objektina, kuid selle kõik füüsilised lõigud lähevad kogusesse. PDF-raporti detailne inventar jääb järgmisse etappi.
+Detailne inventarikokkuvõte on teostatud ning ootab käsitsi kontrolli. Külgpaneel, TXT-raport ja PDF-raport kasutavad sama arvestust: kuvatakse aedade koguarv ja kogupikkus ning jaotus grupi ja füüsilise lõigupikkuse järgi. Ühendatud aiavõrk kuvatakse raportis ühe loogilise objektina, kuid selle kõik füüsilised lõigud lähevad kogusesse. Külgpaneeli inventar on vaikimisi ühe koondreana suletud ning pikkuse ja grupi jaotuse saab selle noolenupust avada.
+
+Kokkuvõttepaneelist eemaldati objektivaadet dubleeriv gruppide ja objektide loend. Kaablikokkuvõte on vaikimisi ühe kogupikkust näitava koondreana suletud ning ühenduste ja kaablitüüpide detailid saab noolenupust avada.
 
 ### Vastuvõtukriteeriumid
 

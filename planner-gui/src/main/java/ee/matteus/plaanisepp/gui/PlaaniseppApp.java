@@ -136,6 +136,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class PlaaniseppApp extends Application {
+    private static final String FENCE_INVENTORY_SUMMARY_KEY = "fence-inventory";
+    private static final String CABLE_SUMMARY_KEY = "cable-summary";
     private static final String DEFAULT_MAP_PATH = "classpath:/maps/tavakaart.png";
     private static final String ORTHOPHOTO_MAP_PATH = "classpath:/maps/ortofoto.png";
     private static final String APPLICATION_ICON_PATH = "/icons/plaanisepp.png";
@@ -253,7 +255,10 @@ public class PlaaniseppApp extends Application {
     private final List<MeasurementView> measurements = new ArrayList<>();
     private final List<Position> pendingShapePoints = new ArrayList<>();
     private final Set<String> visibleGroups = new HashSet<>();
-    private final Set<String> collapsedPowerSummaryKeys = new HashSet<>();
+    private final Set<String> collapsedSummaryKeys = new HashSet<>(Set.of(
+            FENCE_INVENTORY_SUMMARY_KEY,
+            CABLE_SUMMARY_KEY
+    ));
     private final Set<String> collapsedObjectGroups = new HashSet<>();
     private final Set<String> selectedObjectIds = new LinkedHashSet<>();
     private String selectionRangeAnchorObjectId;
@@ -1746,10 +1751,19 @@ public class PlaaniseppApp extends Application {
                     setCursor(Cursor.HAND);
                 }
                 if (!item.hasLoad()) {
-                    setText(item.text());
-                    setStyle(item.text().contains("ÜLEKOORMUS")
-                            ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
-                            : "");
+                    if (!item.isExpandable()) {
+                        setText(item.text());
+                        setStyle(item.text().contains("ÜLEKOORMUS")
+                                ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
+                                : "");
+                        return;
+                    }
+                    Label textLabel = new Label(item.text());
+                    Button toggleButton = summaryToggleButton(item);
+                    HBox row = new HBox(4, toggleButton, textLabel);
+                    row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                    row.setPadding(new Insets(0, 0, 0, item.depth() * 16.0));
+                    setGraphic(row);
                     return;
                 }
 
@@ -1767,12 +1781,7 @@ public class PlaaniseppApp extends Application {
                     return;
                 }
 
-                Button toggleButton = new Button(item.expanded() ? "▾" : "▸");
-                toggleButton.setFocusTraversable(false);
-                toggleButton.setMinWidth(28);
-                toggleButton.setStyle("-fx-background-color: transparent; -fx-padding: 2 5 2 5;");
-                toggleButton.setTooltip(new Tooltip(item.expanded() ? "Peida alamread" : "Näita alamridu"));
-                toggleButton.setOnAction(event -> togglePowerSummaryItem(item.hierarchyKey()));
+                Button toggleButton = summaryToggleButton(item);
                 HBox row = new HBox(4, toggleButton, loadContent);
                 row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 row.setPadding(new Insets(0, 0, 0, item.depth() * 16.0));
@@ -1826,6 +1835,16 @@ public class PlaaniseppApp extends Application {
         SplitPane splitPane = new SplitPane(mapScrollPane, sidebarScrollPane);
         splitPane.setDividerPositions(0.72);
         return splitPane;
+    }
+
+    private Button summaryToggleButton(SummaryListItem item) {
+        Button toggleButton = new Button(item.expanded() ? "▾" : "▸");
+        toggleButton.setFocusTraversable(false);
+        toggleButton.setMinWidth(28);
+        toggleButton.setStyle("-fx-background-color: transparent; -fx-padding: 2 5 2 5;");
+        toggleButton.setTooltip(new Tooltip(item.expanded() ? "Peida alamread" : "Näita alamridu"));
+        toggleButton.setOnAction(event -> toggleSummaryItem(item.hierarchyKey()));
+        return toggleButton;
     }
 
     private boolean canStartSelectionBox(MouseEvent event) {
@@ -4334,7 +4353,9 @@ public class PlaaniseppApp extends Application {
         visibleGroups.clear();
         knownGroups.clear();
         collapsedObjectGroups.clear();
-        collapsedPowerSummaryKeys.clear();
+        collapsedSummaryKeys.clear();
+        collapsedSummaryKeys.add(FENCE_INVENTORY_SUMMARY_KEY);
+        collapsedSummaryKeys.add(CABLE_SUMMARY_KEY);
         if (planNameField != null) {
             planNameField.setText(plan.name());
         }
@@ -7460,7 +7481,7 @@ public class PlaaniseppApp extends Application {
                     return;
                 }
                 target = sourceItem;
-                if (!collapsedPowerSummaryKeys.contains(sourceItem.hierarchyKey())) {
+                if (!collapsedSummaryKeys.contains(sourceItem.hierarchyKey())) {
                     if (connection.outletId().isBlank()) {
                         target = findSummaryTarget(object.id()).orElse(sourceItem);
                     } else {
@@ -7469,7 +7490,7 @@ public class PlaaniseppApp extends Application {
                         ).orElse(null);
                         if (outletItem != null) {
                             target = outletItem;
-                            if (!collapsedPowerSummaryKeys.contains(outletItem.hierarchyKey())) {
+                            if (!collapsedSummaryKeys.contains(outletItem.hierarchyKey())) {
                                 target = findSummaryTarget(object.id()).orElse(outletItem);
                             }
                         }
@@ -10285,7 +10306,7 @@ public class PlaaniseppApp extends Application {
         if (showPowerSummary()) {
             for (PowerSummary summary : powerSummaryService.summaries(plan)) {
                 String hierarchyKey = powerSourceSummaryKey(summary.sourceId());
-                boolean expanded = isPowerSummaryItemExpanded(hierarchyKey);
+                boolean expanded = isSummaryItemExpanded(hierarchyKey);
                 summaryList.getItems().add(SummaryListItem.expandableLoad("%s: %d W kasutusel, %s".formatted(
                         summary.sourceName(),
                         summary.usedWatts(),
@@ -10300,7 +10321,6 @@ public class PlaaniseppApp extends Application {
             addCableSummary();
         }
         if (showGroupSummary()) {
-            addGroupSummary();
             addFenceInventorySummary();
         }
     }
@@ -10310,9 +10330,16 @@ public class PlaaniseppApp extends Application {
         if (summary.totalCount() == 0) {
             return;
         }
-        summaryList.getItems().add(SummaryListItem.text("Aiad: %d tk · %s m".formatted(
-                summary.totalCount(), formatMeters(summary.totalLengthMeters())
-        )));
+        boolean expanded = isSummaryItemExpanded(FENCE_INVENTORY_SUMMARY_KEY);
+        summaryList.getItems().add(SummaryListItem.expandableText(
+                "Aiad: %d tk · %s m".formatted(summary.totalCount(), formatMeters(summary.totalLengthMeters())),
+                FENCE_INVENTORY_SUMMARY_KEY,
+                expanded,
+                0
+        ));
+        if (!expanded) {
+            return;
+        }
         summaryList.getItems().add(SummaryListItem.text("  Pikkuse järgi:"));
         for (FenceInventoryService.LengthBreakdown length : summary.byLength()) {
             summaryList.getItems().add(SummaryListItem.text("    %s m: %d tk · %s m".formatted(
@@ -10356,7 +10383,7 @@ public class PlaaniseppApp extends Application {
             PowerOutlet outlet = source.outlets().get(index);
             int usedWatts = usedWatts(outlet.id());
             String hierarchyKey = powerOutletSummaryKey(outlet.id());
-            boolean expanded = isPowerSummaryItemExpanded(hierarchyKey);
+            boolean expanded = isSummaryItemExpanded(hierarchyKey);
             summaryList.getItems().add(SummaryListItem.expandableLoad("  %s: %d W kasutusel, %s".formatted(
                     outletDisplayName(outlet, outletTypeIndex(source, outlet, index)),
                     usedWatts,
@@ -10377,13 +10404,13 @@ public class PlaaniseppApp extends Application {
         return "outlet:" + outletId;
     }
 
-    private boolean isPowerSummaryItemExpanded(String hierarchyKey) {
-        return !collapsedPowerSummaryKeys.contains(hierarchyKey);
+    private boolean isSummaryItemExpanded(String hierarchyKey) {
+        return !collapsedSummaryKeys.contains(hierarchyKey);
     }
 
-    private void togglePowerSummaryItem(String hierarchyKey) {
-        if (!collapsedPowerSummaryKeys.add(hierarchyKey)) {
-            collapsedPowerSummaryKeys.remove(hierarchyKey);
+    private void toggleSummaryItem(String hierarchyKey) {
+        if (!collapsedSummaryKeys.add(hierarchyKey)) {
+            collapsedSummaryKeys.remove(hierarchyKey);
         }
         refreshSummary();
     }
@@ -10459,34 +10486,28 @@ public class PlaaniseppApp extends Application {
         }
 
         addSummarySpacerIfNeeded();
-        summaryList.getItems().add(SummaryListItem.text("Kaablid"));
+        boolean expanded = isSummaryItemExpanded(CABLE_SUMMARY_KEY);
+        String cableTotalText = hasNotedLength
+                ? "Kaablid: %.1f m märgitud · %.1f m kaardil".formatted(
+                        totalNotedLengthMeters, totalLengthMeters
+                )
+                : "Kaablid: %.1f m".formatted(totalLengthMeters);
+        summaryList.getItems().add(SummaryListItem.expandableText(
+                cableTotalText,
+                CABLE_SUMMARY_KEY,
+                expanded,
+                0
+        ));
+        if (!expanded) {
+            return;
+        }
         summaryList.getItems().addAll(cableRows.stream()
                 .sorted(CABLE_SUMMARY_ROW_COMPARATOR)
                 .map(this::cableSummaryRow)
                 .map(SummaryListItem::text)
                 .toList());
-        if (hasNotedLength) {
-            summaryList.getItems().add(SummaryListItem.text("Kokku: %.1f m märgitud, %.1f m kaardil".formatted(totalNotedLengthMeters, totalLengthMeters)));
-        } else {
-            summaryList.getItems().add(SummaryListItem.text("Kokku: %.1f m".formatted(totalLengthMeters)));
-        }
         for (String row : cableTypeSummaryRows(summariesByType)) {
             summaryList.getItems().add(SummaryListItem.text(row));
-        }
-    }
-
-    private void addGroupSummary() {
-        if (plan.objects().isEmpty()) {
-            return;
-        }
-
-        addSummarySpacerIfNeeded();
-        summaryList.getItems().add(SummaryListItem.text("Grupid"));
-        for (Map.Entry<String, List<PlannerObject>> entry : objectsByGroup().entrySet()) {
-            summaryList.getItems().add(SummaryListItem.text(entry.getKey()));
-            for (PlannerObject object : entry.getValue()) {
-                summaryList.getItems().add(SummaryListItem.text("  - %s (%s)".formatted(object.name(), objectTypeName(object))));
-            }
         }
     }
 
@@ -10722,6 +10743,15 @@ public class PlaaniseppApp extends Application {
 
         private static SummaryListItem target(String text, String targetObjectId) {
             return new SummaryListItem(text, null, null, targetObjectId, "", false, 0);
+        }
+
+        private static SummaryListItem expandableText(
+                String text,
+                String hierarchyKey,
+                boolean expanded,
+                int depth
+        ) {
+            return new SummaryListItem(text, null, null, "", hierarchyKey, expanded, depth);
         }
 
         private static SummaryListItem expandableLoad(
