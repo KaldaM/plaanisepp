@@ -47,6 +47,7 @@ public class EventPlan {
     private boolean showAreaObjects = true;
     private boolean showLineObjects = true;
     private boolean showFenceInventoryLabels = true;
+    private int standaloneGardenStoneCount;
 
     public EventPlan(String name) {
         this.name = name;
@@ -140,6 +141,16 @@ public class EventPlan {
     }
 
     public void removeObject(String objectId) {
+        findObject(objectId)
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .filter(row -> row.gardenStoneAdjustment() != 0)
+                .ifPresent(row -> fenceNetworkRows(row.id()).stream()
+                        .filter(candidate -> !candidate.id().equals(row.id()))
+                        .findFirst()
+                        .ifPresent(candidate -> candidate.setGardenStoneAdjustment(
+                                candidate.gardenStoneAdjustment() + row.gardenStoneAdjustment()
+                        )));
         objects.removeIf(object -> object.id().equals(objectId));
         removeUnusedFenceJoints();
         removePowerConnections(connection ->
@@ -477,6 +488,26 @@ public class EventPlan {
                 .toList();
     }
 
+    public int fenceNetworkGardenStoneAdjustment(String fenceRowId) {
+        return fenceNetworkRows(fenceRowId).stream()
+                .mapToInt(FenceRow::gardenStoneAdjustment)
+                .sum();
+    }
+
+    public void setFenceNetworkGardenStoneAdjustment(String fenceRowId, int adjustment) {
+        List<FenceRow> rows = fenceNetworkRows(fenceRowId);
+        rows.forEach(row -> row.setGardenStoneAdjustment(0));
+        rows.getFirst().setGardenStoneAdjustment(adjustment);
+    }
+
+    public int standaloneGardenStoneCount() {
+        return standaloneGardenStoneCount;
+    }
+
+    public void setStandaloneGardenStoneCount(int count) {
+        standaloneGardenStoneCount = Math.max(0, count);
+    }
+
     public boolean isFenceNetworkRepresentative(FenceRow row) {
         return fenceNetworkRows(row.id()).getFirst().id().equals(row.id());
     }
@@ -538,6 +569,9 @@ public class EventPlan {
         List<FenceRow> incidentRows = fenceRowsAtJoint(jointId);
         FenceRow survivor = incidentRows.get(0);
         FenceRow removed = incidentRows.get(1);
+        survivor.setGardenStoneAdjustment(
+                survivor.gardenStoneAdjustment() + removed.gardenStoneAdjustment()
+        );
         String survivorOuterJointId = outerFenceJointId(survivor, jointId);
         String removedOuterJointId = outerFenceJointId(removed, jointId);
         Position survivorOuter = findFenceJoint(survivorOuterJointId).orElseThrow().position();

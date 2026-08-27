@@ -49,7 +49,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 11;
+    public static final int CURRENT_FORMAT_VERSION = 12;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -127,6 +127,9 @@ public class PlanFileService {
         properties.setProperty("layers.showAreaObjects", Boolean.toString(plan.showAreaObjects()));
         properties.setProperty("layers.showLineObjects", Boolean.toString(plan.showLineObjects()));
         properties.setProperty("layers.showFenceInventoryLabels", Boolean.toString(plan.showFenceInventoryLabels()));
+        properties.setProperty("inventory.standaloneGardenStoneCount", Integer.toString(
+                plan.standaloneGardenStoneCount()
+        ));
         properties.setProperty("hiddenGroups.count", Integer.toString(plan.hiddenGroups().size()));
 
         properties.setProperty("checklist.count", Integer.toString(plan.checklistItems().size()));
@@ -235,6 +238,9 @@ public class PlanFileService {
         plan.setShowAreaObjects(booleanValue(properties, "layers.showAreaObjects", true));
         plan.setShowLineObjects(booleanValue(properties, "layers.showLineObjects", true));
         plan.setShowFenceInventoryLabels(booleanValue(properties, "layers.showFenceInventoryLabels", true));
+        plan.setStandaloneGardenStoneCount(intValue(
+                properties, "inventory.standaloneGardenStoneCount", 0
+        ));
 
         int checklistCount = intValue(properties, "checklist.count", 0);
         for (int index = 0; index < checklistCount; index++) {
@@ -782,6 +788,7 @@ public class PlanFileService {
         );
         properties.setProperty(prefix + "inventoryLabelOffsetX", Double.toString(fenceRow.inventoryLabelOffset().x()));
         properties.setProperty(prefix + "inventoryLabelOffsetY", Double.toString(fenceRow.inventoryLabelOffset().y()));
+        properties.setProperty(prefix + "gardenStoneAdjustment", Integer.toString(fenceRow.gardenStoneAdjustment()));
     }
 
     private PlannerObject readObject(Properties properties, String prefix) {
@@ -855,6 +862,7 @@ public class PlanFileService {
                     doubleValue(properties, prefix + "inventoryLabelOffsetY", 0)
             ));
         }
+        fenceRow.setGardenStoneAdjustment(intValue(properties, prefix + "gardenStoneAdjustment", 0));
         String connectedToFenceRowId = properties.getProperty(prefix + "connectedToFenceRowId", "");
         if (!connectedToFenceRowId.isBlank() && !connectedToFenceRowId.equals(fenceRow.id())) {
             fenceRow.connectStartTo(connectedToFenceRowId);

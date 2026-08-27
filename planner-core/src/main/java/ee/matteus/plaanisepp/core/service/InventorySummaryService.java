@@ -9,7 +9,6 @@ import ee.matteus.plaanisepp.core.model.Tent;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -32,12 +31,7 @@ public final class InventorySummaryService {
                 .filter(CustomObject.class::isInstance)
                 .map(CustomObject.class::cast)
                 .toList();
-        int additionalGardenStoneCount = (int) customObjects.stream()
-                .filter(this::isGardenStone)
-                .count();
-        int automaticGardenStoneCount = automaticGardenStoneCount(plan);
         Map<String, Long> otherCounts = customObjects.stream()
-                .filter(object -> !isGardenStone(object))
                 .collect(Collectors.groupingBy(
                         PlannerObject::name,
                         () -> new TreeMap<>(String.CASE_INSENSITIVE_ORDER),
@@ -45,20 +39,24 @@ public final class InventorySummaryService {
                 ));
         List<NamedItem> otherItems = new ArrayList<>();
         otherCounts.forEach((name, count) -> otherItems.add(new NamedItem(name, Math.toIntExact(count))));
+        FenceInventoryService.Summary fences = fenceInventoryService.summarize(plan);
+        List<FenceStoneNetwork> fenceStoneNetworks = fences.byNetwork().stream()
+                .map(network -> fenceStoneNetwork(plan, network))
+                .toList();
         return new Summary(
-                fenceInventoryService.summarize(plan),
+                fences,
                 tentCount,
-                automaticGardenStoneCount,
-                additionalGardenStoneCount,
+                fenceStoneNetworks,
+                plan.standaloneGardenStoneCount(),
                 otherItems
         );
     }
 
-    private int automaticGardenStoneCount(EventPlan plan) {
-        List<FenceRow> fenceRows = plan.objects().stream()
-                .filter(FenceRow.class::isInstance)
-                .map(FenceRow.class::cast)
-                .toList();
+    private FenceStoneNetwork fenceStoneNetwork(
+            EventPlan plan,
+            FenceInventoryService.NetworkBreakdown network
+    ) {
+        List<FenceRow> fenceRows = plan.fenceNetworkRows(network.representativeId());
         Set<String> jointIds = new HashSet<>();
         int internalSegmentBoundaries = 0;
         for (FenceRow row : fenceRows) {
@@ -70,21 +68,27 @@ public final class InventorySummaryService {
                 jointIds.add(row.endJointId());
             }
         }
-        return internalSegmentBoundaries + jointIds.size();
-    }
-
-    private boolean isGardenStone(CustomObject object) {
-        return object.name().toLowerCase(Locale.ROOT).contains("aiakivi");
+        int automaticCount = internalSegmentBoundaries + jointIds.size();
+        int requestedAdjustment = plan.fenceNetworkGardenStoneAdjustment(network.representativeId());
+        int totalCount = Math.max(0, automaticCount + requestedAdjustment);
+        return new FenceStoneNetwork(
+                network.representativeId(),
+                network.name(),
+                automaticCount,
+                totalCount - automaticCount,
+                totalCount
+        );
     }
 
     public record Summary(
             FenceInventoryService.Summary fences,
             int tentCount,
-            int automaticGardenStoneCount,
-            int additionalGardenStoneCount,
+            List<FenceStoneNetwork> fenceStoneNetworks,
+            int standaloneGardenStoneCount,
             List<NamedItem> otherCustomItems
     ) {
         public Summary {
+            fenceStoneNetworks = List.copyOf(fenceStoneNetworks);
             otherCustomItems = List.copyOf(otherCustomItems);
         }
 
@@ -96,8 +100,26 @@ public final class InventorySummaryService {
         }
 
         public int gardenStoneCount() {
-            return automaticGardenStoneCount + additionalGardenStoneCount;
+            return fenceStoneNetworks.stream().mapToInt(FenceStoneNetwork::totalCount).sum()
+                    + standaloneGardenStoneCount;
         }
+
+        public int automaticGardenStoneCount() {
+            return fenceStoneNetworks.stream().mapToInt(FenceStoneNetwork::automaticCount).sum();
+        }
+
+        public int gardenStoneAdjustment() {
+            return fenceStoneNetworks.stream().mapToInt(FenceStoneNetwork::adjustment).sum();
+        }
+    }
+
+    public record FenceStoneNetwork(
+            String representativeId,
+            String name,
+            int automaticCount,
+            int adjustment,
+            int totalCount
+    ) {
     }
 
     public record NamedItem(String name, int count) {

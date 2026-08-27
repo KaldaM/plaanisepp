@@ -15,6 +15,7 @@ public class FenceRow extends PlannerObject {
     private String endJointId;
     private boolean customInventoryLabelPosition;
     private Position inventoryLabelOffset;
+    private int gardenStoneAdjustment;
 
     public FenceRow(String id, String name, Position position) {
         super(id, name, position);
@@ -143,6 +144,14 @@ public class FenceRow extends PlannerObject {
     public void resetInventoryLabelPosition() {
         inventoryLabelOffset = new Position(0, 0);
         customInventoryLabelPosition = false;
+    }
+
+    public int gardenStoneAdjustment() {
+        return gardenStoneAdjustment;
+    }
+
+    public void setGardenStoneAdjustment(int gardenStoneAdjustment) {
+        this.gardenStoneAdjustment = gardenStoneAdjustment;
     }
 
     void alignToEndpoints(Position start, Position end, double pixelsPerMeter) {

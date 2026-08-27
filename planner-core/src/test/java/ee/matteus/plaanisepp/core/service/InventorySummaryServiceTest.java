@@ -36,11 +36,12 @@ class InventorySummaryServiceTest {
         assertEquals(3.5, summary.fences().byNetwork().getFirst().segmentLengthMeters());
         assertEquals(2, summary.tentCount());
         assertEquals(6, summary.automaticGardenStoneCount());
-        assertEquals(2, summary.additionalGardenStoneCount());
-        assertEquals(8, summary.gardenStoneCount());
-        assertEquals(1, summary.otherCustomItems().size());
-        assertEquals("Laud", summary.otherCustomItems().getFirst().name());
-        assertEquals(2, summary.otherCustomItems().getFirst().count());
+        assertEquals(0, summary.standaloneGardenStoneCount());
+        assertEquals(6, summary.gardenStoneCount());
+        assertEquals(3, summary.otherCustomItems().size());
+        assertEquals(2, summary.otherCustomItems().stream()
+                .filter(item -> item.name().equals("Laud"))
+                .findFirst().orElseThrow().count());
     }
 
     @Test
@@ -82,6 +83,57 @@ class InventorySummaryServiceTest {
 
         assertEquals(3, summary.fences().totalCount());
         assertEquals(4, summary.automaticGardenStoneCount());
+    }
+
+    @Test
+    void appliesPerNetworkAdjustmentAndStandaloneStoneCount() {
+        EventPlan plan = new EventPlan("Kohandatud aiakivid");
+        FenceRow row = fence("fence", "Peaaed", new Position(0, 0), 3);
+        plan.addObject(row);
+        plan.setFenceNetworkGardenStoneAdjustment(row.id(), -1);
+        plan.setStandaloneGardenStoneCount(4);
+
+        InventorySummaryService.Summary summary = new InventorySummaryService().summarize(plan);
+        InventorySummaryService.FenceStoneNetwork network = summary.fenceStoneNetworks().getFirst();
+
+        assertEquals(4, network.automaticCount());
+        assertEquals(-1, network.adjustment());
+        assertEquals(3, network.totalCount());
+        assertEquals(4, summary.standaloneGardenStoneCount());
+        assertEquals(7, summary.gardenStoneCount());
+    }
+
+    @Test
+    void networkAdjustmentCannotReduceTotalBelowZero() {
+        EventPlan plan = new EventPlan("Liiga suur miinus");
+        FenceRow row = fence("fence", "Peaaed", new Position(0, 0), 1);
+        plan.addObject(row);
+        plan.setFenceNetworkGardenStoneAdjustment(row.id(), -99);
+
+        InventorySummaryService.FenceStoneNetwork network = new InventorySummaryService()
+                .summarize(plan)
+                .fenceStoneNetworks()
+                .getFirst();
+
+        assertEquals(0, network.totalCount());
+        assertEquals(-2, network.adjustment());
+    }
+
+    @Test
+    void combinesAdjustmentsWhenFenceNetworksAreJoined() {
+        EventPlan plan = new EventPlan("Ühendatud parandused");
+        FenceRow first = fence("first", "Esimene", new Position(0, 0), 1);
+        FenceRow second = fence("second", "Teine", new Position(20, 0), 1);
+        plan.addObject(first);
+        plan.addObject(second);
+        plan.setFenceNetworkGardenStoneAdjustment(first.id(), -1);
+        plan.setFenceNetworkGardenStoneAdjustment(second.id(), 2);
+
+        plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
+        InventorySummaryService.Summary summary = new InventorySummaryService().summarize(plan);
+
+        assertEquals(1, summary.fenceStoneNetworks().size());
+        assertEquals(1, summary.fenceStoneNetworks().getFirst().adjustment());
     }
 
     private FenceRow fence(String id, String name, Position position, int count) {

@@ -281,6 +281,7 @@ public class PlaaniseppApp extends Application {
     private TitledPane inventorySection;
     private VBox inventoryContent;
     private boolean fenceInventoryExpanded;
+    private boolean gardenStoneInventoryExpanded;
     private boolean cableInventoryExpanded;
     private TitledPane equipmentSection;
     private TitledPane outletSection;
@@ -2618,7 +2619,17 @@ public class PlaaniseppApp extends Application {
         List<FenceRow> rows = plan.fenceNetworkRows(representative.id());
         int fenceCount = rows.stream().mapToInt(FenceRow::segmentCount).sum();
         double totalLength = rows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
-        return "%d aeda · %.1f m · %d osa".formatted(fenceCount, totalLength, rows.size());
+        int gardenStoneCount = fenceStoneNetworkSummary(representative).totalCount();
+        return "%d aeda · %.1f m · %d aiakivi · %d osa".formatted(
+                fenceCount, totalLength, gardenStoneCount, rows.size()
+        );
+    }
+
+    private InventorySummaryService.FenceStoneNetwork fenceStoneNetworkSummary(FenceRow representative) {
+        return inventorySummaryService.summarize(plan).fenceStoneNetworks().stream()
+                .filter(network -> network.representativeId().equals(representative.id()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private void toggleObjectGroup(String groupName) {
@@ -4355,6 +4366,7 @@ public class PlaaniseppApp extends Application {
         collapsedObjectGroups.clear();
         collapsedSummaryKeys.clear();
         fenceInventoryExpanded = false;
+        gardenStoneInventoryExpanded = false;
         cableInventoryExpanded = false;
         if (planNameField != null) {
             planNameField.setText(plan.name());
@@ -5555,7 +5567,10 @@ public class PlaaniseppApp extends Application {
             List<FenceRow> networkRows = plan.fenceNetworkRows(fenceRow.id());
             int fenceCount = networkRows.stream().mapToInt(FenceRow::segmentCount).sum();
             double totalLength = networkRows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
-            inventoryLabel = new Label("%d aeda · %.1f m".formatted(fenceCount, totalLength));
+            int gardenStoneCount = fenceStoneNetworkSummary(fenceRow).totalCount();
+            inventoryLabel = new Label("%d aeda · %.1f m · %d aiakivi".formatted(
+                    fenceCount, totalLength, gardenStoneCount
+            ));
             double defaultLabelX = center.x() + 8;
             double defaultLabelY = center.y() + 28;
             inventoryLabel.setLayoutX(defaultLabelX + fenceRow.inventoryLabelOffset().x());
@@ -8607,6 +8622,7 @@ public class PlaaniseppApp extends Application {
                         row.colorHex(),
                         row.widthPixels(),
                         row.opacity(),
+                        row.gardenStoneAdjustment(),
                         row.customInventoryLabelPosition() ? row.inventoryLabelOffset() : null,
                         row.startJointId(),
                         row.endJointId()
@@ -8697,6 +8713,7 @@ public class PlaaniseppApp extends Application {
             pastedRow.setColorHex(copiedRow.colorHex());
             pastedRow.setWidthPixels(copiedRow.widthPixels());
             pastedRow.setOpacity(copiedRow.opacity());
+            pastedRow.setGardenStoneAdjustment(copiedRow.gardenStoneAdjustment());
             if (copiedRow.inventoryLabelOffset() != null) {
                 pastedRow.setInventoryLabelOffset(copiedRow.inventoryLabelOffset());
             }
@@ -10348,6 +10365,7 @@ public class PlaaniseppApp extends Application {
         inventoryContent.getChildren().clear();
         InventorySummaryService.Summary summary = inventorySummaryService.summarize(plan);
         addFenceInventory(summary);
+        addGardenStoneInventory(summary);
         addObjectInventory(summary);
         if (!organizerView) {
             addCableInventory();
@@ -10363,7 +10381,7 @@ public class PlaaniseppApp extends Application {
         }
         VBox details = new VBox(3);
         for (var network : inventory.fences().byNetwork()) {
-            details.getChildren().add(inventoryDetailLabel("%s: %d tk · %s m".formatted(
+            details.getChildren().add(inventoryDetailLabel("%s: %d aeda · %s m".formatted(
                     network.name(), network.count(), formatMeters(network.totalLengthMeters())
             )));
         }
@@ -10378,23 +10396,77 @@ public class PlaaniseppApp extends Application {
         ));
     }
 
+    private void addGardenStoneInventory(InventorySummaryService.Summary inventory) {
+        VBox details = new VBox(8);
+        for (InventorySummaryService.FenceStoneNetwork stones : inventory.fenceStoneNetworks()) {
+            Label stoneLabel = inventoryDetailLabel("Aiakivid: %d automaatne · %s parandus · %d kokku".formatted(
+                    stones.automaticCount(), signedCount(stones.adjustment()), stones.totalCount()
+            ));
+            Button removeStone = new Button("−");
+            removeStone.setDisable(stones.totalCount() == 0);
+            removeStone.setTooltip(new Tooltip("Vähenda selle aiakogumiku aiakivide kogust"));
+            removeStone.setOnAction(event -> adjustFenceNetworkGardenStones(stones, -1));
+            Button addStone = new Button("+");
+            addStone.setTooltip(new Tooltip("Suurenda selle aiakogumiku aiakivide kogust"));
+            addStone.setOnAction(event -> adjustFenceNetworkGardenStones(stones, 1));
+            HBox stoneRow = new HBox(6, stoneLabel, removeStone, addStone);
+            stoneRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            HBox.setHgrow(stoneLabel, Priority.ALWAYS);
+            details.getChildren().add(new VBox(
+                    2,
+                    inventoryDetailLabel(stones.name()),
+                    stoneRow
+            ));
+        }
+        Label standaloneLabel = new Label("Ilma aiata aiakivid: %d tk".formatted(
+                inventory.standaloneGardenStoneCount()
+        ));
+        Button removeStandalone = new Button("−");
+        removeStandalone.setDisable(inventory.standaloneGardenStoneCount() == 0);
+        removeStandalone.setOnAction(event -> adjustStandaloneGardenStones(-1));
+        Button addStandalone = new Button("+");
+        addStandalone.setOnAction(event -> adjustStandaloneGardenStones(1));
+        HBox standaloneRow = new HBox(6, standaloneLabel, removeStandalone, addStandalone);
+        standaloneRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        details.getChildren().add(standaloneRow);
+        inventoryContent.getChildren().add(inventoryPane(
+                "Aiakivid: %d tk".formatted(inventory.gardenStoneCount()),
+                details,
+                gardenStoneInventoryExpanded,
+                expanded -> gardenStoneInventoryExpanded = expanded
+        ));
+    }
+
     private void addObjectInventory(InventorySummaryService.Summary inventory) {
         if (inventory.tentCount() > 0) {
             inventoryContent.getChildren().add(new Label("Telgid: %d tk".formatted(inventory.tentCount())));
         }
-        if (inventory.gardenStoneCount() > 0) {
-            VBox gardenStones = new VBox(2,
-                    new Label("Aiakivid: %d tk".formatted(inventory.gardenStoneCount())),
-                    inventoryDetailLabel("Aiavõrkudest %d · eraldi lisatud %d".formatted(
-                            inventory.automaticGardenStoneCount(),
-                            inventory.additionalGardenStoneCount()
-                    ))
-            );
-            inventoryContent.getChildren().add(gardenStones);
-        }
         inventory.otherCustomItems().forEach(item -> inventoryContent.getChildren().add(
                 new Label("%s: %d tk".formatted(item.name(), item.count()))
         ));
+    }
+
+    private String signedCount(int count) {
+        return count > 0 ? "+" + count : Integer.toString(count);
+    }
+
+    private void adjustFenceNetworkGardenStones(
+            InventorySummaryService.FenceStoneNetwork network,
+            int delta
+    ) {
+        int adjustment = network.adjustment() + delta;
+        adjustment = Math.max(-network.automaticCount(), adjustment);
+        plan.setFenceNetworkGardenStoneAdjustment(network.representativeId(), adjustment);
+        refreshInventory();
+        refreshObjectList();
+        redrawMap();
+        markDirty();
+    }
+
+    private void adjustStandaloneGardenStones(int delta) {
+        plan.setStandaloneGardenStoneCount(plan.standaloneGardenStoneCount() + delta);
+        refreshInventory();
+        markDirty();
     }
 
     private Label inventoryDetailLabel(String text) {
@@ -10831,6 +10903,7 @@ public class PlaaniseppApp extends Application {
             String colorHex,
             double widthPixels,
             double opacity,
+            int gardenStoneAdjustment,
             Position inventoryLabelOffset,
             String startJointId,
             String endJointId

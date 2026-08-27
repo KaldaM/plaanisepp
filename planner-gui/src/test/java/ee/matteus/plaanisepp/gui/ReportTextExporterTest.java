@@ -105,6 +105,8 @@ class ReportTextExporterTest {
         plan.addObject(first);
         plan.addObject(second);
         plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
+        plan.setFenceNetworkGardenStoneAdjustment(first.id(), -1);
+        plan.setStandaloneGardenStoneCount(2);
 
         String report = new ReportTextExporter().export(
                 plan, ReportExportScope.COMPACT, false, false, false
@@ -113,6 +115,8 @@ class ReportTextExporterTest {
         assertEquals(1, occurrences(report, "  - Aiaring:"));
         assertTrue(report.contains("Aiaring: 5 × 3.50 m = 17.50 m"), report);
         assertTrue(report.contains("Kokku: 5 aeda, 17.50 m"), report);
+        assertTrue(report.contains("Aiakivid: 6 automaatne, -1 parandus, 5 kokku"), report);
+        assertTrue(report.contains("Aiakive kokku: 7 tk (ilma aiata 2 tk)"), report);
     }
 
     @Test

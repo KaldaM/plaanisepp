@@ -1,12 +1,12 @@
 package ee.matteus.plaanisepp.gui;
 
 import ee.matteus.plaanisepp.core.model.EventPlan;
-import ee.matteus.plaanisepp.core.service.FenceInventoryService;
+import ee.matteus.plaanisepp.core.service.InventorySummaryService;
 import ee.matteus.plaanisepp.core.service.PowerHierarchyService;
 
 final class ReportTextExporter {
     private final FenceReportTextFormatter fenceReportTextFormatter =
-            new FenceReportTextFormatter(new FenceInventoryService());
+            new FenceReportTextFormatter(new InventorySummaryService());
     private final CableReportTextFormatter cableReportTextFormatter =
             new CableReportTextFormatter(new CableInventorySummaryService());
     private final PowerReportTextFormatter powerReportTextFormatter =
