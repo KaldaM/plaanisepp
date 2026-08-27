@@ -2,8 +2,6 @@ package ee.matteus.plaanisepp.gui;
 
 import ee.matteus.plaanisepp.core.model.ConnectorType;
 import ee.matteus.plaanisepp.core.model.AreaObject;
-import ee.matteus.plaanisepp.core.model.Equipment;
-import ee.matteus.plaanisepp.core.model.EquipmentContainer;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.LineObject;
@@ -11,14 +9,12 @@ import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.PowerConnection;
 import ee.matteus.plaanisepp.core.model.PowerConsumer;
-import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.TextObject;
 import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.model.CustomObject;
-import ee.matteus.plaanisepp.core.service.PowerSummary;
-import ee.matteus.plaanisepp.core.service.PowerSummaryService;
 import ee.matteus.plaanisepp.core.service.FenceInventoryService;
+import ee.matteus.plaanisepp.core.service.PowerHierarchyService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,12 +22,11 @@ import java.util.Map;
 import java.util.TreeMap;
 
 final class ReportTextExporter {
-    private final PowerSummaryService powerSummaryService;
     private final FenceInventoryService fenceInventoryService = new FenceInventoryService();
     private final CableInventorySummaryService cableInventorySummaryService = new CableInventorySummaryService();
+    private final PowerHierarchyService powerHierarchyService = new PowerHierarchyService();
 
-    ReportTextExporter(PowerSummaryService powerSummaryService) {
-        this.powerSummaryService = powerSummaryService;
+    ReportTextExporter() {
     }
 
     String export(EventPlan plan, ReportExportScope reportScope, boolean includePower, boolean includeCables, boolean includeGroups) {
@@ -114,88 +109,65 @@ final class ReportTextExporter {
     private void appendPowerReport(StringBuilder builder, EventPlan plan, ReportExportScope reportScope, String lineSeparator) {
         builder.append("Voolu kokkuvõte pesade kaupa").append(lineSeparator);
         builder.append(lineSeparator);
-        for (PowerSource source : plan.powerSources()) {
-            int sourceUsedWatts = powerSummaryService.summaries(plan).stream()
-                    .filter(summary -> summary.sourceId().equals(source.id()))
-                    .findFirst()
-                    .map(PowerSummary::usedWatts)
-                    .orElse(0);
+        PowerHierarchyService.Hierarchy hierarchy = powerHierarchyService.summarize(plan);
+        for (PowerHierarchyService.SourceRow source : hierarchy.sources()) {
             builder.append(source.name())
                     .append(": ")
-                    .append(sourceUsedWatts)
+                    .append(source.usedWatts())
                     .append(" W kasutusel, ")
-                    .append(remainingWattsText(source.totalCapacityWatts() - sourceUsedWatts))
+                    .append(remainingWattsText(source.remainingWatts()))
                     .append(lineSeparator);
 
             if (source.outlets().isEmpty()) {
                 builder.append("  Väljundeid pole").append(lineSeparator);
             }
 
-            for (int index = 0; index < source.outlets().size(); index++) {
-                PowerOutlet outlet = source.outlets().get(index);
-                appendOutletReport(builder, plan, source, outlet, index, reportScope, lineSeparator);
+            for (PowerHierarchyService.OutletRow outlet : source.outlets()) {
+                appendOutletReport(builder, outlet, reportScope, lineSeparator);
             }
             builder.append(lineSeparator);
         }
-        appendUnconnectedConsumersReport(builder, plan, lineSeparator);
+        appendUnconnectedConsumersReport(builder, hierarchy.unconnectedConsumers(), lineSeparator);
     }
 
     private void appendOutletReport(
             StringBuilder builder,
-            EventPlan plan,
-            PowerSource source,
-            PowerOutlet outlet,
-            int index,
+            PowerHierarchyService.OutletRow outlet,
             ReportExportScope reportScope,
             String lineSeparator
     ) {
-        int usedWatts = usedWatts(plan, outlet.id());
-        List<PowerConnection> connections = connectedConnections(plan, source.id(), outlet.id());
-        if (reportScope == ReportExportScope.COMPACT && usedWatts == 0 && connections.isEmpty()) {
+        if (reportScope == ReportExportScope.COMPACT && outlet.usedWatts() == 0 && outlet.consumers().isEmpty()) {
             return;
         }
         builder.append("  ")
-                .append(outletDisplayName(outlet, outletTypeIndex(source, outlet, index)))
+                .append(outletDisplayName(outlet))
                 .append(": ")
                 .append(outlet.capacityWatts())
                 .append(" W mahutavus, ")
-                .append(usedWatts)
+                .append(outlet.usedWatts())
                 .append(" W kasutusel, ")
-                .append(remainingWattsText(outlet.capacityWatts() - usedWatts))
+                .append(remainingWattsText(outlet.remainingWatts()))
                 .append(lineSeparator);
 
-        if (connections.isEmpty()) {
+        if (outlet.consumers().isEmpty()) {
             builder.append("    Tarbijaid pole").append(lineSeparator);
             return;
         }
 
-        for (PowerConnection connection : connections) {
-            PlannerObject consumerObject = plan.findObject(connection.consumerId()).orElse(null);
-            if (!(consumerObject instanceof PowerConsumer consumer)) {
-                continue;
-            }
+        for (PowerHierarchyService.ConsumerRow consumer : outlet.consumers()) {
             builder.append("    - ")
                     .append(consumer.name())
                     .append(": ")
-                    .append(plan.powerDemandWatts(connection))
+                    .append(consumer.usedWatts())
                     .append(" W");
-            if (!connection.defaultForConsumer()) {
+            if (consumer.alternativeConnection()) {
                 builder.append(" (seadme erand)");
             }
-            if (!consumerObject.groupName().isBlank()) {
-                builder.append(" (").append(consumerObject.groupName()).append(")");
+            if (!consumer.groupName().isBlank()) {
+                builder.append(" (").append(consumer.groupName()).append(")");
             }
             builder.append(lineSeparator);
-            if (!(consumerObject instanceof EquipmentContainer container)) {
-                continue;
-            }
-            for (Equipment equipment : container.equipment()) {
-                boolean usesConnection = equipment.usesDefaultPower()
-                        ? connection.defaultForConsumer()
-                        : connection.id().equals(equipment.powerConnectionId());
-                if (!usesConnection) {
-                    continue;
-                }
+            for (PowerHierarchyService.EquipmentRow equipment : consumer.equipment()) {
                 builder.append("      * ")
                         .append(equipment.name())
                         .append(": ")
@@ -206,23 +178,17 @@ final class ReportTextExporter {
         }
     }
 
-    private List<PowerConnection> connectedConnections(EventPlan plan, String sourceId, String outletId) {
-        return plan.powerConnections().stream()
-                .filter(connection -> connection.sourceId().equals(sourceId))
-                .filter(connection -> connection.outletId().equals(outletId))
-                .toList();
-    }
-
-    private void appendUnconnectedConsumersReport(StringBuilder builder, EventPlan plan, String lineSeparator) {
-        List<PowerConsumer> unconnectedConsumers = plan.powerConsumers().stream()
-                .filter(consumer -> plan.findPowerConnectionForConsumer(consumer.id()).isEmpty())
-                .toList();
+    private void appendUnconnectedConsumersReport(
+            StringBuilder builder,
+            List<PowerHierarchyService.UnconnectedConsumerRow> unconnectedConsumers,
+            String lineSeparator
+    ) {
         if (unconnectedConsumers.isEmpty()) {
             return;
         }
 
         builder.append("Ühendamata tarbijad").append(lineSeparator);
-        for (PowerConsumer consumer : unconnectedConsumers) {
+        for (PowerHierarchyService.UnconnectedConsumerRow consumer : unconnectedConsumers) {
             builder.append("  - ")
                     .append(consumer.name())
                     .append(": ")
@@ -337,25 +303,11 @@ final class ReportTextExporter {
         }
     }
 
-    private int usedWatts(EventPlan plan, String outletId) {
-        return plan.outletDemandWatts(outletId);
-    }
-
-    private String outletDisplayName(PowerOutlet outlet, int matchingIndex) {
+    private String outletDisplayName(PowerHierarchyService.OutletRow outlet) {
         if (!outlet.name().isBlank()) {
-            return "%s (%s %d)".formatted(outlet.name(), outlet.type().displayName(), matchingIndex);
+            return "%s (%s %d)".formatted(outlet.name(), outlet.type().displayName(), outlet.typeIndex());
         }
-        return "%s %d".formatted(outlet.type().displayName(), matchingIndex);
-    }
-
-    private int outletTypeIndex(PowerSource source, PowerOutlet targetOutlet, int targetIndex) {
-        int matchingIndex = 0;
-        for (int index = 0; index <= targetIndex; index++) {
-            if (source.outlets().get(index).type() == targetOutlet.type()) {
-                matchingIndex++;
-            }
-        }
-        return matchingIndex;
+        return "%s %d".formatted(outlet.type().displayName(), outlet.typeIndex());
     }
 
     private String remainingWattsText(int remainingWatts) {

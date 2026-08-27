@@ -12,7 +12,6 @@ import ee.matteus.plaanisepp.core.model.PowerConnection;
 import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.Tent;
-import ee.matteus.plaanisepp.core.service.PowerSummaryService;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,7 +28,7 @@ class ReportTextExporterTest {
         plan.addObject(first);
         plan.addObject(second);
 
-        String report = new ReportTextExporter(new PowerSummaryService()).export(
+        String report = new ReportTextExporter().export(
                 plan,
                 ReportExportScope.COMPACT,
                 false,
@@ -55,7 +54,7 @@ class ReportTextExporterTest {
         plan.addObject(second);
         plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
 
-        String report = new ReportTextExporter(new PowerSummaryService()).export(
+        String report = new ReportTextExporter().export(
                 plan, ReportExportScope.COMPACT, false, false, false
         );
 
@@ -85,7 +84,7 @@ class ReportTextExporterTest {
         ).orElseThrow();
         plan.assignEquipmentToPowerConnection(tent.id(), refrigerator.id(), alternativeConnection.id());
 
-        String report = new ReportTextExporter(new PowerSummaryService()).export(
+        String report = new ReportTextExporter().export(
                 plan,
                 ReportExportScope.FULL,
                 true,
@@ -116,7 +115,7 @@ class ReportTextExporterTest {
         plan.connectToPower(source.id(), area.id(), ConnectorType.SCHUKO_230V, "outlet");
         plan.connectToPower(source.id(), line.id(), ConnectorType.SCHUKO_230V, "outlet");
 
-        String report = new ReportTextExporter(new PowerSummaryService()).export(
+        String report = new ReportTextExporter().export(
                 plan,
                 ReportExportScope.FULL,
                 true,
@@ -147,7 +146,7 @@ class ReportTextExporterTest {
         plan.connectToPower(mainSource.id(), panel.id(), ConnectorType.INDUSTRIAL_16A, "source-outlet");
         plan.connectToPower(panel.id(), area.id(), ConnectorType.SCHUKO_230V, "panel-outlet");
 
-        String report = new ReportTextExporter(new PowerSummaryService()).export(
+        String report = new ReportTextExporter().export(
                 plan,
                 ReportExportScope.FULL,
                 true,

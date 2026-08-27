@@ -34,6 +34,7 @@ import ee.matteus.plaanisepp.core.service.FenceRingGenerator;
 import ee.matteus.plaanisepp.core.service.GeometryCalculator;
 import ee.matteus.plaanisepp.core.service.PowerSummary;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
+import ee.matteus.plaanisepp.core.service.PowerHierarchyService;
 import ee.matteus.plaanisepp.core.service.InventorySummaryService;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -183,9 +184,10 @@ public class PlaaniseppApp extends Application {
 
     private final PlanFactory planFactory = new PlanFactory();
     private final PowerSummaryService powerSummaryService = new PowerSummaryService();
+    private final PowerHierarchyService powerHierarchyService = new PowerHierarchyService();
     private final InventorySummaryService inventorySummaryService = new InventorySummaryService();
     private final CableInventorySummaryService cableInventorySummaryService = new CableInventorySummaryService();
-    private final ReportTextExporter reportTextExporter = new ReportTextExporter(powerSummaryService);
+    private final ReportTextExporter reportTextExporter = new ReportTextExporter();
     private final PlanFileSession planFileSession = new PlanFileSession();
     private final PlanDocumentState planDocumentState = new PlanDocumentState();
     private final PlanSnapshotService planSnapshotService = new PlanSnapshotService();
@@ -10285,16 +10287,16 @@ public class PlaaniseppApp extends Application {
         if (organizerView) {
             return;
         }
-        for (PowerSummary summary : powerSummaryService.summaries(plan)) {
-            String hierarchyKey = powerSourceSummaryKey(summary.sourceId());
+        for (PowerHierarchyService.SourceRow source : powerHierarchyService.summarize(plan).sources()) {
+            String hierarchyKey = powerSourceSummaryKey(source.id());
             boolean expanded = isSummaryItemExpanded(hierarchyKey);
             summaryList.getItems().add(SummaryListItem.expandableLoad("%s: %d W kasutusel, %s".formatted(
-                    summary.sourceName(),
-                    summary.usedWatts(),
-                    remainingWattsText(summary.remainingWatts())
-            ), summary.usedWatts(), summary.capacityWatts(), summary.sourceId(), hierarchyKey, expanded, 0));
+                    source.name(),
+                    source.usedWatts(),
+                    remainingWattsText(source.remainingWatts())
+            ), source.usedWatts(), source.capacityWatts(), source.id(), hierarchyKey, expanded, 0));
             if (expanded) {
-                addConnectedConsumers(summary.sourceId());
+                addConnectedConsumers(source);
             }
         }
     }
@@ -10369,30 +10371,20 @@ public class PlaaniseppApp extends Application {
         return pane;
     }
 
-    private void addConnectedConsumers(String sourceId) {
-        PowerSource source = plan.findObject(sourceId)
-                .filter(PowerSource.class::isInstance)
-                .map(PowerSource.class::cast)
-                .orElse(null);
-        if (source == null) {
-            return;
-        }
-
-        for (int index = 0; index < source.outlets().size(); index++) {
-            PowerOutlet outlet = source.outlets().get(index);
-            int usedWatts = usedWatts(outlet.id());
+    private void addConnectedConsumers(PowerHierarchyService.SourceRow source) {
+        for (PowerHierarchyService.OutletRow outlet : source.outlets()) {
             String hierarchyKey = powerOutletSummaryKey(outlet.id());
             boolean expanded = isSummaryItemExpanded(hierarchyKey);
             summaryList.getItems().add(SummaryListItem.expandableLoad("  %s: %d W kasutusel, %s".formatted(
-                    outletDisplayName(outlet, outletTypeIndex(source, outlet, index)),
-                    usedWatts,
-                    remainingWattsText(outlet.capacityWatts() - usedWatts)
-            ), usedWatts, outlet.capacityWatts(), source.id(), hierarchyKey, expanded, 1));
+                    outletDisplayName(outlet),
+                    outlet.usedWatts(),
+                    remainingWattsText(outlet.remainingWatts())
+            ), outlet.usedWatts(), outlet.capacityWatts(), source.id(), hierarchyKey, expanded, 1));
             if (expanded) {
-                addConnectedConsumers(sourceId, outlet.id(), "    ");
+                addConnectedConsumers(outlet.consumers(), "    ");
             }
         }
-        addConnectedConsumers(sourceId, "", "  ");
+        addConnectedConsumers(source.directConsumers(), "  ");
     }
 
     private String powerSourceSummaryKey(String sourceId) {
@@ -10414,23 +10406,21 @@ public class PlaaniseppApp extends Application {
         refreshSummary();
     }
 
-    private void addConnectedConsumers(String sourceId, String outletId, String rowPrefix) {
-        for (PowerConnection connection : plan.powerConnections()) {
-            if (!connection.sourceId().equals(sourceId)) {
-                continue;
-            }
-            if (!connection.outletId().equals(outletId)) {
-                continue;
-            }
-            plan.findObject(connection.consumerId())
-                    .filter(PowerConsumer.class::isInstance)
-                    .map(PowerConsumer.class::cast)
-                    .ifPresent(consumer -> summaryList.getItems().add(SummaryListItem.target("%s- %s: %d W (%s)".formatted(
-                            rowPrefix,
-                            consumer.name(),
-                            plan.powerDemandWatts(connection),
-                            connection.connectorType().displayName()
-                    ), consumer.id())));
+    private String outletDisplayName(PowerHierarchyService.OutletRow outlet) {
+        if (!outlet.name().isBlank()) {
+            return "%s (%s %d)".formatted(outlet.name(), outlet.type().displayName(), outlet.typeIndex());
+        }
+        return "%s %d".formatted(outlet.type().displayName(), outlet.typeIndex());
+    }
+
+    private void addConnectedConsumers(List<PowerHierarchyService.ConsumerRow> consumers, String rowPrefix) {
+        for (PowerHierarchyService.ConsumerRow consumer : consumers) {
+            summaryList.getItems().add(SummaryListItem.target("%s- %s: %d W (%s)".formatted(
+                    rowPrefix,
+                    consumer.name(),
+                    consumer.usedWatts(),
+                    consumer.connectorType().displayName()
+            ), consumer.id()));
         }
     }
 

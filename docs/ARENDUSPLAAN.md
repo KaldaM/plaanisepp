@@ -463,6 +463,8 @@ Külgpaneelil on eraldi „Inventari” jaotis, mis on nähtav ka korraldajavaat
 
 Inventari refaktori esimene etapp on teostatud: aedade tervikvõrgud, telgid ja kohandatud objektide kogused arvutatakse JavaFX-ist sõltumatus `InventorySummaryService` teenuses. Kaabliinventari pikkusmärkmed, tükid, tüübi koondid ja alternatiivühendused arvutab eraldi testitud `CableInventorySummaryService`. Külgpaneel ja TXT/PDF-raport kasutavad nii aedade tervikvõrkude jaoks sama `FenceInventoryService` tulemust kui ka kaabliinventari jaoks sama arvutus- ja tekstivormindusloogikat. See vähendab `PlaaniseppApp` vastutust ning loob aluse hilisemale üldisele inventarimudelile.
 
+Voolukokkuvõtte refaktor on samuti teostatud. `PowerHierarchyService` koostab ühe testitud allika-, väljundi-, tarbija- ja seadmepuu koos ühendamata tarbijatega. Seda kasutavad nii külgpaneel, TXT/PDF-raport kui ka lihtne `PowerSummaryService`, mistõttu kapi ja väljundi koormusi ning seadmepõhiseid alternatiivühendusi ei arvutata enam eri vaadetes eraldi.
+
 ### Planeeritud inventarimudel
 
 - **Aiakivid arvutatakse aia geomeetriast automaatselt.** Iga füüsilise aia kahe lõigu vahel ning iga vaba otspunkti juures on üks aiakivi. Kui ühes ühenduspunktis kohtuvad kolm, neli või rohkem aeda, läheb inventari siiski ainult üks aiakivi. Suletud N lõiguga ring vajab seega N aiakivi ja avatud N lõiguga ahel N + 1 aiakivi. Arvestus peab kasutama unikaalseid füüsilisi ühenduspunkte, mitte `FenceRow` objektide arvu.
