@@ -136,8 +136,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class PlaaniseppApp extends Application {
-    private static final String FENCE_INVENTORY_SUMMARY_KEY = "fence-inventory";
-    private static final String CABLE_SUMMARY_KEY = "cable-summary";
     private static final String DEFAULT_MAP_PATH = "classpath:/maps/tavakaart.png";
     private static final String ORTHOPHOTO_MAP_PATH = "classpath:/maps/ortofoto.png";
     private static final String APPLICATION_ICON_PATH = "/icons/plaanisepp.png";
@@ -147,6 +145,7 @@ public class PlaaniseppApp extends Application {
     private static final String CHECKLIST_SECTION = "checklist";
     private static final String MAP_LAYERS_SECTION = "mapLayers";
     private static final String SUMMARY_SECTION = "summary";
+    private static final String INVENTORY_SECTION = "inventory";
     private static final String EQUIPMENT_SECTION = "equipment";
     private static final String OUTLET_SECTION = "outlet";
     private static final String SIDEBAR_SECTION_ORDER_PREFERENCE = "sidebarSectionOrder";
@@ -157,6 +156,7 @@ public class PlaaniseppApp extends Application {
             CHECKLIST_SECTION,
             SELECTED_OBJECT_SECTION,
             MAP_LAYERS_SECTION,
+            INVENTORY_SECTION,
             SUMMARY_SECTION
     );
     private static final Pattern CABLE_LENGTH_PATTERN = Pattern.compile("\\d+(?:[,.]\\d+)?");
@@ -255,10 +255,7 @@ public class PlaaniseppApp extends Application {
     private final List<MeasurementView> measurements = new ArrayList<>();
     private final List<Position> pendingShapePoints = new ArrayList<>();
     private final Set<String> visibleGroups = new HashSet<>();
-    private final Set<String> collapsedSummaryKeys = new HashSet<>(Set.of(
-            FENCE_INVENTORY_SUMMARY_KEY,
-            CABLE_SUMMARY_KEY
-    ));
+    private final Set<String> collapsedSummaryKeys = new HashSet<>();
     private final Set<String> collapsedObjectGroups = new HashSet<>();
     private final Set<String> selectedObjectIds = new LinkedHashSet<>();
     private String selectionRangeAnchorObjectId;
@@ -273,9 +270,6 @@ public class PlaaniseppApp extends Application {
     private Set<String> knownGroups = new HashSet<>();
     private ListView<SummaryListItem> summaryList;
     private VBox sidebar;
-    private CheckBox showPowerSummaryCheckBox;
-    private CheckBox showCableSummaryCheckBox;
-    private CheckBox showGroupSummaryCheckBox;
     private Label mapToolStatusLabel;
     private Label planTitleLabel;
     private Label saveStatusLabel;
@@ -289,6 +283,10 @@ public class PlaaniseppApp extends Application {
     private TitledPane objectListSection;
     private TitledPane selectedObjectSection;
     private TitledPane powerSummarySection;
+    private TitledPane inventorySection;
+    private VBox inventoryContent;
+    private boolean fenceInventoryExpanded;
+    private boolean cableInventoryExpanded;
     private TitledPane equipmentSection;
     private TitledPane outletSection;
     private TextField planNameField;
@@ -1715,24 +1713,6 @@ public class PlaaniseppApp extends Application {
                 MAP_LAYERS_SECTION, "Kaardi kihid", createMapLayersPanel(), false
         );
 
-        showPowerSummaryCheckBox = new CheckBox("Vool");
-        showPowerSummaryCheckBox.setSelected(true);
-        showPowerSummaryCheckBox.setOnAction(event -> refreshSummary());
-        showCableSummaryCheckBox = new CheckBox("Kaablid");
-        showCableSummaryCheckBox.setSelected(true);
-        showCableSummaryCheckBox.setOnAction(event -> refreshSummary());
-        showGroupSummaryCheckBox = new CheckBox("Grupid");
-        showGroupSummaryCheckBox.setSelected(true);
-        showGroupSummaryCheckBox.setOnAction(event -> refreshSummary());
-        HBox summaryFilters = new HBox(10, showPowerSummaryCheckBox, showCableSummaryCheckBox, showGroupSummaryCheckBox);
-        VBox cableLegend = new VBox(
-                4,
-                cableLegendRow(ConnectorType.SCHUKO_230V),
-                cableLegendRow(ConnectorType.INDUSTRIAL_16A),
-                cableLegendRow(ConnectorType.INDUSTRIAL_32A),
-                cableLegendRow(ConnectorType.INDUSTRIAL_63A)
-        );
-
         summaryList = new ListView<>();
         summaryList.setMinHeight(180);
         summaryList.setPrefHeight(260);
@@ -1820,13 +1800,21 @@ public class PlaaniseppApp extends Application {
         powerSummarySection = collapsibleSection(
                 SUMMARY_SECTION,
                 "Voolu kokkuvõte",
-                new VBox(8, summaryFilters, cableLegend, summaryList),
+                summaryList,
+                true
+        );
+        inventoryContent = new VBox(6);
+        inventorySection = collapsibleSection(
+                INVENTORY_SECTION,
+                "Inventar",
+                inventoryContent,
                 true
         );
         registerSidebarSection(OBJECT_LIST_SECTION, objectListSection);
         registerSidebarSection(CHECKLIST_SECTION, checklistSection);
         registerSidebarSection(SELECTED_OBJECT_SECTION, selectedObjectSection);
         registerSidebarSection(MAP_LAYERS_SECTION, mapLayersSection);
+        registerSidebarSection(INVENTORY_SECTION, inventorySection);
         registerSidebarSection(SUMMARY_SECTION, powerSummarySection);
         applySidebarSectionOrder(loadSidebarSectionOrder());
         ScrollPane sidebarScrollPane = new ScrollPane(sidebar);
@@ -4354,8 +4342,8 @@ public class PlaaniseppApp extends Application {
         knownGroups.clear();
         collapsedObjectGroups.clear();
         collapsedSummaryKeys.clear();
-        collapsedSummaryKeys.add(FENCE_INVENTORY_SUMMARY_KEY);
-        collapsedSummaryKeys.add(CABLE_SUMMARY_KEY);
+        fenceInventoryExpanded = false;
+        cableInventoryExpanded = false;
         if (planNameField != null) {
             planNameField.setText(plan.name());
         }
@@ -10300,74 +10288,109 @@ public class PlaaniseppApp extends Application {
 
     private void refreshSummary() {
         summaryList.getItems().clear();
+        refreshInventory();
         if (organizerView) {
             return;
         }
-        if (showPowerSummary()) {
-            for (PowerSummary summary : powerSummaryService.summaries(plan)) {
-                String hierarchyKey = powerSourceSummaryKey(summary.sourceId());
-                boolean expanded = isSummaryItemExpanded(hierarchyKey);
-                summaryList.getItems().add(SummaryListItem.expandableLoad("%s: %d W kasutusel, %s".formatted(
-                        summary.sourceName(),
-                        summary.usedWatts(),
-                        remainingWattsText(summary.remainingWatts())
-                ), summary.usedWatts(), summary.capacityWatts(), summary.sourceId(), hierarchyKey, expanded, 0));
-                if (expanded) {
-                    addConnectedConsumers(summary.sourceId());
-                }
+        for (PowerSummary summary : powerSummaryService.summaries(plan)) {
+            String hierarchyKey = powerSourceSummaryKey(summary.sourceId());
+            boolean expanded = isSummaryItemExpanded(hierarchyKey);
+            summaryList.getItems().add(SummaryListItem.expandableLoad("%s: %d W kasutusel, %s".formatted(
+                    summary.sourceName(),
+                    summary.usedWatts(),
+                    remainingWattsText(summary.remainingWatts())
+            ), summary.usedWatts(), summary.capacityWatts(), summary.sourceId(), hierarchyKey, expanded, 0));
+            if (expanded) {
+                addConnectedConsumers(summary.sourceId());
             }
-        }
-        if (showCableSummary()) {
-            addCableSummary();
-        }
-        if (showGroupSummary()) {
-            addFenceInventorySummary();
         }
     }
 
-    private void addFenceInventorySummary() {
+    private void refreshInventory() {
+        if (inventoryContent == null) {
+            return;
+        }
+        inventoryContent.getChildren().clear();
+        addFenceInventory();
+        addObjectInventory();
+        if (!organizerView) {
+            addCableInventory();
+        }
+        if (inventoryContent.getChildren().isEmpty()) {
+            inventoryContent.getChildren().add(new Label("Inventariobjekte pole"));
+        }
+    }
+
+    private void addFenceInventory() {
         FenceInventoryService.Summary summary = fenceInventoryService.summarize(plan);
         if (summary.totalCount() == 0) {
             return;
         }
-        boolean expanded = isSummaryItemExpanded(FENCE_INVENTORY_SUMMARY_KEY);
-        summaryList.getItems().add(SummaryListItem.expandableText(
+        VBox details = new VBox(3);
+        for (FenceRow representative : plan.objects().stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .filter(plan::isFenceNetworkRepresentative)
+                .toList()) {
+            List<FenceRow> rows = plan.fenceNetworkRows(representative.id());
+            int count = rows.stream().mapToInt(FenceRow::segmentCount).sum();
+            double length = rows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
+            details.getChildren().add(inventoryDetailLabel("%s: %d tk · %s m".formatted(
+                    representative.name(), count, formatMeters(length)
+            )));
+        }
+        inventoryContent.getChildren().add(inventoryPane(
                 "Aiad: %d tk · %s m".formatted(summary.totalCount(), formatMeters(summary.totalLengthMeters())),
-                FENCE_INVENTORY_SUMMARY_KEY,
-                expanded,
-                0
+                details,
+                fenceInventoryExpanded,
+                expanded -> fenceInventoryExpanded = expanded
         ));
-        if (!expanded) {
-            return;
-        }
-        summaryList.getItems().add(SummaryListItem.text("  Pikkuse järgi:"));
-        for (FenceInventoryService.LengthBreakdown length : summary.byLength()) {
-            summaryList.getItems().add(SummaryListItem.text("    %s m: %d tk · %s m".formatted(
-                    formatMeters(length.segmentLengthMeters()),
-                    length.count(),
-                    formatMeters(length.totalLengthMeters())
-            )));
-        }
-        summaryList.getItems().add(SummaryListItem.text("  Gruppide järgi:"));
-        for (FenceInventoryService.GroupBreakdown group : summary.byGroup()) {
-            summaryList.getItems().add(SummaryListItem.text("    %s: %d tk · %s m".formatted(
-                    group.groupName(),
-                    group.count(),
-                    formatMeters(group.totalLengthMeters())
-            )));
-        }
     }
 
-    private boolean showPowerSummary() {
-        return showPowerSummaryCheckBox == null || showPowerSummaryCheckBox.isSelected();
+    private void addObjectInventory() {
+        long tentCount = plan.objects().stream().filter(Tent.class::isInstance).count();
+        if (tentCount > 0) {
+            inventoryContent.getChildren().add(new Label("Telgid: %d tk".formatted(tentCount)));
+        }
+        List<CustomObject> customObjects = plan.objects().stream()
+                .filter(CustomObject.class::isInstance)
+                .map(CustomObject.class::cast)
+                .toList();
+        long gardenStoneCount = customObjects.stream()
+                .filter(object -> object.name().toLowerCase(java.util.Locale.ROOT).contains("aiakivi"))
+                .count();
+        if (gardenStoneCount > 0) {
+            inventoryContent.getChildren().add(new Label("Aiakivid: %d tk".formatted(gardenStoneCount)));
+        }
+        Map<String, Long> customObjectsByName = customObjects.stream()
+                .filter(object -> !object.name().toLowerCase(java.util.Locale.ROOT).contains("aiakivi"))
+                .collect(java.util.stream.Collectors.groupingBy(
+                        PlannerObject::name,
+                        () -> new TreeMap<>(String.CASE_INSENSITIVE_ORDER),
+                        java.util.stream.Collectors.counting()
+                ));
+        customObjectsByName.forEach((name, count) -> inventoryContent.getChildren().add(
+                new Label("%s: %d tk".formatted(name, count))
+        ));
     }
 
-    private boolean showCableSummary() {
-        return showCableSummaryCheckBox == null || showCableSummaryCheckBox.isSelected();
+    private Label inventoryDetailLabel(String text) {
+        Label label = new Label(text);
+        label.setWrapText(true);
+        return label;
     }
 
-    private boolean showGroupSummary() {
-        return showGroupSummaryCheckBox == null || showGroupSummaryCheckBox.isSelected();
+    private TitledPane inventoryPane(
+            String title,
+            Node content,
+            boolean expanded,
+            java.util.function.Consumer<Boolean> expandedState
+    ) {
+        TitledPane pane = new TitledPane(title, content);
+        pane.setExpanded(expanded);
+        pane.expandedProperty().addListener((observable, oldValue, newValue) -> expandedState.accept(newValue));
+        pane.setAnimated(false);
+        return pane;
     }
 
     private void addConnectedConsumers(String sourceId) {
@@ -10439,7 +10462,7 @@ public class PlaaniseppApp extends Application {
         return plan.outletDemandWatts(outletId);
     }
 
-    private void addCableSummary() {
+    private void addCableInventory() {
         if (plan.powerConnections().isEmpty()) {
             return;
         }
@@ -10485,30 +10508,27 @@ public class PlaaniseppApp extends Application {
             return;
         }
 
-        addSummarySpacerIfNeeded();
-        boolean expanded = isSummaryItemExpanded(CABLE_SUMMARY_KEY);
+        VBox details = new VBox(3);
         String cableTotalText = hasNotedLength
                 ? "Kaablid: %.1f m märgitud · %.1f m kaardil".formatted(
                         totalNotedLengthMeters, totalLengthMeters
                 )
                 : "Kaablid: %.1f m".formatted(totalLengthMeters);
-        summaryList.getItems().add(SummaryListItem.expandableText(
-                cableTotalText,
-                CABLE_SUMMARY_KEY,
-                expanded,
-                0
-        ));
-        if (!expanded) {
-            return;
-        }
-        summaryList.getItems().addAll(cableRows.stream()
+        details.getChildren().addAll(cableRows.stream()
                 .sorted(CABLE_SUMMARY_ROW_COMPARATOR)
                 .map(this::cableSummaryRow)
-                .map(SummaryListItem::text)
+                .map(String::stripLeading)
+                .map(this::inventoryDetailLabel)
                 .toList());
         for (String row : cableTypeSummaryRows(summariesByType)) {
-            summaryList.getItems().add(SummaryListItem.text(row));
+            details.getChildren().add(inventoryDetailLabel(row.stripLeading()));
         }
+        inventoryContent.getChildren().add(inventoryPane(
+                cableTotalText,
+                details,
+                cableInventoryExpanded,
+                expanded -> cableInventoryExpanded = expanded
+        ));
     }
 
     private void addSummarySpacerIfNeeded() {
@@ -10668,7 +10688,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private String summaryText(ReportExportScope reportScope) {
-        return reportTextExporter.export(plan, reportScope, showPowerSummary(), showCableSummary(), showGroupSummary());
+        return reportTextExporter.export(plan, reportScope, true, true, true);
     }
 
     private String cableNotesText(PowerConnection connection) {
@@ -10743,15 +10763,6 @@ public class PlaaniseppApp extends Application {
 
         private static SummaryListItem target(String text, String targetObjectId) {
             return new SummaryListItem(text, null, null, targetObjectId, "", false, 0);
-        }
-
-        private static SummaryListItem expandableText(
-                String text,
-                String hierarchyKey,
-                boolean expanded,
-                int depth
-        ) {
-            return new SummaryListItem(text, null, null, "", hierarchyKey, expanded, depth);
         }
 
         private static SummaryListItem expandableLoad(
