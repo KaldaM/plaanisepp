@@ -487,6 +487,7 @@ Aiakivide esimene parandusetapp on teostatud. „Aiakivid” inventarirea pealki
 - Käsitsi parandused on plaanipõhised, säilivad salvestamisel, osalevad undo/redo ajaloos ning jõuavad TXT- ja PDF-raportisse.
 - Üldine sama põhimõttega parandussüsteem telgiraskustele, laudadele, pinkidele ja tulevastele inventariliikidele on planeeritud hilisemaks tööks.
 - Inventari koondloendist või objekti märkmetest võiks saada luua kaardile tekstiobjekti. Ideaalis säilitab loodud tekst allikaga seose ning uueneb inventari või märkmete muutmisel automaatselt; kasutaja peab saama seose vajaduse korral katkestada ja teksti tavaliseks käsitsi muudetavaks objektiks muuta.
+- **Tehtud: versioonikontrolli uuenduse põhinupp on „Uuenda”.** Sobiv paigalduspakett laaditakse kontrollitud ajutisse asukohta ning Linuxis käivitatakse see eraldi süsteemi `xdg-open` protsessina, et paigaldaja avamine ei sõltuks JavaFX-i töölauaintegraatsioonist ega põhjustaks rakenduse sulgemisel native-crash'i.
 
 ### Vastuvõtukriteeriumid
 

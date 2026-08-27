@@ -1203,16 +1203,25 @@ public class PlaaniseppApp extends Application {
                 + "\nUus versioon: " + latestRelease.version()
                 + "\n\nSobiv paigalduspakett: " + asset.name()
                 + "\nFail laaditakse sinu valitud asukohta ja selle terviklust kontrollitakse.");
-        ButtonType downloadButton = new ButtonType("Laadi alla");
+        ButtonType downloadButton = new ButtonType("Uuenda");
         ButtonType openReleasesButton = new ButtonType("Ava GitHub Releases");
         dialog.getButtonTypes().setAll(downloadButton, openReleasesButton, ButtonType.CLOSE);
         dialog.showAndWait().ifPresent(button -> {
             if (button == downloadButton) {
-                chooseAndDownloadReleaseAsset(asset);
+                downloadReleaseAsset(asset);
             } else if (button == openReleasesButton) {
                 openReleasePage(latestRelease.pageUrl());
             }
         });
+    }
+
+    private void downloadReleaseAsset(GitHubReleaseService.ReleaseAsset asset) {
+        try {
+            Path directory = Files.createTempDirectory("plaanisepp-update-");
+            downloadReleaseAsset(asset, directory.resolve(asset.name()));
+        } catch (IOException exception) {
+            showError("Uuendust ei saanud alustada", exception.getMessage());
+        }
     }
 
     private void showReleasePageOnlyUpdateDialog(GitHubReleaseService.LatestRelease latestRelease) {
@@ -1245,6 +1254,10 @@ public class PlaaniseppApp extends Application {
             return;
         }
 
+        downloadReleaseAsset(asset, destination);
+    }
+
+    private void downloadReleaseAsset(GitHubReleaseService.ReleaseAsset asset, Path destination) {
         Alert progressDialog = new Alert(Alert.AlertType.INFORMATION);
         progressDialog.initOwner(stage);
         progressDialog.setTitle("Plaanisepa uuenduse allalaadimine");
@@ -1280,7 +1293,7 @@ public class PlaaniseppApp extends Application {
         dialog.setTitle("Uuendus on allalaaditud");
         dialog.setHeaderText("Faili terviklus on kontrollitud");
         dialog.setContentText(file.getFileName() + " on salvestatud asukohta:\n" + file);
-        ButtonType openButton = new ButtonType(installer ? "Ava paigaldaja" : "Ava kaust");
+        ButtonType openButton = new ButtonType(installer ? "Käivita uuendus" : "Ava kaust");
         dialog.getButtonTypes().setAll(openButton, ButtonType.CLOSE);
         dialog.showAndWait().ifPresent(button -> {
             if (button == openButton) {
@@ -1290,12 +1303,16 @@ public class PlaaniseppApp extends Application {
     }
 
     private void openDownloadedRelease(Path file, boolean installer) {
-        if (!Desktop.isDesktopSupported()) {
-            showError("Allalaaditud faili ei saanud avada", "Töölauarakenduste avamine ei ole selles keskkonnas toetatud.");
-            return;
-        }
         try {
-            Desktop.getDesktop().open((installer ? file : file.getParent()).toFile());
+            Path target = installer ? file : file.getParent();
+            if (GitHubReleaseService.Platform.current() != GitHubReleaseService.Platform.WINDOWS) {
+                new ProcessBuilder("xdg-open", target.toString()).start();
+            } else if (Desktop.isDesktopSupported()) {
+                Desktop.getDesktop().open(target.toFile());
+            } else {
+                throw new IOException("Töölauarakenduste avamine ei ole selles keskkonnas toetatud.");
+            }
+            Platform.exit();
         } catch (IOException | UnsupportedOperationException exception) {
             showError("Allalaaditud faili ei saanud avada", exception.getMessage());
         }
