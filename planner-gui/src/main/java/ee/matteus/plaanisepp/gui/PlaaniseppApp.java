@@ -34,6 +34,7 @@ import ee.matteus.plaanisepp.core.service.FenceRingGenerator;
 import ee.matteus.plaanisepp.core.service.GeometryCalculator;
 import ee.matteus.plaanisepp.core.service.PowerSummary;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
+import ee.matteus.plaanisepp.core.service.FenceInventoryService;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.animation.KeyFrame;
@@ -188,6 +189,7 @@ public class PlaaniseppApp extends Application {
 
     private final PlanFactory planFactory = new PlanFactory();
     private final PowerSummaryService powerSummaryService = new PowerSummaryService();
+    private final FenceInventoryService fenceInventoryService = new FenceInventoryService();
     private final ReportTextExporter reportTextExporter = new ReportTextExporter(powerSummaryService);
     private final PlanFileSession planFileSession = new PlanFileSession();
     private final PlanDocumentState planDocumentState = new PlanDocumentState();
@@ -10304,13 +10306,28 @@ public class PlaaniseppApp extends Application {
     }
 
     private void addFenceInventorySummary() {
-        int fenceCount = plan.objects().stream()
-                .filter(FenceRow.class::isInstance)
-                .map(FenceRow.class::cast)
-                .mapToInt(FenceRow::segmentCount)
-                .sum();
-        if (fenceCount > 0) {
-            summaryList.getItems().add(SummaryListItem.text("Aedu kokku: " + fenceCount));
+        FenceInventoryService.Summary summary = fenceInventoryService.summarize(plan);
+        if (summary.totalCount() == 0) {
+            return;
+        }
+        summaryList.getItems().add(SummaryListItem.text("Aiad: %d tk · %s m".formatted(
+                summary.totalCount(), formatMeters(summary.totalLengthMeters())
+        )));
+        summaryList.getItems().add(SummaryListItem.text("  Pikkuse järgi:"));
+        for (FenceInventoryService.LengthBreakdown length : summary.byLength()) {
+            summaryList.getItems().add(SummaryListItem.text("    %s m: %d tk · %s m".formatted(
+                    formatMeters(length.segmentLengthMeters()),
+                    length.count(),
+                    formatMeters(length.totalLengthMeters())
+            )));
+        }
+        summaryList.getItems().add(SummaryListItem.text("  Gruppide järgi:"));
+        for (FenceInventoryService.GroupBreakdown group : summary.byGroup()) {
+            summaryList.getItems().add(SummaryListItem.text("    %s: %d tk · %s m".formatted(
+                    group.groupName(),
+                    group.count(),
+                    formatMeters(group.totalLengthMeters())
+            )));
         }
     }
 

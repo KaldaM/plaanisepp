@@ -18,6 +18,7 @@ import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.service.PowerSummary;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
+import ee.matteus.plaanisepp.core.service.FenceInventoryService;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,6 +38,7 @@ final class ReportTextExporter {
             .thenComparing(row -> row.source().name(), String.CASE_INSENSITIVE_ORDER);
 
     private final PowerSummaryService powerSummaryService;
+    private final FenceInventoryService fenceInventoryService = new FenceInventoryService();
 
     ReportTextExporter(PowerSummaryService powerSummaryService) {
         this.powerSummaryService = powerSummaryService;
@@ -75,20 +77,42 @@ final class ReportTextExporter {
             return;
         }
         builder.append("Aiad").append(lineSeparator);
-        for (FenceRow fenceRow : fenceRows) {
+        for (FenceRow fenceRow : fenceRows.stream().filter(plan::isFenceNetworkRepresentative).toList()) {
+            List<FenceRow> networkRows = plan.fenceNetworkRows(fenceRow.id());
+            int segmentCount = networkRows.stream().mapToInt(FenceRow::segmentCount).sum();
+            double totalLengthMeters = networkRows.stream().mapToDouble(FenceRow::totalLengthMeters).sum();
+            boolean uniformLength = networkRows.stream()
+                    .allMatch(row -> Math.abs(row.segmentLengthMeters() - fenceRow.segmentLengthMeters()) < 0.000001);
             builder.append("  - ")
                     .append(fenceRow.name())
                     .append(": ")
-                    .append(fenceRow.segmentCount())
-                    .append(" × ")
-                    .append(formatMeters(fenceRow.segmentLengthMeters()))
-                    .append(" m = ")
-                    .append(formatMeters(fenceRow.totalLengthMeters()))
+                    .append(segmentCount);
+            if (uniformLength) {
+                builder.append(" × ")
+                        .append(formatMeters(fenceRow.segmentLengthMeters()))
+                        .append(" m = ");
+            } else {
+                builder.append(" aeda = ");
+            }
+            builder.append(formatMeters(totalLengthMeters))
                     .append(" m")
                     .append(lineSeparator);
         }
-        int totalFenceCount = fenceRows.stream().mapToInt(FenceRow::segmentCount).sum();
-        builder.append("Kokku: ").append(totalFenceCount).append(" aeda").append(lineSeparator);
+        FenceInventoryService.Summary summary = fenceInventoryService.summarize(plan);
+        builder.append("Kokku: ").append(summary.totalCount()).append(" aeda, ")
+                .append(formatMeters(summary.totalLengthMeters())).append(" m").append(lineSeparator);
+        builder.append("Pikkuse järgi:").append(lineSeparator);
+        for (FenceInventoryService.LengthBreakdown length : summary.byLength()) {
+            builder.append("  - ").append(formatMeters(length.segmentLengthMeters())).append(" m: ")
+                    .append(length.count()).append(" aeda, ")
+                    .append(formatMeters(length.totalLengthMeters())).append(" m").append(lineSeparator);
+        }
+        builder.append("Gruppide järgi:").append(lineSeparator);
+        for (FenceInventoryService.GroupBreakdown group : summary.byGroup()) {
+            builder.append("  - ").append(group.groupName()).append(": ")
+                    .append(group.count()).append(" aeda, ")
+                    .append(formatMeters(group.totalLengthMeters())).append(" m").append(lineSeparator);
+        }
         builder.append(lineSeparator);
     }
 

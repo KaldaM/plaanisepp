@@ -20,7 +20,7 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 9. **Tehtud:** plaanipõhine checklist ja soovituste kontrollnimekiri.
 10. **Tehtud:** automaatsed Linuxi ja Windowsi paketid, GitHub Releases, versioonikontroll ning kontrollsummaga allalaadimine.
 11. **Pooleli:** objektieelseadistuste alus ja Red Bull DJ Truck on tehtud; järgmised PA-seadmed ning kinnitatud tegelikud elektrivajadused on lisamata.
-12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud on tehtud ning aiaringi generaator on teostatud, kuid ootab käsitsi kontrolli; üksiklõikude täielik identiteet ja detailsem inventarivaade on lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
+12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud on tehtud ning aiaringi generaator ja detailne inventarikokkuvõte on teostatud, kuid ootavad käsitsi kontrolli; üksiklõikude täielik identiteet on lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
 13. **Tehtud:** rippvalikud, kaardilt vooluallika valimine, automaatne rakendamine ja objektide kiirklahvid.
 14. **Tehtud:** kogu kaardi geomeetriat kaitsev paigutuslukustus.
 15. **Tegemata:** kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog.
@@ -457,10 +457,7 @@ Aiaringi generaatori esimene etapp on teostatud. „Aiaring” on eraldi lisamis
 
 ### Inventarikokkuvõte
 
-- kuvatakse aedade koguarv kogu plaanis ning soovi korral grupi või aiatüübi kaupa;
-- eristatakse standardsed täispikad lõigud, teise pikkusega lõigud ja teadlikult jäetud avad;
-- kokkuvõte peab vältima sama füüsilise lõigu topeltarvestust ühendatud ridade korral;
-- aedade loend peab olema kasutatav eksporditavas TXT- ja PDF-raportis.
+Detailne inventarikokkuvõte on teostatud ning ootab käsitsi kontrolli. Külgpaneel ja TXT-raport kasutavad sama arvestust: kuvatakse aedade koguarv ja kogupikkus ning jaotus grupi ja füüsilise lõigupikkuse järgi. Ühendatud aiavõrk kuvatakse raportis ühe loogilise objektina, kuid selle kõik füüsilised lõigud lähevad kogusesse. PDF-raporti detailne inventar jääb järgmisse etappi.
 
 ### Vastuvõtukriteeriumid
 

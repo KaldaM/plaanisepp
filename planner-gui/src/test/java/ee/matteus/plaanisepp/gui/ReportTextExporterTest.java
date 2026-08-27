@@ -16,6 +16,7 @@ import ee.matteus.plaanisepp.core.service.PowerSummaryService;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ReportTextExporterTest {
     @Test
@@ -39,6 +40,28 @@ class ReportTextExporterTest {
         assertTrue(report.contains("Peasissepääs: 4 × 3.50 m = 14 m"));
         assertTrue(report.contains("Lava külg: 3 × 3.50 m = 10.50 m"));
         assertTrue(report.contains("Kokku: 7 aeda"));
+        assertTrue(report.contains("3.50 m: 7 aeda, 24.50 m"));
+        assertTrue(report.contains("Määramata: 7 aeda, 24.50 m"));
+    }
+
+    @Test
+    void listsConnectedFenceNetworkOnlyOnce() {
+        EventPlan plan = new EventPlan("Test");
+        FenceRow first = new FenceRow("fence-1", "Aiaring", new Position(0, 0));
+        first.setSegmentCount(2);
+        FenceRow second = new FenceRow("fence-2", "Aiaring", first.endPosition(plan.pixelsPerMeter()));
+        second.setSegmentCount(3);
+        plan.addObject(first);
+        plan.addObject(second);
+        plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
+
+        String report = new ReportTextExporter(new PowerSummaryService()).export(
+                plan, ReportExportScope.COMPACT, false, false, false
+        );
+
+        assertEquals(1, occurrences(report, "  - Aiaring:"));
+        assertTrue(report.contains("Aiaring: 5 × 3.50 m = 17.50 m"), report);
+        assertTrue(report.contains("Kokku: 5 aeda, 17.50 m"), report);
     }
 
     @Test
@@ -134,5 +157,9 @@ class ReportTextExporterTest {
 
         assertTrue(report.contains("16A tööstusvool 1: 11000 W mahutavus, 1811 W kasutusel"));
         assertTrue(report.contains("- Alajaotuskilp: 1811 W"));
+    }
+
+    private int occurrences(String text, String fragment) {
+        return (text.length() - text.replace(fragment, "").length()) / fragment.length();
     }
 }
