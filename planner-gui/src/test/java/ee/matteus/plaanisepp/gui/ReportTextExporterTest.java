@@ -12,12 +12,64 @@ import ee.matteus.plaanisepp.core.model.PowerConnection;
 import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.Tent;
+import ee.matteus.plaanisepp.core.model.TextObject;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ReportTextExporterTest {
+    @Test
+    void includesPlanOverview() {
+        EventPlan plan = new EventPlan("Sündmus");
+        plan.setPixelsPerMeter(6.45);
+        plan.setMapImagePath("kaart.png");
+        plan.addObject(new Tent("tent", "Telk", new Position(10, 20)));
+
+        String report = new ReportTextExporter().export(
+                plan, ReportExportScope.COMPACT, false, false, false
+        );
+
+        assertTrue(report.startsWith("Sündmus" + System.lineSeparator() + "======="));
+        assertTrue(report.contains("Mõõtkava: 6.45 px/m"));
+        assertTrue(report.contains("Kaart: kaart.png"));
+        assertTrue(report.contains("Objekte: 1"));
+    }
+
+    @Test
+    void includesGroupedObjectsWhenRequested() {
+        EventPlan plan = new EventPlan("Test");
+        Tent tent = new Tent("tent", "Kohvik", new Position(10, 20));
+        tent.setGroupName("Toitlustus");
+        plan.addObject(tent);
+
+        String report = new ReportTextExporter().export(
+                plan, ReportExportScope.COMPACT, false, false, true
+        );
+
+        assertTrue(report.contains("Grupid"));
+        assertTrue(report.contains("Toitlustus"));
+        assertTrue(report.contains("- Kohvik (Telk)"));
+    }
+
+    @Test
+    void includesTextObjectNotesWithoutGroupReport() {
+        EventPlan plan = new EventPlan("Test");
+        TextObject text = new TextObject("text", "Meelespea", new Position(10, 20));
+        text.setGroupName("Korraldus");
+        text.setNotes("Võta võtmed\nHelista valvurile");
+        plan.addObject(text);
+
+        String report = new ReportTextExporter().export(
+                plan, ReportExportScope.COMPACT, false, false, false
+        );
+
+        assertTrue(report.contains("Tekstimärkmed"));
+        assertTrue(report.contains("Meelespea (Korraldus)"));
+        assertTrue(report.contains("  Võta võtmed"));
+        assertTrue(report.contains("  Helista valvurile"));
+    }
+
     @Test
     void includesFenceInventory() {
         EventPlan plan = new EventPlan("Test");
