@@ -7,8 +7,6 @@ import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
-import ee.matteus.plaanisepp.core.model.PowerConnection;
-import ee.matteus.plaanisepp.core.model.PowerConsumer;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.TextObject;
 import ee.matteus.plaanisepp.core.model.Tent;
@@ -22,9 +20,11 @@ import java.util.Map;
 import java.util.TreeMap;
 
 final class ReportTextExporter {
-    private final FenceInventoryService fenceInventoryService = new FenceInventoryService();
+    private final FenceReportTextFormatter fenceReportTextFormatter =
+            new FenceReportTextFormatter(new FenceInventoryService());
     private final CableInventorySummaryService cableInventorySummaryService = new CableInventorySummaryService();
     private final PowerHierarchyService powerHierarchyService = new PowerHierarchyService();
+    private final PowerReportTextFormatter powerReportTextFormatter = new PowerReportTextFormatter(powerHierarchyService);
 
     ReportTextExporter() {
     }
@@ -38,7 +38,7 @@ final class ReportTextExporter {
         appendPlanInfoReport(builder, plan, lineSeparator);
 
         if (includePower) {
-            appendPowerReport(builder, plan, reportScope, lineSeparator);
+            powerReportTextFormatter.append(builder, plan, reportScope, lineSeparator);
         }
 
         if (includeCables) {
@@ -48,52 +48,9 @@ final class ReportTextExporter {
         if (includeGroups) {
             appendGroupReport(builder, plan, lineSeparator);
         }
-        appendFenceReport(builder, plan, lineSeparator);
+        fenceReportTextFormatter.append(builder, plan, lineSeparator);
         appendTextObjectReport(builder, plan, lineSeparator);
         return builder.toString();
-    }
-
-    private void appendFenceReport(StringBuilder builder, EventPlan plan, String lineSeparator) {
-        List<FenceRow> fenceRows = plan.objects().stream()
-                .filter(FenceRow.class::isInstance)
-                .map(FenceRow.class::cast)
-                .toList();
-        if (fenceRows.isEmpty()) {
-            return;
-        }
-        builder.append("Aiad").append(lineSeparator);
-        FenceInventoryService.Summary summary = fenceInventoryService.summarize(plan);
-        for (FenceInventoryService.NetworkBreakdown network : summary.byNetwork()) {
-            builder.append("  - ")
-                    .append(network.name())
-                    .append(": ")
-                    .append(network.count());
-            if (network.uniformSegmentLength()) {
-                builder.append(" × ")
-                        .append(formatMeters(network.segmentLengthMeters()))
-                        .append(" m = ");
-            } else {
-                builder.append(" aeda = ");
-            }
-            builder.append(formatMeters(network.totalLengthMeters()))
-                    .append(" m")
-                    .append(lineSeparator);
-        }
-        builder.append("Kokku: ").append(summary.totalCount()).append(" aeda, ")
-                .append(formatMeters(summary.totalLengthMeters())).append(" m").append(lineSeparator);
-        builder.append("Pikkuse järgi:").append(lineSeparator);
-        for (FenceInventoryService.LengthBreakdown length : summary.byLength()) {
-            builder.append("  - ").append(formatMeters(length.segmentLengthMeters())).append(" m: ")
-                    .append(length.count()).append(" aeda, ")
-                    .append(formatMeters(length.totalLengthMeters())).append(" m").append(lineSeparator);
-        }
-        builder.append("Gruppide järgi:").append(lineSeparator);
-        for (FenceInventoryService.GroupBreakdown group : summary.byGroup()) {
-            builder.append("  - ").append(group.groupName()).append(": ")
-                    .append(group.count()).append(" aeda, ")
-                    .append(formatMeters(group.totalLengthMeters())).append(" m").append(lineSeparator);
-        }
-        builder.append(lineSeparator);
     }
 
     private void appendPlanInfoReport(StringBuilder builder, EventPlan plan, String lineSeparator) {
@@ -106,128 +63,8 @@ final class ReportTextExporter {
         builder.append(lineSeparator);
     }
 
-    private void appendPowerReport(StringBuilder builder, EventPlan plan, ReportExportScope reportScope, String lineSeparator) {
-        builder.append("Voolu kokkuvõte pesade kaupa").append(lineSeparator);
-        builder.append(lineSeparator);
-        PowerHierarchyService.Hierarchy hierarchy = powerHierarchyService.summarize(plan);
-        for (PowerHierarchyService.SourceRow source : hierarchy.sources()) {
-            builder.append(source.name())
-                    .append(": ")
-                    .append(source.usedWatts())
-                    .append(" W kasutusel, ")
-                    .append(remainingWattsText(source.remainingWatts()))
-                    .append(lineSeparator);
-
-            if (source.outlets().isEmpty()) {
-                builder.append("  Väljundeid pole").append(lineSeparator);
-            }
-
-            for (PowerHierarchyService.OutletRow outlet : source.outlets()) {
-                appendOutletReport(builder, outlet, reportScope, lineSeparator);
-            }
-            builder.append(lineSeparator);
-        }
-        appendUnconnectedConsumersReport(builder, hierarchy.unconnectedConsumers(), lineSeparator);
-    }
-
-    private void appendOutletReport(
-            StringBuilder builder,
-            PowerHierarchyService.OutletRow outlet,
-            ReportExportScope reportScope,
-            String lineSeparator
-    ) {
-        if (reportScope == ReportExportScope.COMPACT && outlet.usedWatts() == 0 && outlet.consumers().isEmpty()) {
-            return;
-        }
-        builder.append("  ")
-                .append(outletDisplayName(outlet))
-                .append(": ")
-                .append(outlet.capacityWatts())
-                .append(" W mahutavus, ")
-                .append(outlet.usedWatts())
-                .append(" W kasutusel, ")
-                .append(remainingWattsText(outlet.remainingWatts()))
-                .append(lineSeparator);
-
-        if (outlet.consumers().isEmpty()) {
-            builder.append("    Tarbijaid pole").append(lineSeparator);
-            return;
-        }
-
-        for (PowerHierarchyService.ConsumerRow consumer : outlet.consumers()) {
-            builder.append("    - ")
-                    .append(consumer.name())
-                    .append(": ")
-                    .append(consumer.usedWatts())
-                    .append(" W");
-            if (consumer.alternativeConnection()) {
-                builder.append(" (seadme erand)");
-            }
-            if (!consumer.groupName().isBlank()) {
-                builder.append(" (").append(consumer.groupName()).append(")");
-            }
-            builder.append(lineSeparator);
-            for (PowerHierarchyService.EquipmentRow equipment : consumer.equipment()) {
-                builder.append("      * ")
-                        .append(equipment.name())
-                        .append(": ")
-                        .append(equipment.requiredWatts())
-                        .append(" W")
-                        .append(lineSeparator);
-            }
-        }
-    }
-
-    private void appendUnconnectedConsumersReport(
-            StringBuilder builder,
-            List<PowerHierarchyService.UnconnectedConsumerRow> unconnectedConsumers,
-            String lineSeparator
-    ) {
-        if (unconnectedConsumers.isEmpty()) {
-            return;
-        }
-
-        builder.append("Ühendamata tarbijad").append(lineSeparator);
-        for (PowerHierarchyService.UnconnectedConsumerRow consumer : unconnectedConsumers) {
-            builder.append("  - ")
-                    .append(consumer.name())
-                    .append(": ")
-                    .append(consumer.requiredWatts())
-                    .append(" W")
-                    .append(lineSeparator);
-        }
-        builder.append(lineSeparator);
-    }
-
     private void appendCableReport(StringBuilder builder, EventPlan plan, String lineSeparator) {
-        if (plan.powerConnections().isEmpty()) {
-            return;
-        }
-
-        List<CableInventorySummaryService.Input> inputs = new ArrayList<>();
-        for (PowerConnection connection : plan.powerConnections()) {
-            PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
-            if (!(consumer instanceof PowerConsumer)) {
-                continue;
-            }
-            PowerSource source = plan.findObject(connection.sourceId())
-                    .filter(PowerSource.class::isInstance)
-                    .map(PowerSource.class::cast)
-                    .orElse(null);
-            if (source == null) {
-                continue;
-            }
-
-            double lengthMeters = CableDisplayHelper.lengthMeters(
-                    CablePathHelper.cablePath(consumer, source, connection, plan.pixelsPerMeter()),
-                    plan.pixelsPerMeter()
-            );
-            inputs.add(new CableInventorySummaryService.Input(
-                    consumer.name(), source.name(), connection, lengthMeters
-            ));
-        }
-
-        CableInventorySummaryService.Summary summary = cableInventorySummaryService.summarize(inputs);
+        CableInventorySummaryService.Summary summary = cableInventorySummaryService.summarize(plan);
         if (summary.isEmpty()) {
             return;
         }
@@ -301,20 +138,6 @@ final class ReportTextExporter {
             }
             builder.append(lineSeparator);
         }
-    }
-
-    private String outletDisplayName(PowerHierarchyService.OutletRow outlet) {
-        if (!outlet.name().isBlank()) {
-            return "%s (%s %d)".formatted(outlet.name(), outlet.type().displayName(), outlet.typeIndex());
-        }
-        return "%s %d".formatted(outlet.type().displayName(), outlet.typeIndex());
-    }
-
-    private String remainingWattsText(int remainingWatts) {
-        if (remainingWatts < 0) {
-            return "ÜLEKOORMUS %d W".formatted(Math.abs(remainingWatts));
-        }
-        return "%d W alles".formatted(remainingWatts);
     }
 
     private String objectTypeName(PlannerObject object) {

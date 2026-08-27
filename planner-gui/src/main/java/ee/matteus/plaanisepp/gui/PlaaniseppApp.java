@@ -10429,33 +10429,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void addCableInventory() {
-        if (plan.powerConnections().isEmpty()) {
-            return;
-        }
-
-        List<CableInventorySummaryService.Input> inputs = new ArrayList<>();
-
-        for (PowerConnection connection : plan.powerConnections()) {
-            PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
-            if (!(consumer instanceof PowerConsumer)) {
-                continue;
-            }
-
-            PowerSource source = plan.findObject(connection.sourceId())
-                    .filter(PowerSource.class::isInstance)
-                    .map(PowerSource.class::cast)
-                    .orElse(null);
-            if (source == null) {
-                continue;
-            }
-
-            double lengthMeters = CableDisplayHelper.lengthMeters(cablePath(consumer, source, connection), pixelsPerMeter());
-            inputs.add(new CableInventorySummaryService.Input(
-                    consumer.name(), source.name(), connection, lengthMeters
-            ));
-        }
-
-        CableInventorySummaryService.Summary summary = cableInventorySummaryService.summarize(inputs);
+        CableInventorySummaryService.Summary summary = cableInventorySummaryService.summarize(plan);
         if (summary.isEmpty()) {
             return;
         }

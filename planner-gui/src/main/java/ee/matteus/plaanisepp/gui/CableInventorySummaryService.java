@@ -1,7 +1,11 @@
 package ee.matteus.plaanisepp.gui;
 
 import ee.matteus.plaanisepp.core.model.ConnectorType;
+import ee.matteus.plaanisepp.core.model.EventPlan;
+import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.PowerConnection;
+import ee.matteus.plaanisepp.core.model.PowerConsumer;
+import ee.matteus.plaanisepp.core.model.PowerSource;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -19,6 +23,29 @@ final class CableInventorySummaryService {
             .comparing(Row::connectorType)
             .thenComparing(Row::consumerName, String.CASE_INSENSITIVE_ORDER)
             .thenComparing(Row::sourceName, String.CASE_INSENSITIVE_ORDER);
+
+    Summary summarize(EventPlan plan) {
+        List<Input> inputs = new ArrayList<>();
+        for (PowerConnection connection : plan.powerConnections()) {
+            PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
+            if (!(consumer instanceof PowerConsumer)) {
+                continue;
+            }
+            PowerSource source = plan.findObject(connection.sourceId())
+                    .filter(PowerSource.class::isInstance)
+                    .map(PowerSource.class::cast)
+                    .orElse(null);
+            if (source == null) {
+                continue;
+            }
+            double mapLengthMeters = CableDisplayHelper.lengthMeters(
+                    CablePathHelper.cablePath(consumer, source, connection, plan.pixelsPerMeter()),
+                    plan.pixelsPerMeter()
+            );
+            inputs.add(new Input(consumer.name(), source.name(), connection, mapLengthMeters));
+        }
+        return summarize(inputs);
+    }
 
     Summary summarize(List<Input> inputs) {
         List<Row> rows = new ArrayList<>();
