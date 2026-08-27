@@ -5632,9 +5632,9 @@ public class PlaaniseppApp extends Application {
     private String fenceEndpointTooltip(FenceRow fenceRow, boolean startEndpoint) {
         String jointId = startEndpoint ? fenceRow.startJointId() : fenceRow.endJointId();
         if (plan.fenceJointDegree(jointId) > 1) {
-            return "Lohista jagatud ühenduspunkti; jätkamiseks või lahtiühendamiseks tee paremklõps";
+            return "Lohista tervet aiarida; Shift+lohistamine muudab jagatud ühenduspunkti";
         }
-        return "Lohista otspunkti; aedade pikkused ei muutu. Jätkamiseks tee paremklõps";
+        return "Lohista tervet aiarida; Shift+lohistamine muudab otspunkti";
     }
 
     private void showFenceEndpointContextMenu(
@@ -5711,15 +5711,19 @@ public class PlaaniseppApp extends Application {
             Label inventoryLabel
     ) {
         final boolean[] dragged = {false};
+        final boolean[] editingEndpoint = {false};
         final Delta dragStartScene = new Delta();
         final Position[] dragStartPosition = {null};
         endHandle.setOnMousePressed(event -> {
             dragged[0] = false;
+            editingEndpoint[0] = event.isShiftDown();
             dragStartScene.x = event.getSceneX();
             dragStartScene.y = event.getSceneY();
             dragStartPosition[0] = plan.findFenceJoint(fenceRow.endJointId())
                     .map(FenceJoint::position)
                     .orElse(fenceRow.endPosition(pixelsPerMeter()));
+            selectFenceRowForDrag(fenceRow);
+            beginPlanDrag();
             mapScrollPane.setPannable(false);
             event.consume();
         });
@@ -5728,20 +5732,35 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
-            Position target = new Position(
-                    dragStartPosition[0].x() + (event.getSceneX() - dragStartScene.x) / zoomLevel,
-                    dragStartPosition[0].y() + (event.getSceneY() - dragStartScene.y) / zoomLevel
-            );
-            if (plan.moveFenceEndpoint(fenceRow, false, target)) {
+            boolean moved;
+            if (editingEndpoint[0]) {
+                Position target = new Position(
+                        dragStartPosition[0].x() + (event.getSceneX() - dragStartScene.x) / zoomLevel,
+                        dragStartPosition[0].y() + (event.getSceneY() - dragStartScene.y) / zoomLevel
+                );
+                moved = plan.moveFenceEndpoint(fenceRow, false, target);
+            } else {
+                moved = plan.translateFenceNetwork(
+                        fenceRow.id(),
+                        (event.getSceneX() - dragStartScene.x) / zoomLevel,
+                        (event.getSceneY() - dragStartScene.y) / zoomLevel
+                );
+                dragStartScene.x = event.getSceneX();
+                dragStartScene.y = event.getSceneY();
+            }
+            if (moved) {
                 updateFenceNetworkDragPreview(fenceRow);
                 dragged[0] = true;
+                recordPlanDragChange();
             }
             event.consume();
         });
         endHandle.setOnMouseReleased(event -> {
             mapScrollPane.setPannable(true);
             if (dragged[0]) {
-                refreshEditedShapeObject();
+                redrawMap();
+                refreshSummary();
+                refreshDetails();
             }
             event.consume();
         });
@@ -5764,15 +5783,19 @@ public class PlaaniseppApp extends Application {
             Label inventoryLabel
     ) {
         final boolean[] dragged = {false};
+        final boolean[] editingEndpoint = {false};
         final Delta dragStartScene = new Delta();
         final Position[] dragStartPosition = {null};
         startHandle.setOnMousePressed(event -> {
             dragged[0] = false;
+            editingEndpoint[0] = event.isShiftDown();
             dragStartScene.x = event.getSceneX();
             dragStartScene.y = event.getSceneY();
             dragStartPosition[0] = plan.findFenceJoint(fenceRow.startJointId())
                     .map(FenceJoint::position)
                     .orElse(fenceRow.position());
+            selectFenceRowForDrag(fenceRow);
+            beginPlanDrag();
             mapScrollPane.setPannable(false);
             event.consume();
         });
@@ -5781,20 +5804,35 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
-            Position target = new Position(
-                    dragStartPosition[0].x() + (event.getSceneX() - dragStartScene.x) / zoomLevel,
-                    dragStartPosition[0].y() + (event.getSceneY() - dragStartScene.y) / zoomLevel
-            );
-            if (plan.moveFenceEndpoint(fenceRow, true, target)) {
+            boolean moved;
+            if (editingEndpoint[0]) {
+                Position target = new Position(
+                        dragStartPosition[0].x() + (event.getSceneX() - dragStartScene.x) / zoomLevel,
+                        dragStartPosition[0].y() + (event.getSceneY() - dragStartScene.y) / zoomLevel
+                );
+                moved = plan.moveFenceEndpoint(fenceRow, true, target);
+            } else {
+                moved = plan.translateFenceNetwork(
+                        fenceRow.id(),
+                        (event.getSceneX() - dragStartScene.x) / zoomLevel,
+                        (event.getSceneY() - dragStartScene.y) / zoomLevel
+                );
+                dragStartScene.x = event.getSceneX();
+                dragStartScene.y = event.getSceneY();
+            }
+            if (moved) {
                 updateFenceNetworkDragPreview(fenceRow);
                 dragged[0] = true;
+                recordPlanDragChange();
             }
             event.consume();
         });
         startHandle.setOnMouseReleased(event -> {
             mapScrollPane.setPannable(true);
             if (dragged[0]) {
-                refreshEditedShapeObject();
+                redrawMap();
+                refreshSummary();
+                refreshDetails();
             }
             event.consume();
         });

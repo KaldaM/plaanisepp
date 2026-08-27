@@ -185,7 +185,31 @@ class FenceRowTest {
         assertEquals(true, plan.moveFenceEndpoint(first, false, new Position(70, 35)));
 
         assertPositionEquals(new Position(70, 35), first.endPosition(plan.pixelsPerMeter()));
-        assertPositionEquals(first.endPosition(plan.pixelsPerMeter()), second.position());
+        assertEquals(first.endPosition(plan.pixelsPerMeter()).x(), second.position().x(), 0.001);
+        assertEquals(first.endPosition(plan.pixelsPerMeter()).y(), second.position().y(), 0.001);
+        assertEquals(70, distance(first.position(), first.endPosition(plan.pixelsPerMeter())), 0.001);
+        assertEquals(70, distance(second.position(), second.endPosition(plan.pixelsPerMeter())), 0.001);
+    }
+
+    @Test
+    void movingOuterEndpointReshapesWholeOpenNetwork() {
+        EventPlan plan = new EventPlan("Otspunktist venitatav aiarida");
+        plan.setPixelsPerMeter(10);
+        FenceRow first = fenceRow("first", new Position(0, 0), 0);
+        FenceRow second = fenceRow("second", first.endPosition(plan.pixelsPerMeter()), 0);
+        plan.addObject(first);
+        plan.addObject(second);
+        plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
+        Position originalSharedJoint = first.endPosition(plan.pixelsPerMeter());
+        Position originalOuterEndpoint = second.endPosition(plan.pixelsPerMeter());
+
+        assertEquals(true, plan.moveFenceEndpoint(first, true, new Position(0, 35)));
+
+        assertPositionEquals(new Position(0, 35), first.position());
+        assertNotEquals(originalSharedJoint, first.endPosition(plan.pixelsPerMeter()));
+        assertNotEquals(originalOuterEndpoint, second.endPosition(plan.pixelsPerMeter()));
+        assertEquals(first.endPosition(plan.pixelsPerMeter()).x(), second.position().x(), 0.001);
+        assertEquals(first.endPosition(plan.pixelsPerMeter()).y(), second.position().y(), 0.001);
         assertEquals(70, distance(first.position(), first.endPosition(plan.pixelsPerMeter())), 0.001);
         assertEquals(70, distance(second.position(), second.endPosition(plan.pixelsPerMeter())), 0.001);
     }

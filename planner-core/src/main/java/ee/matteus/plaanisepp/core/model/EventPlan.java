@@ -296,7 +296,7 @@ public class EventPlan {
 
     public boolean moveFenceEndpoint(FenceRow row, boolean startEndpoint, Position target) {
         String movingJointId = startEndpoint ? row.startJointId() : row.endJointId();
-        if (fenceJointDegree(movingJointId) > 1) {
+        if (fenceJointDegree(movingJointId) > 1 || fenceNetworkRows(row.id()).size() > 1) {
             return reshapeFenceNetwork(row, movingJointId, target);
         }
         FenceJoint fixed = findFenceJoint(startEndpoint ? row.endJointId() : row.startJointId()).orElseThrow();

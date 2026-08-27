@@ -20,7 +20,7 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 9. **Tehtud:** plaanipõhine checklist ja soovituste kontrollnimekiri.
 10. **Tehtud:** automaatsed Linuxi ja Windowsi paketid, GitHub Releases, versioonikontroll ning kontrollsummaga allalaadimine.
 11. **Pooleli:** objektieelseadistuste alus ja Red Bull DJ Truck on tehtud; järgmised PA-seadmed ning kinnitatud tegelikud elektrivajadused on lisamata.
-12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud on tehtud ning aiaringi generaator on teostatud, kuid ootab käsitsi kontrolli; üksiklõikude täielik identiteet, kaaregeneraator ja detailsem inventarivaade on lisamata.
+12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud on tehtud ning aiaringi generaator on teostatud, kuid ootab käsitsi kontrolli; üksiklõikude täielik identiteet ja detailsem inventarivaade on lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
 13. **Tehtud:** rippvalikud, kaardilt vooluallika valimine, automaatne rakendamine ja objektide kiirklahvid.
 14. **Tehtud:** kogu kaardi geomeetriat kaitsev paigutuslukustus.
 15. **Tegemata:** kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog.
@@ -449,11 +449,11 @@ Esimene eelseadistus on teostatud: **Red Bull DJ Truck** lisatakse tavalise telg
 - kontekstimenüüst saab valitud ühenduse lahti võtta, read uuesti ühendada, lõigu lisada või eemaldada;
 - undo/redo käsitleb ühte lohistamist, ühendamist või lahtiühendamist ühe tegevusena.
 
-Keeruliste kujude jaoks lisatakse generaatorid vähemalt sirgele reale, kaarele ja ringile. Ringi puhul sisestab kasutaja raadiuse. Kuna 3,5 m sirged aiad ainult lähendavad ringjoont, näitab rakendus enne loomist lõikude arvu, tekkiva hulknurga tegelikku raadiust ja kõrvalekallet soovitud raadiusest. Sissepääsuava ei arvutata generaatoris eraldi: kasutaja ühendab valmis ringi sobivast punktist lahti ning paigutab vajalikud aiad olemasolevate muutmistööriistadega ümber.
+Keeruliste kujude jaoks toetatakse ringigeneraatorit. Ringi puhul sisestab kasutaja raadiuse. Kuna 3,5 m sirged aiad ainult lähendavad ringjoont, näitab rakendus enne loomist lõikude arvu, tekkiva hulknurga tegelikku raadiust ja kõrvalekallet soovitud raadiusest. Sissepääsuava ei arvutata generaatoris eraldi: kasutaja ühendab valmis ringi sobivast punktist lahti ning paigutab vajalikud aiad olemasolevate muutmistööriistadega ümber. Eraldi kaaregeneraatorit praegu ei planeerita, sest sirget aiarida saab ühenduspunkte liigutades piisavalt kiiresti kaareks vormida.
 
 Sirge ja murtud aiaraja põhietapp on teostatud. Aiarida on tavalise joone asemel omaette plaaniobjekt, mis säilitab lõikude arvu, ühe lõigu pikkuse ja kaks jagatavat ühenduspunkti. Kahe kaardiklõpsu vaheline pikkus ümardatakse lähima täisarvu 3,5 m lõikudeni; ridu saab otspunktidest ühendada ja lahti võtta ning terve ühendatud võrk liigub ühe tervikuna. Jagatud ühenduspunkti lohistamisel deformeerub võrk ilma ühe rea alguseks määramiseta ja iga aiarida säilitab oma füüsilise pikkuse. Ühendatud võrk kuvatakse objektinimekirjas ühe loogilise aiarajana ning selle nimi, grupp, värv, lukustus, märkmed, sildiseade ja kustutamine rakenduvad kogu võrgule. Sisemisele füüsilise aia piirile saab lisada uue ühenduspunkti ning ühenduspunkti eemaldamisel ühendatakse selle kaks naaberpunkti otse. Kaardi koguse- ja pikkusesildid on eraldi kihina peidetavad. Üksikute 3,5 m lõikude täielik eraldi identiteet ning kaaregeneraator jäävad järgmistesse etappidesse.
 
-Aiaringi generaatori esimene etapp on teostatud. „Aiaring” on eraldi lisamistüüp: dialoogis määratakse soovitud raadius ning enne kinnitamist kuvatakse 3,5 m aedade arv, tegelik hulknurga raadius ja kõrvalekalle. Kaardil märgitakse seejärel ringi keskpunkt ning generaator loob suletud ühendatud aiavõrgu. Funktsioon ootab käsitsi kontrolli. Üksikute 3,5 m lõikude täielik eraldi identiteet ja kaaregeneraator jäävad järgmistesse etappidesse.
+Aiaringi generaatori esimene etapp on teostatud. „Aiaring” on eraldi lisamistüüp: dialoogis määratakse soovitud raadius ning enne kinnitamist kuvatakse 3,5 m aedade arv, tegelik hulknurga raadius ja kõrvalekalle. Kaardil märgitakse seejärel ringi keskpunkt ning generaator loob suletud ühendatud aiavõrgu. Funktsioon ootab käsitsi kontrolli. Üksikute 3,5 m lõikude täielik eraldi identiteet jääb järgmistesse etappidesse.
 
 ### Inventarikokkuvõte
 
