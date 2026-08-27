@@ -30,6 +30,7 @@ import ee.matteus.plaanisepp.core.model.TentPreset;
 import ee.matteus.plaanisepp.core.service.PlanFactory;
 import ee.matteus.plaanisepp.core.service.PlanSnapshot;
 import ee.matteus.plaanisepp.core.service.PlanSnapshotService;
+import ee.matteus.plaanisepp.core.service.FenceRingGenerator;
 import ee.matteus.plaanisepp.core.service.GeometryCalculator;
 import ee.matteus.plaanisepp.core.service.PowerSummary;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
@@ -407,6 +408,8 @@ public class PlaaniseppApp extends Application {
     private boolean pendingMarkerPlacement;
     private boolean pendingLineObjectPlacement;
     private boolean pendingFenceRowPlacement;
+    private boolean pendingFenceRingPlacement;
+    private double pendingFenceRingRadiusMeters;
     private String pendingFenceStartJointId;
     private String pendingFenceTemplateRowId;
     private boolean pendingAreaObjectPlacement;
@@ -1472,6 +1475,7 @@ public class PlaaniseppApp extends Application {
                             PlacementType.MARKER_OBJECT,
                             PlacementType.LINE_OBJECT,
                             PlacementType.FENCE_ROW,
+                            PlacementType.FENCE_RING,
                             PlacementType.AREA_OBJECT
                     )
                     : List.of(PlacementType.values());
@@ -1639,6 +1643,10 @@ public class PlaaniseppApp extends Application {
             }
             if (pendingFenceRowPlacement && !mapDraggedSincePress) {
                 addPendingFencePoint(new Position(event.getX(), event.getY()));
+                return;
+            }
+            if (pendingFenceRingPlacement && !mapDraggedSincePress) {
+                placeFenceRing(new Position(event.getX(), event.getY()));
                 return;
             }
             if (pendingAreaObjectPlacement && !mapDraggedSincePress) {
@@ -3527,8 +3535,10 @@ public class PlaaniseppApp extends Application {
         pendingPlacementShape = placementDetails.shape();
         pendingPlacementMarkerType = placementDetails.markerType();
         pendingPlacementShowMapLabel = placementDetails.showMapLabel();
+        pendingFenceRingRadiusMeters = placementDetails.fenceRadiusMeters();
         preferences.putBoolean(PLACEMENT_SHOW_MAP_LABEL_PREFERENCE, placementDetails.showMapLabel());
         pendingFenceRowPlacement = false;
+        pendingFenceRingPlacement = false;
         pendingFenceStartJointId = null;
         pendingFenceTemplateRowId = null;
 
@@ -3540,6 +3550,7 @@ public class PlaaniseppApp extends Application {
             case MARKER_OBJECT -> addMarkerObject();
             case LINE_OBJECT -> addLineObject();
             case FENCE_ROW -> addFenceRow();
+            case FENCE_RING -> addFenceRing();
             case AREA_OBJECT -> addAreaObject();
         }
         return true;
@@ -3577,6 +3588,7 @@ public class PlaaniseppApp extends Application {
             case MARKER_OBJECT -> placeMarkerObject(position);
             case LINE_OBJECT, AREA_OBJECT -> addPendingShapePoint(position);
             case FENCE_ROW -> addPendingFencePoint(position);
+            case FENCE_RING -> placeFenceRing(position);
         }
     }
 
@@ -3846,6 +3858,72 @@ public class PlaaniseppApp extends Application {
         refreshPlacementButtons();
         updateMapToolStatus();
         redrawMap();
+    }
+
+    private void addFenceRing() {
+        pendingFenceRingPlacement = true;
+        pendingTentPlacement = false;
+        pendingPowerSourcePlacement = false;
+        pendingCustomObjectPlacement = false;
+        pendingTextObjectPlacement = false;
+        pendingMarkerPlacement = false;
+        pendingLineObjectPlacement = false;
+        pendingFenceRowPlacement = false;
+        pendingAreaObjectPlacement = false;
+        pendingPowerSourceConsumer = null;
+        pendingShapePoints.clear();
+        pendingFenceStartJointId = null;
+        pendingFenceTemplateRowId = null;
+        refreshPlacementButtons();
+        updateMapToolStatus();
+        redrawMap();
+    }
+
+    private void placeFenceRing(Position center) {
+        FenceRingGenerator.Result generated = FenceRingGenerator.generate(
+                center,
+                pendingFenceRingRadiusMeters,
+                FenceRow.DEFAULT_SEGMENT_LENGTH_METERS,
+                pixelsPerMeter()
+        );
+        List<FenceRow> rows = new ArrayList<>();
+        String firstStartJointId = null;
+        String previousEndJointId = null;
+        for (int index = 0; index < generated.fenceCount(); index++) {
+            Position start = generated.points().get(index);
+            Position end = generated.points().get(index + 1);
+            FenceRow row = new FenceRow(
+                    planFactory.newId(),
+                    placementNameOrDefault(PlacementType.FENCE_RING),
+                    start
+            );
+            row.setGroupName(placementGroupNameOrDefault());
+            row.setShowMapLabel(pendingPlacementShowMapLabelOrDefault());
+            row.setColorHex(placementColorHexOrDefault(PlacementType.FENCE_RING));
+            row.setWidthPixels(pendingLineWidthPixelsOrDefault());
+            row.setSegmentCount(1);
+            row.setSegmentLengthMeters(FenceRow.DEFAULT_SEGMENT_LENGTH_METERS);
+            row.setRotationDegrees(Math.toDegrees(Math.atan2(end.y() - start.y(), end.x() - start.x())));
+            plan.addObject(row);
+            if (firstStartJointId == null) {
+                firstStartJointId = row.startJointId();
+            }
+            String startJointId = previousEndJointId == null ? row.startJointId() : previousEndJointId;
+            String endJointId = index == generated.fenceCount() - 1
+                    ? firstStartJointId
+                    : row.endJointId();
+            plan.setFenceRowJoints(row, startJointId, endJointId);
+            previousEndJointId = endJointId;
+            rows.add(row);
+        }
+        pendingFenceRingPlacement = false;
+        clearPendingPlacementDetails();
+        refreshPlacementButtons();
+        updateMapToolStatus();
+        refreshGroupFilters();
+        selectObject(rows.getFirst());
+        refreshSummary();
+        markDirty();
     }
 
     private void addPendingFencePoint(Position point) {
@@ -4383,6 +4461,10 @@ public class PlaaniseppApp extends Application {
             mapToolStatusLabel.setText(pendingShapePoints.isEmpty()
                     ? "Märgi aiaraja algus"
                     : "Märgi aiaraja suund ja ligikaudne pikkus");
+            return;
+        }
+        if (pendingFenceRingPlacement) {
+            mapToolStatusLabel.setText("Märgi aiaringi keskpunkt");
             return;
         }
         if (pendingAreaObjectPlacement) {
@@ -8911,6 +8993,8 @@ public class PlaaniseppApp extends Application {
                 placementTypeComboBox.getSelectionModel().select(PlacementType.LINE_OBJECT);
             } else if (pendingFenceRowPlacement) {
                 placementTypeComboBox.getSelectionModel().select(PlacementType.FENCE_ROW);
+            } else if (pendingFenceRingPlacement) {
+                placementTypeComboBox.getSelectionModel().select(PlacementType.FENCE_RING);
             } else if (pendingAreaObjectPlacement) {
                 placementTypeComboBox.getSelectionModel().select(PlacementType.AREA_OBJECT);
             }
@@ -8939,6 +9023,7 @@ public class PlaaniseppApp extends Application {
                 || pendingMarkerPlacement
                 || pendingLineObjectPlacement
                 || pendingFenceRowPlacement
+                || pendingFenceRingPlacement
                 || pendingAreaObjectPlacement;
     }
 
@@ -8951,6 +9036,7 @@ public class PlaaniseppApp extends Application {
         pendingMarkerPlacement = false;
         pendingLineObjectPlacement = false;
         pendingFenceRowPlacement = false;
+        pendingFenceRingPlacement = false;
         pendingFenceStartJointId = null;
         pendingFenceTemplateRowId = null;
         pendingAreaObjectPlacement = false;

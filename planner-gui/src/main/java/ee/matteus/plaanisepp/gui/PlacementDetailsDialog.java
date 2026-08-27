@@ -2,9 +2,12 @@ package ee.matteus.plaanisepp.gui;
 
 import ee.matteus.plaanisepp.core.model.AreaObject;
 import ee.matteus.plaanisepp.core.model.CustomObjectShape;
+import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerType;
+import ee.matteus.plaanisepp.core.model.Position;
 import ee.matteus.plaanisepp.core.model.TextObject;
+import ee.matteus.plaanisepp.core.service.FenceRingGenerator;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
@@ -60,6 +63,9 @@ final class PlacementDetailsDialog {
                 TextObject.DEFAULT_FONT_SIZE
         );
         ComboBox<MarkerType> markerTypeComboBox = createMarkerTypeComboBox();
+        TextField fenceRadiusField = new TextField("8");
+        Label fenceRingPreviewLabel = new Label();
+        fenceRingPreviewLabel.setWrapText(true);
 
         configureMarkerDefaults(placementType, nameField, colorPicker, markerTypeComboBox);
         shapeComboBox.setOnAction(event -> updateObjectSizeFields(
@@ -92,8 +98,18 @@ final class PlacementDetailsDialog {
                 opacitySlider,
                 lineWidthSlider,
                 fontSizeSlider,
-                markerTypeComboBox
+                markerTypeComboBox,
+                fenceRadiusField,
+                fenceRingPreviewLabel
         );
+        if (placementType == PlacementType.FENCE_RING) {
+            Runnable updatePreview = () -> updateFenceRingPreview(
+                    fenceRadiusField,
+                    fenceRingPreviewLabel
+            );
+            fenceRadiusField.textProperty().addListener((observable, oldValue, newValue) -> updatePreview.run());
+            updatePreview.run();
+        }
         if (placementType != PlacementType.TEXT_OBJECT) {
             form.addRow(form.getRowCount(), new Label("Nimesilt"), showMapLabelCheckBox);
         }
@@ -121,7 +137,8 @@ final class PlacementDetailsDialog {
                 lineWidthSlider,
                 fontSizeSlider,
                 markerTypeComboBox,
-                showMapLabelCheckBox
+                showMapLabelCheckBox,
+                fenceRadiusField
         );
     }
 
@@ -200,7 +217,9 @@ final class PlacementDetailsDialog {
             Slider opacitySlider,
             Slider lineWidthSlider,
             Slider fontSizeSlider,
-            ComboBox<MarkerType> markerTypeComboBox
+            ComboBox<MarkerType> markerTypeComboBox,
+            TextField fenceRadiusField,
+            Label fenceRingPreviewLabel
     ) {
         GridPane form = detailGrid();
         form.addRow(0, new Label("Nimi"), nameField);
@@ -218,6 +237,10 @@ final class PlacementDetailsDialog {
             form.addRow(2, new Label("Marker"), markerTypeComboBox);
         } else if (placementType == PlacementType.AREA_OBJECT) {
             form.addRow(2, new Label("Läbipaistvus"), opacityControl(opacitySlider));
+        } else if (placementType == PlacementType.FENCE_RING) {
+            form.addRow(2, new Label("Raadius m"), fenceRadiusField);
+            form.addRow(3, new Label("Paksus"), pixelControl(lineWidthSlider));
+            form.addRow(4, new Label("Eelvaade"), fenceRingPreviewLabel);
         } else if (placementType == PlacementType.LINE_OBJECT || placementType == PlacementType.FENCE_ROW) {
             form.addRow(2, new Label("Paksus"), pixelControl(lineWidthSlider));
         } else if (placementType == PlacementType.TEXT_OBJECT) {
@@ -233,6 +256,7 @@ final class PlacementDetailsDialog {
         return switch (placementType) {
             case TENT, DJ_TRUCK -> 5;
             case CUSTOM_OBJECT -> 6;
+            case FENCE_RING -> 5;
             case MARKER_OBJECT, AREA_OBJECT, LINE_OBJECT, FENCE_ROW, TEXT_OBJECT -> 3;
             case POWER_SOURCE, DISTRIBUTION_PANEL -> 2;
         };
@@ -253,7 +277,8 @@ final class PlacementDetailsDialog {
             Slider lineWidthSlider,
             Slider fontSizeSlider,
             ComboBox<MarkerType> markerTypeComboBox,
-            CheckBox showMapLabelCheckBox
+            CheckBox showMapLabelCheckBox,
+            TextField fenceRadiusField
     ) {
         String groupName = groupComboBox.getEditor().getText().trim();
         if (groupName.isBlank()) {
@@ -272,6 +297,14 @@ final class PlacementDetailsDialog {
             return Optional.empty();
         }
         MarkerType markerType = selectedMarkerType(placementType, markerTypeComboBox);
+        FenceRingValues fenceRingValues = readFenceRingValues(
+                owner,
+                placementType,
+                fenceRadiusField
+        );
+        if (fenceRingValues == null) {
+            return Optional.empty();
+        }
         String name = nameField.getText().trim();
         if (name.isBlank()) {
             name = placementType == PlacementType.MARKER_OBJECT
@@ -294,8 +327,58 @@ final class PlacementDetailsDialog {
                 fontSizeSlider.getValue(),
                 dimensions.shape(),
                 markerType,
-                showMapLabelCheckBox.isSelected()
+                showMapLabelCheckBox.isSelected(),
+                fenceRingValues.radiusMeters()
         ));
+    }
+
+    private static FenceRingValues readFenceRingValues(
+            Stage owner,
+            PlacementType placementType,
+            TextField radiusField
+    ) {
+        if (placementType != PlacementType.FENCE_RING) {
+            return new FenceRingValues(8);
+        }
+        try {
+            double radius = parseDouble(radiusField.getText());
+            FenceRingGenerator.generate(
+                    new Position(0, 0), radius,
+                    FenceRow.DEFAULT_SEGMENT_LENGTH_METERS, 1
+            );
+            return new FenceRingValues(radius);
+        } catch (NumberFormatException exception) {
+            showError(owner, "Aiaringi ei lisatud", "Sisesta raadius arvuna meetrites.");
+        } catch (IllegalArgumentException exception) {
+            showError(owner, "Aiaringi ei lisatud", exception.getMessage());
+        }
+        return null;
+    }
+
+    private static void updateFenceRingPreview(
+            TextField radiusField,
+            Label previewLabel
+    ) {
+        try {
+            FenceRingGenerator.Result preview = FenceRingGenerator.generate(
+                    new Position(0, 0),
+                    parseDouble(radiusField.getText()),
+                    FenceRow.DEFAULT_SEGMENT_LENGTH_METERS,
+                    1
+            );
+            previewLabel.setText(
+                    "%d aeda · tegelik raadius %.2f m (%+.2f m)"
+                            .formatted(
+                                    preview.fenceCount(),
+                                    preview.actualRadiusMeters(),
+                                    preview.radiusDeviationMeters()
+                            )
+            );
+            previewLabel.setStyle("-fx-text-fill: #166534;");
+        } catch (RuntimeException exception) {
+            previewLabel.setText("Sisesta kehtivad positiivsed mõõdud.");
+            previewLabel.setStyle("-fx-text-fill: #b91c1c;");
+        }
     }
 
     private static Dimensions readDimensions(
@@ -503,6 +586,9 @@ final class PlacementDetailsDialog {
 
     private record Dimensions(double widthMeters, double heightMeters, CustomObjectShape shape) {
     }
+
+    private record FenceRingValues(double radiusMeters) {
+    }
 }
 
 record PlacementDetails(
@@ -516,7 +602,8 @@ record PlacementDetails(
         double fontSizePixels,
         CustomObjectShape shape,
         MarkerType markerType,
-        boolean showMapLabel
+        boolean showMapLabel,
+        double fenceRadiusMeters
 ) {
 }
 
@@ -530,6 +617,7 @@ enum PlacementType {
     MARKER_OBJECT("Marker", "Uus marker", MarkerType.WC.defaultColorHex(), true, 1.0, 1.0),
     LINE_OBJECT("Joon", "Uus joon", "#0f766e", true, 1.0, 1.0),
     FENCE_ROW("Aiarida", "Uus aiarida", "#64748b", true, 1.0, 1.0),
+    FENCE_RING("Aiaring", "Uus aiaring", "#64748b", true, 1.0, 1.0),
     AREA_OBJECT("Ala", "Uus ala", "#f59e0b", true, 1.0, 1.0);
 
     private final String label;
