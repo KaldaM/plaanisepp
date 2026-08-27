@@ -86,7 +86,7 @@ Fedora RPM-paigalduspaketi loomiseks:
 Valmis pakett asub kaustas `planner-gui/build/jpackage-rpm`. Selle saab paigaldada ja hiljem eemaldada järgmiselt:
 
 ```bash
-sudo dnf install ./planner-gui/build/jpackage-rpm/plaanisepp-0.1.1-4.x86_64.rpm
+sudo dnf install ./planner-gui/build/jpackage-rpm/plaanisepp-0.2.0-4.x86_64.rpm
 sudo dnf remove plaanisepp
 ```
 
@@ -96,11 +96,11 @@ RPM paigaldab rakenduse `/opt/plaanisepp` alla, lisab rakenduste menüüsse kirj
 
 ### Avaldamine GitHub Releasesis
 
-GitHub Actions ehitab avaliku väljalaske automaatselt GitHubi Windowsi ja Linuxi runnerites. Uus Release tekib, kui `main` harus oleva versiooni jaoks push'itakse samanimeline tag. Näiteks praeguse versiooni `0.1.1` avaldamiseks:
+GitHub Actions ehitab avaliku väljalaske automaatselt GitHubi Windowsi ja Linuxi runnerites. Uus Release tekib, kui `main` harus oleva versiooni jaoks push'itakse samanimeline tag. Näiteks praeguse versiooni `0.2.0` avaldamiseks:
 
 ```bash
-git tag -a v0.1.1 -m "Plaanisepp v0.1.1"
-git push origin v0.1.1
+git tag -a v0.2.0 -m "Plaanisepp v0.2.0"
+git push origin v0.2.0
 ```
 
 Töövoog kontrollib, et tag ja Gradle'i versioon kattuvad, ning lisab GitHub Release'i külge Windowsi EXE-paigaldaja, Fedora RPM-i, Linuxi iseseisva rakendusepildi `.tar.gz` arhiivina ja nende `SHA256SUMS` kontrollsummad. Tõrke korral Release'i ei avaldata; tag'i parandamiseks tuleb luua uus versiooninumber ja uus tag.
