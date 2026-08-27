@@ -12,6 +12,8 @@ import ee.matteus.plaanisepp.core.model.EquipmentContainer;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.FenceJoint;
+import ee.matteus.plaanisepp.core.model.InventoryContainer;
+import ee.matteus.plaanisepp.core.model.InventoryItem;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.MarkerType;
@@ -49,7 +51,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 13;
+    public static final int CURRENT_FORMAT_VERSION = 14;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -697,6 +699,9 @@ public class PlanFileService {
         } else if (object instanceof CustomObject customObject) {
             writeCustomObject(properties, prefix, customObject);
         }
+        if (object instanceof InventoryContainer container) {
+            writeInventoryItems(properties, prefix, container);
+        }
     }
 
     private void writeTent(Properties properties, String prefix, Tent tent) {
@@ -834,7 +839,33 @@ public class PlanFileService {
                     doubleValue(properties, prefix + "powerConnectionOffsetY", 0)
             ));
         }
+        if (object instanceof InventoryContainer container) {
+            readInventoryItems(properties, prefix, container);
+        }
         return object;
+    }
+
+    private void writeInventoryItems(Properties properties, String prefix, InventoryContainer container) {
+        properties.setProperty(prefix + "inventory.count", Integer.toString(container.inventoryItems().size()));
+        for (int index = 0; index < container.inventoryItems().size(); index++) {
+            InventoryItem item = container.inventoryItems().get(index);
+            String itemPrefix = prefix + "inventory." + index + ".";
+            properties.setProperty(itemPrefix + "name", item.name());
+            properties.setProperty(itemPrefix + "quantity", Integer.toString(item.quantity()));
+            properties.setProperty(itemPrefix + "notes", item.notes());
+        }
+    }
+
+    private void readInventoryItems(Properties properties, String prefix, InventoryContainer container) {
+        int itemCount = intValue(properties, prefix + "inventory.count", 0);
+        for (int index = 0; index < itemCount; index++) {
+            String itemPrefix = prefix + "inventory." + index + ".";
+            container.addInventoryItem(new InventoryItem(
+                    properties.getProperty(itemPrefix + "name", "Inventar"),
+                    intValue(properties, itemPrefix + "quantity", 0),
+                    properties.getProperty(itemPrefix + "notes", "")
+            ));
+        }
     }
 
     private FenceRow readFenceRow(Properties properties, String prefix) {

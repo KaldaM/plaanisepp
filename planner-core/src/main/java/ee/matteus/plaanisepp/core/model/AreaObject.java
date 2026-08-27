@@ -4,11 +4,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class AreaObject extends PlannerObject implements EquipmentContainer {
+public class AreaObject extends PlannerObject implements EquipmentContainer, InventoryContainer {
     public static final double DEFAULT_OPACITY = 0.35;
 
     private final List<Position> points = new ArrayList<>();
     private final List<Equipment> equipment = new ArrayList<>();
+    private final List<InventoryItem> inventoryItems = new ArrayList<>();
     private String colorHex;
     private double opacity;
     private Position powerConnectionOffset = new Position(0, 0);
@@ -85,5 +86,20 @@ public class AreaObject extends PlannerObject implements EquipmentContainer {
     @Override
     public void removeEquipment(int index) {
         equipment.remove(index);
+    }
+
+    @Override
+    public List<InventoryItem> inventoryItems() {
+        return Collections.unmodifiableList(inventoryItems);
+    }
+
+    @Override
+    public void addInventoryItem(InventoryItem item) {
+        inventoryItems.add(item);
+    }
+
+    @Override
+    public void removeInventoryItem(int index) {
+        inventoryItems.remove(index);
     }
 }

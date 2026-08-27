@@ -13,6 +13,8 @@ import ee.matteus.plaanisepp.core.model.EquipmentPowerAssignmentResult;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.FenceJoint;
+import ee.matteus.plaanisepp.core.model.InventoryContainer;
+import ee.matteus.plaanisepp.core.model.InventoryItem;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.MarkerType;
@@ -145,6 +147,7 @@ public class PlaaniseppApp extends Application {
     private static final String SUMMARY_SECTION = "summary";
     private static final String INVENTORY_SECTION = "inventory";
     private static final String EQUIPMENT_SECTION = "equipment";
+    private static final String OBJECT_INVENTORY_SECTION = "objectInventory";
     private static final String OUTLET_SECTION = "outlet";
     private static final String SIDEBAR_SECTION_ORDER_PREFERENCE = "sidebarSectionOrder";
     private static final String PLACEMENT_SHOW_MAP_LABEL_PREFERENCE = "placementShowMapLabel";
@@ -288,6 +291,7 @@ public class PlaaniseppApp extends Application {
     private boolean gardenStoneInventoryExpanded;
     private boolean cableInventoryExpanded;
     private TitledPane equipmentSection;
+    private TitledPane objectInventorySection;
     private TitledPane outletSection;
     private TextField planNameField;
     private TextField pixelsPerMeterField;
@@ -355,6 +359,8 @@ public class PlaaniseppApp extends Application {
     private TextArea notesArea;
     private ListView<String> equipmentList;
     private Button addEquipmentButton;
+    private ListView<InventoryItem> objectInventoryList;
+    private Button addObjectInventoryButton;
     private Button addAlternativePowerConnectionButton;
     private ListView<OutletChoice> outletList;
     private TextField outletNameField;
@@ -3038,6 +3044,11 @@ public class PlaaniseppApp extends Application {
         equipmentList.setCellFactory(list -> createEquipmentListCell());
         addEquipmentButton = new Button("Lisa seade");
         addEquipmentButton.setOnAction(event -> showEquipmentDialog(null));
+        objectInventoryList = new ListView<>();
+        objectInventoryList.setPrefHeight(150);
+        objectInventoryList.setCellFactory(list -> createObjectInventoryListCell());
+        addObjectInventoryButton = new Button("Lisa inventar");
+        addObjectInventoryButton.setOnAction(event -> showObjectInventoryDialog(null));
         addAlternativePowerConnectionButton = new Button("Lisa alternatiivne ühendus");
         addAlternativePowerConnectionButton.setTooltip(new Tooltip(
                 "Loo valitud ühenduse põhjal uus seadistatav alternatiivühendus"
@@ -3215,6 +3226,12 @@ public class PlaaniseppApp extends Application {
                 addEquipmentButton
         );
         equipmentSection = collapsibleSection(EQUIPMENT_SECTION, "Seadmed", equipmentPanel, false);
+        objectInventorySection = collapsibleSection(
+                OBJECT_INVENTORY_SECTION,
+                "Objekti inventar",
+                new VBox(8, objectInventoryList, addObjectInventoryButton),
+                false
+        );
         outletPanel = new VBox(
                 8,
                 outletList,
@@ -3239,6 +3256,7 @@ public class PlaaniseppApp extends Application {
                 powerSourcePanel,
                 powerConnectionPanel,
                 equipmentSection,
+                objectInventorySection,
                 outletSection,
                 new VBox(8, sectionLabel("Märkmed"), notesForm),
                 deleteObjectButton
@@ -7775,6 +7793,7 @@ public class PlaaniseppApp extends Application {
                 || plan.fenceJointDegree(((FenceRow) selectedObject).endJointId()) == 1);
         boolean powerConsumerSelected = selectedObject instanceof PowerConsumer;
         boolean equipmentContainerSelected = selectedObject instanceof EquipmentContainer;
+        boolean inventoryContainerSelected = selectedObject instanceof InventoryContainer;
         nameField.setDisable(!hasSelection);
         groupField.setDisable(!hasSelection);
         notesArea.setDisable(!hasSelection);
@@ -7849,6 +7868,8 @@ public class PlaaniseppApp extends Application {
         )));
         equipmentList.setDisable(!equipmentContainerSelected);
         addEquipmentButton.setDisable(!equipmentContainerSelected);
+        objectInventoryList.setDisable(!inventoryContainerSelected);
+        addObjectInventoryButton.setDisable(!inventoryContainerSelected);
         addAlternativePowerConnectionButton.setDisable(!equipmentContainerSelected || !consumerHasPowerConnection);
         removePowerConnectionButton.setDisable(editedPowerConnection == null);
         makeDefaultPowerConnectionButton.setDisable(
@@ -7894,6 +7915,7 @@ public class PlaaniseppApp extends Application {
         setSectionVisible(powerSourcePanel, powerSourceSelected);
         setSectionVisible(powerConnectionPanel, powerConsumerSelected && !organizerView);
         setSectionVisible(equipmentSection, equipmentContainerSelected && !organizerView);
+        setSectionVisible(objectInventorySection, inventoryContainerSelected);
         setSectionVisible(outletSection, powerSourceSelected && !organizerView);
         setSectionVisible(choosePowerSourceButton, powerConsumerSelected && !organizerView);
         setSectionVisible(deleteObjectButton, hasSelection);
@@ -8136,6 +8158,7 @@ public class PlaaniseppApp extends Application {
         refreshSelectedPowerConnectionFields();
         refreshPowerSourceChoices();
         refreshEquipmentList();
+        refreshObjectInventoryList();
         refreshOutletList();
         updateCustomObjectSizeFields();
     }
@@ -8935,7 +8958,18 @@ public class PlaaniseppApp extends Application {
 
         copyCommonDetails(original, copy);
         copyEquipment(original, copy);
+        copyInventory(original, copy);
         return copy;
+    }
+
+    private void copyInventory(PlannerObject original, PlannerObject copy) {
+        if (!(original instanceof InventoryContainer originalContainer)
+                || !(copy instanceof InventoryContainer copyContainer)) {
+            return;
+        }
+        originalContainer.inventoryItems().forEach(item -> copyContainer.addInventoryItem(
+                new InventoryItem(item.name(), item.quantity(), item.notes())
+        ));
     }
 
     private void copyEquipment(PlannerObject original, PlannerObject copy) {
@@ -9804,6 +9838,108 @@ public class PlaaniseppApp extends Application {
         redrawMap();
     }
 
+    private ListCell<InventoryItem> createObjectInventoryListCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(InventoryItem item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setContextMenu(null);
+                    return;
+                }
+                setText("%s: %d tk%s".formatted(
+                        item.name(), item.quantity(),
+                        item.notes().isBlank() ? "" : " · " + item.notes()
+                ));
+                MenuItem editItem = new MenuItem("Muuda");
+                editItem.setOnAction(event -> showObjectInventoryDialog(item));
+                MenuItem removeItem = new MenuItem("Eemalda");
+                removeItem.setOnAction(event -> removeObjectInventoryItem(item));
+                setContextMenu(new ContextMenu(editItem, removeItem));
+                setOnMouseClicked(event -> {
+                    if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
+                        showObjectInventoryDialog(item);
+                    }
+                });
+            }
+        };
+    }
+
+    private void showObjectInventoryDialog(InventoryItem existingItem) {
+        InventoryContainer container = selectedInventoryContainer();
+        if (container == null) {
+            return;
+        }
+        ComboBox<String> nameBox = new ComboBox<>();
+        nameBox.setEditable(true);
+        nameBox.getItems().addAll("Telgiraskus", "Laud", "Pink");
+        nameBox.getEditor().setText(existingItem == null ? "Telgiraskus" : existingItem.name());
+        TextField quantityField = new TextField(
+                Integer.toString(existingItem == null ? 1 : existingItem.quantity())
+        );
+        TextField itemNotesField = new TextField(existingItem == null ? "" : existingItem.notes());
+        GridPane form = detailGrid();
+        form.addRow(0, new Label("Nimetus"), nameBox);
+        form.addRow(1, new Label("Kogus"), quantityField);
+        form.addRow(2, new Label("Märkus"), itemNotesField);
+        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        dialog.initOwner(stage);
+        dialog.setTitle(existingItem == null ? "Lisa inventar" : "Muuda inventari");
+        dialog.setHeaderText(selectedObject.name());
+        dialog.getDialogPane().setContent(form);
+        if (dialog.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+            return;
+        }
+        String name = nameBox.getEditor().getText().trim();
+        try {
+            int quantity = Integer.parseInt(quantityField.getText().trim());
+            if (name.isBlank() || quantity < 1) {
+                throw new IllegalArgumentException("Sisesta nimetus ja vähemalt üks ese.");
+            }
+            if (existingItem == null) {
+                container.addInventoryItem(new InventoryItem(name, quantity, itemNotesField.getText()));
+            } else {
+                existingItem.rename(name);
+                existingItem.setQuantity(quantity);
+                existingItem.setNotes(itemNotesField.getText());
+            }
+            refreshObjectInventoryList();
+            refreshInventory();
+            markDirty();
+        } catch (NumberFormatException exception) {
+            showError("Inventari ei muudetud", "Sisesta kogus täisarvuna.");
+        } catch (IllegalArgumentException exception) {
+            showError("Inventari ei muudetud", exception.getMessage());
+        }
+    }
+
+    private void removeObjectInventoryItem(InventoryItem item) {
+        InventoryContainer container = selectedInventoryContainer();
+        if (container == null) {
+            return;
+        }
+        int index = container.inventoryItems().indexOf(item);
+        if (index >= 0) {
+            container.removeInventoryItem(index);
+            refreshObjectInventoryList();
+            refreshInventory();
+            markDirty();
+        }
+    }
+
+    private void refreshObjectInventoryList() {
+        objectInventoryList.getItems().clear();
+        InventoryContainer container = selectedInventoryContainer();
+        if (container != null) {
+            objectInventoryList.getItems().addAll(container.inventoryItems());
+        }
+    }
+
+    private InventoryContainer selectedInventoryContainer() {
+        return selectedObject instanceof InventoryContainer container ? container : null;
+    }
+
     private ListCell<String> createEquipmentListCell() {
         return new ListCell<>() {
             @Override
@@ -10538,6 +10674,9 @@ public class PlaaniseppApp extends Application {
             inventoryContent.getChildren().add(new Label("Telgid: %d tk".formatted(inventory.tentCount())));
         }
         inventory.otherCustomItems().forEach(item -> inventoryContent.getChildren().add(
+                new Label("%s: %d tk".formatted(item.name(), item.count()))
+        ));
+        inventory.objectInventoryItems().forEach(item -> inventoryContent.getChildren().add(
                 new Label("%s: %d tk".formatted(item.name(), item.count()))
         ));
     }

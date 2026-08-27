@@ -3,6 +3,8 @@ package ee.matteus.plaanisepp.core.service;
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
+import ee.matteus.plaanisepp.core.model.InventoryContainer;
+import ee.matteus.plaanisepp.core.model.InventoryItem;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.Tent;
 
@@ -43,12 +45,23 @@ public final class InventorySummaryService {
         List<FenceStoneNetwork> fenceStoneNetworks = fences.byNetwork().stream()
                 .map(network -> fenceStoneNetwork(plan, network))
                 .toList();
+        Map<String, Integer> inventoryCounts = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        plan.objects().stream()
+                .filter(InventoryContainer.class::isInstance)
+                .map(InventoryContainer.class::cast)
+                .flatMap(container -> container.inventoryItems().stream())
+                .filter(item -> !item.name().isBlank() && item.quantity() > 0)
+                .forEach(item -> inventoryCounts.merge(item.name(), item.quantity(), Integer::sum));
+        List<NamedItem> objectInventoryItems = inventoryCounts.entrySet().stream()
+                .map(entry -> new NamedItem(entry.getKey(), entry.getValue()))
+                .toList();
         return new Summary(
                 fences,
                 tentCount,
                 fenceStoneNetworks,
                 plan.standaloneGardenStoneCount(),
-                otherItems
+                otherItems,
+                objectInventoryItems
         );
     }
 
@@ -85,18 +98,21 @@ public final class InventorySummaryService {
             int tentCount,
             List<FenceStoneNetwork> fenceStoneNetworks,
             int standaloneGardenStoneCount,
-            List<NamedItem> otherCustomItems
+            List<NamedItem> otherCustomItems,
+            List<NamedItem> objectInventoryItems
     ) {
         public Summary {
             fenceStoneNetworks = List.copyOf(fenceStoneNetworks);
             otherCustomItems = List.copyOf(otherCustomItems);
+            objectInventoryItems = List.copyOf(objectInventoryItems);
         }
 
         public boolean isEmpty() {
             return fences.totalCount() == 0
                     && tentCount == 0
                     && gardenStoneCount() == 0
-                    && otherCustomItems.isEmpty();
+                    && otherCustomItems.isEmpty()
+                    && objectInventoryItems.isEmpty();
         }
 
         public int gardenStoneCount() {

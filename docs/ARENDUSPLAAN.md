@@ -20,7 +20,7 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 9. **Tehtud:** plaanipõhine checklist ja soovituste kontrollnimekiri.
 10. **Tehtud:** automaatsed Linuxi ja Windowsi paketid, GitHub Releases, versioonikontroll ning kontrollsummaga allalaadimine.
 11. **Pooleli:** objektieelseadistuste alus ja Red Bull DJ Truck on tehtud; järgmised PA-seadmed ning kinnitatud tegelikud elektrivajadused on lisamata.
-12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud, aiaringi generaator, Inventari jaotise esimene etapp ning automaatselt arvutatavad aiakivid koos aiakogumiku `− / +` paranduste ja aiata lisakogusega on tehtud. Lisamata on telgiraskused, lauad ja pingid, objektipõhine inventar ning nende üldised käsitsi koguseparandused. Üksiklõikude täielik identiteet on samuti lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
+12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud, aiaringi generaator, Inventari jaotise esimene etapp, automaatselt arvutatavad aiakivid koos aiakogumiku `− / +` paranduste ja aiata lisakogusega ning telkide, alade ja kujuobjektide vabalt määratav inventar on tehtud. Lisamata on inventariliikide üldised plaanipõhised käsitsi koguseparandused. Üksiklõikude täielik identiteet on samuti lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
 13. **Tehtud:** rippvalikud, kaardilt vooluallika valimine, automaatne rakendamine ja objektide kiirklahvid.
 14. **Tehtud:** kogu kaardi geomeetriat kaitsev paigutuslukustus.
 15. **Tegemata:** kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog.
@@ -472,8 +472,8 @@ Elektrikilpide ja alajaotuskilpide muutmisvaates saab muuta objekti värvi ning 
 ### Planeeritud inventarimudel
 
 - **Tehtud: aiakivid arvutatakse aia geomeetriast automaatselt.** Iga füüsilise aia kahe lõigu vahel ning iga vaba otspunkti juures on üks aiakivi. Kui ühes ühenduspunktis kohtuvad kolm, neli või rohkem aeda, läheb inventari siiski ainult üks aiakivi. Suletud N lõiguga ring vajab seega N aiakivi ja avatud N lõiguga ahel N + 1 aiakivi. Igal aiakogumikul on oma `− / +` parandus, mis võimaldab näiteks otspunktikivi ära jätta. Lisaks saab eraldi muuta aiata aiakivide kogust labürintide ja muude kasutuste jaoks; nimepõhiseid „Aiakivi” objekte arvestuseks ei kasutata.
-- **Telgiraskused, lauad ja pingid** on päris inventariliigid. Neid saab määrata eraldi telgile ja alale; kogused liidetakse automaatselt kogu plaani inventari.
-- **Kujuobjektidele** saab lisada vabalt valitud inventariridu ja koguseid. Sama üldist objektipõhist inventarimudelit kasutatakse telkide ja alade jaoks, et uusi inventariliike ei peaks eraldi koodi sisse ehitama.
+- **Tehtud: telgiraskused, lauad ja pingid** on objektipõhise inventari kiirvalikud. Telgile, alale ja kujuobjektile saab lisada ka vabalt nimetatud inventariridu koos koguse ja märkusega; kogused liidetakse automaatselt kogu plaani inventari ning TXT- ja PDF-raportisse.
+- **Tehtud: kujuobjektid, telgid ja alad kasutavad sama üldist objektipõhist inventarimudelit**, et uusi inventariliike ei peaks eraldi koodi sisse ehitama. Inventar kopeerub objektiga, kustutamisel kaob koondist, osaleb undo/redo ajaloos ning säilib `.pplan` versioon 14 failis.
 - Inventarikirjel on vähemalt nimetus, kogus ja vajaduse korral märkus. Objekti kopeerimisel kopeeritakse selle inventar kaasa; kustutamisel kaob selle panus koondinventarist; muudatused osalevad undo/redo ajaloos ja säilivad `.pplan` failis.
 
 ### Käsitsi koguseparandused

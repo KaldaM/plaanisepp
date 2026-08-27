@@ -1,6 +1,10 @@
 package ee.matteus.plaanisepp.core.model;
 
-public class CustomObject extends PlannerObject {
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class CustomObject extends PlannerObject implements InventoryContainer {
     public static final double DEFAULT_OPACITY = 1.0;
 
     private CustomObjectShape shape;
@@ -9,6 +13,7 @@ public class CustomObject extends PlannerObject {
     private double widthMeters;
     private double heightMeters;
     private double rotationDegrees;
+    private final List<InventoryItem> inventoryItems = new ArrayList<>();
 
     public CustomObject(String id, String name, Position position) {
         super(id, name, position);
@@ -66,5 +71,20 @@ public class CustomObject extends PlannerObject {
 
     public void setRotationDegrees(double rotationDegrees) {
         this.rotationDegrees = rotationDegrees;
+    }
+
+    @Override
+    public List<InventoryItem> inventoryItems() {
+        return Collections.unmodifiableList(inventoryItems);
+    }
+
+    @Override
+    public void addInventoryItem(InventoryItem item) {
+        inventoryItems.add(item);
+    }
+
+    @Override
+    public void removeInventoryItem(int index) {
+        inventoryItems.remove(index);
     }
 }

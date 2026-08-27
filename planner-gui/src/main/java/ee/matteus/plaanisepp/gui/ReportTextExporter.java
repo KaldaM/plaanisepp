@@ -34,6 +34,7 @@ final class ReportTextExporter {
             objectReportTextFormatter.appendGroups(builder, plan, lineSeparator);
         }
         fenceReportTextFormatter.append(builder, plan, lineSeparator);
+        objectReportTextFormatter.appendInventory(builder, plan, lineSeparator);
         objectReportTextFormatter.appendTextNotes(builder, plan, lineSeparator);
         return builder.toString();
     }

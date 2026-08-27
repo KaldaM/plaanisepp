@@ -9,6 +9,7 @@ import ee.matteus.plaanisepp.core.model.DistributionPanel;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
+import ee.matteus.plaanisepp.core.model.InventoryItem;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.Position;
@@ -115,7 +116,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(13, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(14, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -203,6 +204,25 @@ class PlanFileServiceTest {
         assertEquals(42, loadedSource.sizePixels());
         assertEquals("#abcdef", loadedPanel.colorHex());
         assertEquals(31, loadedPanel.sizePixels());
+    }
+
+    @Test
+    void savesAndLoadsObjectInventory() throws IOException {
+        EventPlan plan = new EventPlan("Objekti inventar");
+        Tent tent = new Tent("tent", "Peatelk", new Position(10, 20));
+        tent.addInventoryItem(new InventoryItem("Telgiraskus", 8, "Kaks igasse nurka"));
+        tent.addInventoryItem(new InventoryItem("Laud", 3, ""));
+        plan.addObject(tent);
+        Path file = tempDirectory.resolve("object-inventory.pplan");
+
+        service.save(plan, file);
+        EventPlan loadedPlan = service.load(file);
+
+        Tent loadedTent = (Tent) loadedPlan.findObject("tent").orElseThrow();
+        assertEquals(2, loadedTent.inventoryItems().size());
+        assertEquals("Telgiraskus", loadedTent.inventoryItems().getFirst().name());
+        assertEquals(8, loadedTent.inventoryItems().getFirst().quantity());
+        assertEquals("Kaks igasse nurka", loadedTent.inventoryItems().getFirst().notes());
     }
 
     @Test
@@ -731,7 +751,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(13, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(14, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

@@ -3,6 +3,7 @@ package ee.matteus.plaanisepp.core.service;
 import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
+import ee.matteus.plaanisepp.core.model.InventoryItem;
 import ee.matteus.plaanisepp.core.model.Position;
 import ee.matteus.plaanisepp.core.model.Tent;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,10 @@ class InventorySummaryServiceTest {
         plan.addObject(first);
         plan.addObject(second);
         plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
-        plan.addObject(new Tent("tent-1", "Telk", new Position(0, 100)));
+        Tent inventoryTent = new Tent("tent-1", "Telk", new Position(0, 100));
+        inventoryTent.addInventoryItem(new InventoryItem("Telgiraskus", 4, ""));
+        inventoryTent.addInventoryItem(new InventoryItem("Laud", 2, ""));
+        plan.addObject(inventoryTent);
         plan.addObject(new Tent("tent-2", "Telk", new Position(100, 100)));
         plan.addObject(custom("stone-1", "Aiakivi"));
         plan.addObject(custom("stone-2", "Aiakivi 2"));
@@ -40,6 +44,12 @@ class InventorySummaryServiceTest {
         assertEquals(6, summary.gardenStoneCount());
         assertEquals(3, summary.otherCustomItems().size());
         assertEquals(2, summary.otherCustomItems().stream()
+                .filter(item -> item.name().equals("Laud"))
+                .findFirst().orElseThrow().count());
+        assertEquals(4, summary.objectInventoryItems().stream()
+                .filter(item -> item.name().equals("Telgiraskus"))
+                .findFirst().orElseThrow().count());
+        assertEquals(2, summary.objectInventoryItems().stream()
                 .filter(item -> item.name().equals("Laud"))
                 .findFirst().orElseThrow().count());
     }

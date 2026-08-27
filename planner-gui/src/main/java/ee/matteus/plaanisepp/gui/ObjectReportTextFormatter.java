@@ -10,6 +10,7 @@ import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.model.TextObject;
+import ee.matteus.plaanisepp.core.service.InventorySummaryService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,23 @@ import java.util.Map;
 import java.util.TreeMap;
 
 final class ObjectReportTextFormatter {
+    void appendInventory(StringBuilder builder, EventPlan plan, String lineSeparator) {
+        List<InventorySummaryService.NamedItem> items = new InventorySummaryService()
+                .summarize(plan)
+                .objectInventoryItems();
+        if (items.isEmpty()) {
+            return;
+        }
+        builder.append("Objektide inventar").append(lineSeparator);
+        items.forEach(item -> builder.append("  - ")
+                .append(item.name())
+                .append(": ")
+                .append(item.count())
+                .append(" tk")
+                .append(lineSeparator));
+        builder.append(lineSeparator);
+    }
+
     void appendGroups(StringBuilder builder, EventPlan plan, String lineSeparator) {
         if (plan.objects().isEmpty()) {
             return;

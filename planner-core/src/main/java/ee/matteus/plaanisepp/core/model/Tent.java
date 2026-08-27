@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class Tent extends PlannerObject implements EquipmentContainer {
+public class Tent extends PlannerObject implements EquipmentContainer, InventoryContainer {
     public static final double DEFAULT_OPACITY = 1.0;
 
     private double widthMeters;
@@ -15,6 +15,7 @@ public class Tent extends PlannerObject implements EquipmentContainer {
     private TentPreset preset;
     private Position powerConnectionOffset = new Position(0, 0);
     private final List<Equipment> equipment = new ArrayList<>();
+    private final List<InventoryItem> inventoryItems = new ArrayList<>();
 
     public Tent(String id, String name, Position position) {
         super(id, name, position);
@@ -96,5 +97,20 @@ public class Tent extends PlannerObject implements EquipmentContainer {
     @Override
     public void removeEquipment(int index) {
         equipment.remove(index);
+    }
+
+    @Override
+    public List<InventoryItem> inventoryItems() {
+        return Collections.unmodifiableList(inventoryItems);
+    }
+
+    @Override
+    public void addInventoryItem(InventoryItem item) {
+        inventoryItems.add(item);
+    }
+
+    @Override
+    public void removeInventoryItem(int index) {
+        inventoryItems.remove(index);
     }
 }
