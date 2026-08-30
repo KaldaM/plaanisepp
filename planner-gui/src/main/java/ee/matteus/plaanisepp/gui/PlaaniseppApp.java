@@ -133,6 +133,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.prefs.Preferences;
 
 public class PlaaniseppApp extends Application {
@@ -10664,6 +10665,7 @@ public class PlaaniseppApp extends Application {
         InventorySummaryService.Summary summary = inventorySummaryService.summarize(plan);
         addFenceInventory(summary);
         addGardenStoneInventory(summary);
+        addStandaloneInventoryButton();
         addObjectInventory(summary);
         if (!organizerView) {
             addCableInventory();
@@ -10739,9 +10741,24 @@ public class PlaaniseppApp extends Application {
         if (inventory.tentCount() > 0) {
             inventoryContent.getChildren().add(new Label("Telgid: %d tk".formatted(inventory.tentCount())));
         }
-        inventory.objectInventoryGroups().forEach(group -> {
+        Map<String, List<InventoryItem>> standaloneItemsByName = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (InventoryItem item : plan.standaloneInventoryItems()) {
+            if (!item.name().isBlank()) {
+                standaloneItemsByName.computeIfAbsent(item.name(), ignored -> new ArrayList<>()).add(item);
+            }
+        }
+        Map<String, InventorySummaryService.ObjectInventoryGroup> groupsByName =
+                new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        inventory.objectInventoryGroups().forEach(group -> groupsByName.put(group.name(), group));
+        Set<String> itemNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        itemNames.addAll(groupsByName.keySet());
+        itemNames.addAll(standaloneItemsByName.keySet());
+        itemNames.forEach(itemName -> {
+            InventorySummaryService.ObjectInventoryGroup group = groupsByName.get(itemName);
+            List<InventoryItem> standaloneItems = standaloneItemsByName.getOrDefault(itemName, List.of());
             VBox details = new VBox(3);
-            group.contributions().forEach(contribution -> {
+            if (group != null) {
+                group.contributions().forEach(contribution -> {
                 Label contributionLabel = inventoryDetailLabel("%s (%s): %d tk%s".formatted(
                         contribution.objectName(), contribution.objectType(), contribution.quantity(),
                         contribution.notes().isBlank() ? "" : " · " + contribution.notes()
@@ -10754,10 +10771,31 @@ public class PlaaniseppApp extends Application {
                 contributionRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 HBox.setHgrow(contributionLabel, Priority.ALWAYS);
                 details.getChildren().add(contributionRow);
+                });
+            }
+            standaloneItems.forEach(item -> {
+                Label itemLabel = inventoryDetailLabel("Lisainventar: %d tk%s".formatted(
+                        item.quantity(), item.notes().isBlank() ? "" : " · " + item.notes()
+                ));
+                Button decreaseButton = new Button("−");
+                decreaseButton.setDisable(item.quantity() == 0);
+                decreaseButton.setOnAction(event -> adjustStandaloneInventoryItem(item, -1));
+                Button increaseButton = new Button("+");
+                increaseButton.setOnAction(event -> adjustStandaloneInventoryItem(item, 1));
+                Button editButton = new Button("Muuda");
+                editButton.setOnAction(event -> showStandaloneInventoryDialog(item));
+                Button removeButton = new Button("Eemalda");
+                removeButton.setOnAction(event -> removeStandaloneInventoryItem(item));
+                HBox itemRow = new HBox(6, itemLabel, decreaseButton, increaseButton, editButton, removeButton);
+                itemRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                HBox.setHgrow(itemLabel, Priority.ALWAYS);
+                details.getChildren().add(itemRow);
             });
-            String groupKey = group.name().toLowerCase(java.util.Locale.ROOT);
+            int objectCount = group == null ? 0 : group.totalCount();
+            int standaloneCount = standaloneItems.stream().mapToInt(InventoryItem::quantity).sum();
+            String groupKey = itemName.toLowerCase(java.util.Locale.ROOT);
             TitledPane pane = new TitledPane(
-                    "%s: %d tk".formatted(group.name(), group.totalCount()),
+                    "%s: %d tk".formatted(itemName, objectCount + standaloneCount),
                     details
             );
             pane.setExpanded(expandedObjectInventoryKeys.contains(groupKey));
@@ -10771,6 +10809,70 @@ public class PlaaniseppApp extends Application {
             pane.setAnimated(false);
             inventoryContent.getChildren().add(pane);
         });
+    }
+
+    private void addStandaloneInventoryButton() {
+        Button addItem = new Button("Lisa inventar");
+        addItem.setOnAction(event -> showStandaloneInventoryDialog(null));
+        inventoryContent.getChildren().add(addItem);
+    }
+
+    private void showStandaloneInventoryDialog(InventoryItem existingItem) {
+        ComboBox<String> nameBox = new ComboBox<>();
+        nameBox.setEditable(true);
+        nameBox.getItems().addAll("Telgiraskus", "Laud", "Pink", "Aiakivi");
+        nameBox.getEditor().setText(existingItem == null ? "Laud" : existingItem.name());
+        TextField quantityField = new TextField(
+                Integer.toString(existingItem == null ? 1 : existingItem.quantity())
+        );
+        TextField notesField = new TextField(existingItem == null ? "" : existingItem.notes());
+        GridPane form = detailGrid();
+        form.addRow(0, new Label("Nimetus"), nameBox);
+        form.addRow(1, new Label("Kogus"), quantityField);
+        form.addRow(2, new Label("Märkus"), notesField);
+        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        dialog.initOwner(stage);
+        dialog.setTitle(existingItem == null ? "Lisa lisainventar" : "Muuda lisainventari");
+        dialog.setHeaderText("Inventar, mida ei seota kaardiobjektiga");
+        dialog.getDialogPane().setContent(form);
+        if (dialog.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+            return;
+        }
+        String name = nameBox.getEditor().getText().trim();
+        try {
+            int quantity = Integer.parseInt(quantityField.getText().trim());
+            if (name.isBlank() || quantity < 1) {
+                throw new IllegalArgumentException("Sisesta nimetus ja vähemalt üks ese.");
+            }
+            if (existingItem == null) {
+                plan.addStandaloneInventoryItem(new InventoryItem(name, quantity, notesField.getText()));
+            } else {
+                existingItem.rename(name);
+                existingItem.setQuantity(quantity);
+                existingItem.setNotes(notesField.getText());
+            }
+            refreshInventory();
+            markDirty();
+        } catch (NumberFormatException exception) {
+            showError("Inventari ei muudetud", "Sisesta kogus täisarvuna.");
+        } catch (IllegalArgumentException exception) {
+            showError("Inventari ei muudetud", exception.getMessage());
+        }
+    }
+
+    private void adjustStandaloneInventoryItem(InventoryItem item, int delta) {
+        item.setQuantity(Math.max(0, item.quantity() + delta));
+        refreshInventory();
+        markDirty();
+    }
+
+    private void removeStandaloneInventoryItem(InventoryItem item) {
+        int index = plan.standaloneInventoryItems().indexOf(item);
+        if (index >= 0) {
+            plan.removeStandaloneInventoryItem(index);
+            refreshInventory();
+            markDirty();
+        }
     }
 
     private void adjustObjectInventoryContribution(

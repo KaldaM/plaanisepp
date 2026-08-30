@@ -22,16 +22,38 @@ final class ObjectReportTextFormatter {
         List<InventorySummaryService.NamedItem> items = new InventorySummaryService()
                 .summarize(plan)
                 .objectInventoryItems();
-        if (items.isEmpty()) {
+        Map<String, Integer> totals = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        items.forEach(item -> totals.merge(item.name(), item.count(), Integer::sum));
+        plan.standaloneInventoryItems().forEach(item -> totals.merge(item.name(), item.quantity(), Integer::sum));
+        if (totals.isEmpty()) {
             return;
         }
-        builder.append("Objektide inventar").append(lineSeparator);
-        items.forEach(item -> builder.append("  - ")
-                .append(item.name())
+        builder.append("Inventar").append(lineSeparator);
+        totals.forEach((name, quantity) -> builder.append("  - ")
+                .append(name)
                 .append(": ")
-                .append(item.count())
+                .append(quantity)
                 .append(" tk")
                 .append(lineSeparator));
+        builder.append(lineSeparator);
+
+        List<ee.matteus.plaanisepp.core.model.InventoryItem> notedStandaloneItems = plan.standaloneInventoryItems()
+                .stream()
+                .filter(item -> !item.notes().isBlank())
+                .toList();
+        if (notedStandaloneItems.isEmpty()) {
+            return;
+        }
+        builder.append("Lisainventari märkmed").append(lineSeparator);
+        notedStandaloneItems.forEach(item -> {
+            builder.append("  - ")
+                    .append(item.name())
+                    .append(": ")
+                    .append(item.quantity())
+                    .append(" tk · ")
+                    .append(item.notes())
+                    .append(lineSeparator);
+        });
         builder.append(lineSeparator);
     }
 

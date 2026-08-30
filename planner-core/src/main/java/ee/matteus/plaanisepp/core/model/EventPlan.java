@@ -27,6 +27,7 @@ public class EventPlan {
     private final List<PlannerObject> objects = new ArrayList<>();
     private final List<FenceJoint> fenceJoints = new ArrayList<>();
     private final List<PowerConnection> powerConnections = new ArrayList<>();
+    private final List<InventoryItem> standaloneInventoryItems = new ArrayList<>();
     private final List<ChecklistItem> checklistItems = new ArrayList<>();
     private final Map<String, ChecklistSuggestionStatus> checklistSuggestionStatuses = new TreeMap<>();
     private final Set<String> hiddenGroups = new HashSet<>();
@@ -163,6 +164,24 @@ public class EventPlan {
 
     public List<ChecklistItem> checklistItems() {
         return Collections.unmodifiableList(checklistItems);
+    }
+
+    /**
+     * Inventar, mida ei seota ühegi kaardil oleva objektiga, näiteks eraldi lauad või raskused.
+     */
+    public List<InventoryItem> standaloneInventoryItems() {
+        return Collections.unmodifiableList(standaloneInventoryItems);
+    }
+
+    public void addStandaloneInventoryItem(InventoryItem item) {
+        if (item == null) {
+            throw new IllegalArgumentException("Inventarikirje puudub.");
+        }
+        standaloneInventoryItems.add(item);
+    }
+
+    public void removeStandaloneInventoryItem(int index) {
+        standaloneInventoryItems.remove(index);
     }
 
     public ChecklistItem addChecklistItem(String text) {

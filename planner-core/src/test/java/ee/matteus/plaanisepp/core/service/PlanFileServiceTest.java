@@ -116,7 +116,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(14, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(15, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -223,6 +223,22 @@ class PlanFileServiceTest {
         assertEquals("Telgiraskus", loadedTent.inventoryItems().getFirst().name());
         assertEquals(8, loadedTent.inventoryItems().getFirst().quantity());
         assertEquals("Kaks igasse nurka", loadedTent.inventoryItems().getFirst().notes());
+    }
+
+    @Test
+    void savesAndLoadsStandaloneInventory() throws IOException {
+        EventPlan plan = new EventPlan("Lisainventar");
+        plan.addStandaloneInventoryItem(new InventoryItem("Laud", 6, "Sissepääsu juurde"));
+        plan.addStandaloneInventoryItem(new InventoryItem("Telgiraskus", 2, "Kõlaritele"));
+        Path file = tempDirectory.resolve("standalone-inventory.pplan");
+
+        service.save(plan, file);
+        EventPlan loadedPlan = service.load(file);
+
+        assertEquals(2, loadedPlan.standaloneInventoryItems().size());
+        assertEquals("Laud", loadedPlan.standaloneInventoryItems().getFirst().name());
+        assertEquals(6, loadedPlan.standaloneInventoryItems().getFirst().quantity());
+        assertEquals("Sissepääsu juurde", loadedPlan.standaloneInventoryItems().getFirst().notes());
     }
 
     @Test
@@ -751,7 +767,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(14, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(15, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

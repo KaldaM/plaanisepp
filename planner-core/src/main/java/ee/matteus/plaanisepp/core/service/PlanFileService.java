@@ -51,7 +51,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 14;
+    public static final int CURRENT_FORMAT_VERSION = 15;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -132,6 +132,7 @@ public class PlanFileService {
         properties.setProperty("inventory.standaloneGardenStoneCount", Integer.toString(
                 plan.standaloneGardenStoneCount()
         ));
+        writeStandaloneInventoryItems(properties, plan);
         properties.setProperty("hiddenGroups.count", Integer.toString(plan.hiddenGroups().size()));
 
         properties.setProperty("checklist.count", Integer.toString(plan.checklistItems().size()));
@@ -243,6 +244,7 @@ public class PlanFileService {
         plan.setStandaloneGardenStoneCount(intValue(
                 properties, "inventory.standaloneGardenStoneCount", 0
         ));
+        readStandaloneInventoryItems(properties, plan);
 
         int checklistCount = intValue(properties, "checklist.count", 0);
         for (int index = 0; index < checklistCount; index++) {
@@ -853,6 +855,29 @@ public class PlanFileService {
             properties.setProperty(itemPrefix + "name", item.name());
             properties.setProperty(itemPrefix + "quantity", Integer.toString(item.quantity()));
             properties.setProperty(itemPrefix + "notes", item.notes());
+        }
+    }
+
+    private void writeStandaloneInventoryItems(Properties properties, EventPlan plan) {
+        properties.setProperty("inventory.standalone.count", Integer.toString(plan.standaloneInventoryItems().size()));
+        for (int index = 0; index < plan.standaloneInventoryItems().size(); index++) {
+            InventoryItem item = plan.standaloneInventoryItems().get(index);
+            String prefix = "inventory.standalone." + index + ".";
+            properties.setProperty(prefix + "name", item.name());
+            properties.setProperty(prefix + "quantity", Integer.toString(item.quantity()));
+            properties.setProperty(prefix + "notes", item.notes());
+        }
+    }
+
+    private void readStandaloneInventoryItems(Properties properties, EventPlan plan) {
+        int itemCount = intValue(properties, "inventory.standalone.count", 0);
+        for (int index = 0; index < itemCount; index++) {
+            String prefix = "inventory.standalone." + index + ".";
+            plan.addStandaloneInventoryItem(new InventoryItem(
+                    properties.getProperty(prefix + "name", "Inventar"),
+                    intValue(properties, prefix + "quantity", 0),
+                    properties.getProperty(prefix + "notes", "")
+            ));
         }
     }
 

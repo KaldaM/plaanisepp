@@ -20,7 +20,7 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 9. **Tehtud:** plaanipõhine checklist ja soovituste kontrollnimekiri.
 10. **Tehtud:** automaatsed Linuxi ja Windowsi paketid, GitHub Releases, versioonikontroll ning kontrollsummaga allalaadimine.
 11. **Pooleli:** objektieelseadistuste alus ja Red Bull DJ Truck on tehtud; järgmised PA-seadmed ning kinnitatud tegelikud elektrivajadused on lisamata.
-12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud, aiaringi generaator, Inventari jaotise esimene etapp, automaatselt arvutatavad aiakivid koos aiakogumiku `− / +` paranduste ja aiata lisakogusega ning telkide, alade ja kujuobjektide vabalt määratav inventar on tehtud. Lisamata on inventariliikide üldised plaanipõhised käsitsi koguseparandused. Üksiklõikude täielik identiteet on samuti lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
+12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud, aiaringi generaator, Inventari jaotise esimene etapp, automaatselt arvutatavad aiakivid koos aiakogumiku `− / +` paranduste ja aiata lisakogusega ning telkide, alade ja kujuobjektide vabalt määratav inventar on tehtud. Lisatud on ka objektita lisainventar koos `− / +` juhtimise, märkmete, salvestamise ja raportiga. Lisamata on inventariliikide üldised automaatse ja käsitsi koguseparanduse koondread. Üksiklõikude täielik identiteet on samuti lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
 13. **Tehtud:** rippvalikud, kaardilt vooluallika valimine, automaatne rakendamine ja objektide kiirklahvid.
 14. **Tehtud:** kogu kaardi geomeetriat kaitsev paigutuslukustus.
 15. **Tegemata:** kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog.
@@ -475,6 +475,7 @@ Elektrikilpide ja alajaotuskilpide muutmisvaates saab muuta objekti värvi ning 
 - **Tehtud: telgiraskused, lauad ja pingid** on objektipõhise inventari kiirvalikud. Telgile, alale ja kujuobjektile saab lisada ka vabalt nimetatud inventariridu koos koguse ja märkusega; kogused liidetakse automaatselt kogu plaani inventari ning TXT- ja PDF-raportisse.
 - **Tehtud: kujuobjektid, telgid ja alad kasutavad sama üldist objektipõhist inventarimudelit**, et uusi inventariliike ei peaks eraldi koodi sisse ehitama. Inventar kopeerub objektiga, kustutamisel kaob koondist, osaleb undo/redo ajaloos ning säilib `.pplan` versioon 14 failis.
 - Inventarikirjel on vähemalt nimetus, kogus ja vajaduse korral märkus. Objekti kopeerimisel kopeeritakse selle inventar kaasa; kustutamisel kaob selle panus koondinventarist; muudatused osalevad undo/redo ajaloos ja säilivad `.pplan` failis.
+- **Tehtud:** inventari koondist saab lisada ka objektita lisainventari, näiteks eraldi lauad, telgiraskused või aiakivid. Kirjel on nimetus, kogus ja märkus; kogust saab muuta `− / +` nuppudega, kirjet muuta või eemaldada ning see säilib `.pplan` versioon 15 failis ja jõuab TXT/PDF-raportisse.
 
 ### Käsitsi koguseparandused
 
