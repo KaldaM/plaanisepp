@@ -18,7 +18,7 @@ class CableInventorySummaryServiceTest {
 
         CableInventorySummaryService.Summary summary = new CableInventorySummaryService().summarize(List.of(
                 new CableInventorySummaryService.Input("Lava", "Kapp", primary, 23),
-                new CableInventorySummaryService.Input("Telk", "Kapp", alternative, 8)
+                new CableInventorySummaryService.Input("Telk", "Kapp", alternative, 8, true)
         ));
 
         assertEquals(31, summary.totalMapLengthMeters());
@@ -28,6 +28,10 @@ class CableInventorySummaryServiceTest {
         assertFalse(summary.rows().getFirst().alternativeConnection());
         assertEquals(25, summary.rows().getFirst().notedLengthMeters().orElseThrow());
         assertTrue(summary.rows().get(1).alternativeConnection());
+        assertEquals("alternative", summary.rows().get(1).connectionId());
+        assertEquals("consumer", summary.rows().get(1).consumerId());
+        assertTrue(summary.rows().get(1).consumerHidden());
+        assertTrue(CableInventoryTextFormatter.connectionRow(summary.rows().get(1)).contains("Telk (peidetud)"));
         assertTrue(summary.rows().get(1).noteNeedsReview());
         assertEquals(2, summary.byType().get(ConnectorType.SCHUKO_230V).pieceCounts().get(10.0));
         assertEquals(1, summary.byType().get(ConnectorType.SCHUKO_230V).pieceCounts().get(5.0));

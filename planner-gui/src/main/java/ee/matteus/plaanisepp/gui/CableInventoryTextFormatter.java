@@ -17,8 +17,9 @@ final class CableInventoryTextFormatter {
                 )
                 : "%.1f m".formatted(row.mapLengthMeters());
         String connectionRole = row.alternativeConnection() ? ", seadme erand" : "";
-        return "  - %s -> %s (%s%s): %s%s%s".formatted(
+        return "  - %s%s -> %s (%s%s): %s%s%s".formatted(
                 row.consumerName(),
+                row.consumerHidden() ? " (peidetud)" : "",
                 row.sourceName(),
                 row.connectorType().displayName(),
                 connectionRole,

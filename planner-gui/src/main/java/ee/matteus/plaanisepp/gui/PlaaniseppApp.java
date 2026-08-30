@@ -291,6 +291,7 @@ public class PlaaniseppApp extends Application {
     private VBox inventoryContent;
     private boolean fenceInventoryExpanded;
     private boolean gardenStoneInventoryExpanded;
+    private boolean tentsInventoryExpanded;
     private boolean cableInventoryExpanded;
     private TitledPane equipmentSection;
     private TitledPane objectInventorySection;
@@ -2879,7 +2880,11 @@ public class PlaaniseppApp extends Application {
         if (selectedObject == null) {
             return;
         }
-        selectedObject.setHidden(false);
+        if (selectedObject instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setHidden(false));
+        } else {
+            selectedObject.setHidden(false);
+        }
         setObjectTypeVisible(selectedObject, true);
         String groupName = groupNameForFilter(selectedObject);
         visibleGroups.add(groupName);
@@ -2888,6 +2893,7 @@ public class PlaaniseppApp extends Application {
         refreshGroupFilters();
         refreshObjectList();
         redrawMap();
+        refreshInventory();
         markDirty();
     }
 
@@ -7435,6 +7441,7 @@ public class PlaaniseppApp extends Application {
         }
         redrawMap();
         refreshObjectList();
+        refreshInventory();
         updateRevealObjectButton();
         markDirty();
     }
@@ -7563,6 +7570,7 @@ public class PlaaniseppApp extends Application {
         objects.forEach(object -> object.setHidden(hidden));
         redrawMap();
         refreshObjectList();
+        refreshInventory();
         updateRevealObjectButton();
         markDirty();
     }
@@ -8436,6 +8444,7 @@ public class PlaaniseppApp extends Application {
         if (selectedObject instanceof TextObject) {
             redrawMap();
         }
+        refreshInventory();
         markDirty();
     }
 
@@ -10665,8 +10674,8 @@ public class PlaaniseppApp extends Application {
         InventorySummaryService.Summary summary = inventorySummaryService.summarize(plan);
         addFenceInventory(summary);
         addGardenStoneInventory(summary);
-        addStandaloneInventoryButton();
         addObjectInventory(summary);
+        addStandaloneInventoryButton();
         if (!organizerView) {
             addCableInventory();
         }
@@ -10681,9 +10690,17 @@ public class PlaaniseppApp extends Application {
         }
         VBox details = new VBox(3);
         for (var network : inventory.fences().byNetwork()) {
-            details.getChildren().add(inventoryDetailLabel("%s: %d aeda · %s m".formatted(
-                    network.name(), network.count(), formatMeters(network.totalLengthMeters())
-            )));
+            FenceRow row = plan.findObject(network.representativeId()).filter(FenceRow.class::isInstance)
+                    .map(FenceRow.class::cast)
+                    .orElse(null);
+            Label networkLabel = inventoryDetailLabel("%s%s: %d aeda · %s m".formatted(
+                    network.name(), row != null && fenceNetworkHidden(row) ? " (peidetud)" : "",
+                    network.count(), formatMeters(network.totalLengthMeters())
+            ) + inventoryNotesSuffix(row == null ? "" : row.notes()));
+            if (row != null) {
+                attachInventoryContextMenu(networkLabel, inventoryFenceContextMenu(row));
+            }
+            details.getChildren().add(networkLabel);
         }
         inventoryContent.getChildren().add(inventoryPane(
                 "Aiad: %d tk · %s m".formatted(
@@ -10712,11 +10729,22 @@ public class PlaaniseppApp extends Application {
             HBox stoneRow = new HBox(6, stoneLabel, removeStone, addStone);
             stoneRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
             HBox.setHgrow(stoneLabel, Priority.ALWAYS);
-            details.getChildren().add(new VBox(
-                    2,
-                    inventoryDetailLabel(stones.name()),
-                    stoneRow
+            FenceRow fenceRow = plan.findObject(stones.representativeId()).filter(FenceRow.class::isInstance)
+                    .map(FenceRow.class::cast)
+                    .orElse(null);
+            Label networkNameLabel = inventoryDetailLabel("%s%s%s".formatted(
+                    stones.name(), fenceRow != null && fenceNetworkHidden(fenceRow) ? " (peidetud)" : "",
+                    inventoryNotesSuffix(fenceRow == null ? "" : fenceRow.notes())
             ));
+            VBox networkDetails = new VBox(
+                    2,
+                    networkNameLabel,
+                    stoneRow
+            );
+            if (fenceRow != null) {
+                attachInventoryContextMenu(networkDetails, inventoryFenceContextMenu(fenceRow));
+            }
+            details.getChildren().add(networkDetails);
         }
         Label standaloneLabel = new Label("Ilma aiata aiakivid: %d tk".formatted(
                 inventory.standaloneGardenStoneCount()
@@ -10738,8 +10766,52 @@ public class PlaaniseppApp extends Application {
     }
 
     private void addObjectInventory(InventorySummaryService.Summary inventory) {
-        if (inventory.tentCount() > 0) {
-            inventoryContent.getChildren().add(new Label("Telgid: %d tk".formatted(inventory.tentCount())));
+        List<Tent> tents = plan.objects().stream()
+                .filter(Tent.class::isInstance)
+                .map(Tent.class::cast)
+                .toList();
+        List<InventoryItem> standaloneTents = plan.standaloneInventoryItems().stream()
+                .filter(item -> isTentInventoryName(item.name()))
+                .toList();
+        if (!tents.isEmpty() || !standaloneTents.isEmpty()) {
+            VBox details = new VBox(3);
+            tents.forEach(tent -> {
+                Label tentLabel = inventoryDetailLabel("%s%s: %s × %s m%s".formatted(
+                        tent.name(), hiddenInventorySuffix(tent),
+                        formatMeters(tent.widthMeters()), formatMeters(tent.heightMeters()),
+                        tent.notes().isBlank() ? "" : " · " + tent.notes()
+                ));
+                HBox tentRow = new HBox(6, tentLabel);
+                tentRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                HBox.setHgrow(tentLabel, Priority.ALWAYS);
+                attachInventoryContextMenu(tentRow, inventoryObjectContextMenu(tent));
+                details.getChildren().add(tentRow);
+            });
+            standaloneTents.forEach(item -> {
+                Label itemLabel = inventoryDetailLabel("Lisainventar: %d tk%s".formatted(
+                        item.quantity(), item.notes().isBlank() ? "" : " · " + item.notes()
+                ));
+                Button decreaseButton = new Button("−");
+                decreaseButton.setDisable(item.quantity() == 0);
+                decreaseButton.setOnAction(event -> adjustStandaloneInventoryItem(item, -1));
+                Button increaseButton = new Button("+");
+                increaseButton.setOnAction(event -> adjustStandaloneInventoryItem(item, 1));
+                MenuItem editItem = new MenuItem("Muuda");
+                editItem.setOnAction(event -> showStandaloneInventoryDialog(item));
+                MenuItem removeItem = new MenuItem("Eemalda");
+                removeItem.setOnAction(event -> removeStandaloneInventoryItem(item));
+                HBox itemRow = new HBox(6, itemLabel, decreaseButton, increaseButton);
+                itemRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                HBox.setHgrow(itemLabel, Priority.ALWAYS);
+                attachInventoryContextMenu(itemRow, new ContextMenu(editItem, removeItem));
+                details.getChildren().add(itemRow);
+            });
+            inventoryContent.getChildren().add(inventoryPane(
+                    "Telgid: %d tk".formatted(tents.size() + standaloneTentCount()),
+                    details,
+                    tentsInventoryExpanded,
+                    expanded -> tentsInventoryExpanded = expanded
+            ));
         }
         Map<String, List<InventoryItem>> standaloneItemsByName = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         for (InventoryItem item : plan.standaloneInventoryItems()) {
@@ -10753,14 +10825,17 @@ public class PlaaniseppApp extends Application {
         Set<String> itemNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         itemNames.addAll(groupsByName.keySet());
         itemNames.addAll(standaloneItemsByName.keySet());
+        itemNames.removeIf(this::isTentInventoryName);
         itemNames.forEach(itemName -> {
             InventorySummaryService.ObjectInventoryGroup group = groupsByName.get(itemName);
             List<InventoryItem> standaloneItems = standaloneItemsByName.getOrDefault(itemName, List.of());
             VBox details = new VBox(3);
             if (group != null) {
                 group.contributions().forEach(contribution -> {
-                Label contributionLabel = inventoryDetailLabel("%s (%s): %d tk%s".formatted(
-                        contribution.objectName(), contribution.objectType(), contribution.quantity(),
+                PlannerObject contributionObject = plan.findObject(contribution.objectId()).orElse(null);
+                Label contributionLabel = inventoryDetailLabel("%s%s (%s): %d tk%s".formatted(
+                        contribution.objectName(), hiddenInventorySuffix(contributionObject),
+                        contribution.objectType(), contribution.quantity(),
                         contribution.notes().isBlank() ? "" : " · " + contribution.notes()
                 ));
                 Button decreaseButton = new Button("−");
@@ -10770,6 +10845,7 @@ public class PlaaniseppApp extends Application {
                 HBox contributionRow = new HBox(6, contributionLabel, decreaseButton, increaseButton);
                 contributionRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 HBox.setHgrow(contributionLabel, Priority.ALWAYS);
+                attachInventoryContextMenu(contributionRow, inventoryContributionContextMenu(contribution));
                 details.getChildren().add(contributionRow);
                 });
             }
@@ -10782,13 +10858,14 @@ public class PlaaniseppApp extends Application {
                 decreaseButton.setOnAction(event -> adjustStandaloneInventoryItem(item, -1));
                 Button increaseButton = new Button("+");
                 increaseButton.setOnAction(event -> adjustStandaloneInventoryItem(item, 1));
-                Button editButton = new Button("Muuda");
-                editButton.setOnAction(event -> showStandaloneInventoryDialog(item));
-                Button removeButton = new Button("Eemalda");
-                removeButton.setOnAction(event -> removeStandaloneInventoryItem(item));
-                HBox itemRow = new HBox(6, itemLabel, decreaseButton, increaseButton, editButton, removeButton);
+                MenuItem editItem = new MenuItem("Muuda");
+                editItem.setOnAction(event -> showStandaloneInventoryDialog(item));
+                MenuItem removeItem = new MenuItem("Eemalda");
+                removeItem.setOnAction(event -> removeStandaloneInventoryItem(item));
+                HBox itemRow = new HBox(6, itemLabel, decreaseButton, increaseButton);
                 itemRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 HBox.setHgrow(itemLabel, Priority.ALWAYS);
+                attachInventoryContextMenu(itemRow, new ContextMenu(editItem, removeItem));
                 details.getChildren().add(itemRow);
             });
             int objectCount = group == null ? 0 : group.totalCount();
@@ -10812,15 +10889,181 @@ public class PlaaniseppApp extends Application {
     }
 
     private void addStandaloneInventoryButton() {
-        Button addItem = new Button("Lisa inventar");
+        Button addItem = new Button("+ Lisa inventar");
         addItem.setOnAction(event -> showStandaloneInventoryDialog(null));
         inventoryContent.getChildren().add(addItem);
+    }
+
+    private ContextMenu inventoryObjectContextMenu(PlannerObject object) {
+        MenuItem noteItem = new MenuItem("Muuda märkust");
+        noteItem.setOnAction(event -> showInventoryObjectNoteDialog(object));
+        MenuItem revealItem = new MenuItem("Kuva kaardil");
+        revealItem.setOnAction(event -> showInventoryObjectOnMap(object));
+        return new ContextMenu(noteItem, revealItem);
+    }
+
+    private ContextMenu inventoryContributionContextMenu(InventorySummaryService.ObjectInventoryContribution contribution) {
+        MenuItem noteItem = new MenuItem("Muuda märkust");
+        noteItem.setOnAction(event -> showInventoryContributionNoteDialog(contribution));
+        MenuItem revealItem = new MenuItem("Kuva kaardil");
+        revealItem.setOnAction(event -> plan.findObject(contribution.objectId())
+                .ifPresent(this::showInventoryObjectOnMap));
+        return new ContextMenu(noteItem, revealItem);
+    }
+
+    private ContextMenu inventoryFenceContextMenu(FenceRow fenceRow) {
+        MenuItem noteItem = new MenuItem("Muuda märkust");
+        noteItem.setOnAction(event -> showFenceInventoryNoteDialog(fenceRow));
+        MenuItem revealItem = new MenuItem("Kuva kaardil");
+        revealItem.setOnAction(event -> showInventoryObjectOnMap(fenceRow));
+        return new ContextMenu(noteItem, revealItem);
+    }
+
+    private ContextMenu cableInventoryContextMenu(CableInventorySummaryService.Row row) {
+        MenuItem noteItem = new MenuItem("Muuda märkust");
+        noteItem.setOnAction(event -> showCableInventoryNoteDialog(row));
+        MenuItem revealItem = new MenuItem("Kuva kaardil");
+        revealItem.setOnAction(event -> showCableInventoryOnMap(row));
+        return new ContextMenu(noteItem, revealItem);
+    }
+
+    private void attachInventoryContextMenu(Node row, ContextMenu menu) {
+        row.setOnContextMenuRequested(event -> {
+            showContextMenu(menu, row, event.getScreenX(), event.getScreenY());
+            event.consume();
+        });
+    }
+
+    private void showInventoryObjectNoteDialog(PlannerObject object) {
+        TextInputDialog dialog = new TextInputDialog(object.notes());
+        dialog.initOwner(stage);
+        dialog.setTitle("Objekti märkus");
+        dialog.setHeaderText(object.name());
+        dialog.setContentText("Märkus");
+        dialog.showAndWait().ifPresent(notes -> {
+            object.setNotes(notes);
+            refreshInventory();
+            refreshDetails();
+            markDirty();
+        });
+    }
+
+    private void showInventoryContributionNoteDialog(InventorySummaryService.ObjectInventoryContribution contribution) {
+        plan.findObject(contribution.objectId())
+                .filter(InventoryContainer.class::isInstance)
+                .map(InventoryContainer.class::cast)
+                .filter(container -> contribution.itemIndex() >= 0
+                        && contribution.itemIndex() < container.inventoryItems().size())
+                .ifPresent(container -> {
+                    InventoryItem item = container.inventoryItems().get(contribution.itemIndex());
+                    TextInputDialog dialog = new TextInputDialog(item.notes());
+                    dialog.initOwner(stage);
+                    dialog.setTitle("Inventari märkus");
+                    dialog.setHeaderText("%s · %s".formatted(contribution.objectName(), item.name()));
+                    dialog.setContentText("Märkus");
+                    dialog.showAndWait().ifPresent(notes -> {
+                        item.setNotes(notes);
+                        refreshInventory();
+                        refreshObjectInventoryList();
+                        markDirty();
+                    });
+                });
+    }
+
+    private void showFenceInventoryNoteDialog(FenceRow fenceRow) {
+        TextInputDialog dialog = new TextInputDialog(fenceRow.notes());
+        dialog.initOwner(stage);
+        dialog.setTitle("Aia märkus");
+        dialog.setHeaderText(fenceRow.name());
+        dialog.setContentText("Märkus");
+        dialog.showAndWait().ifPresent(notes -> {
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setNotes(notes));
+            refreshInventory();
+            refreshDetails();
+            markDirty();
+        });
+    }
+
+    private void showCableInventoryNoteDialog(CableInventorySummaryService.Row row) {
+        PowerConnection connection = plan.findPowerConnection(row.connectionId()).orElse(null);
+        if (connection == null) {
+            return;
+        }
+        TextInputDialog dialog = new TextInputDialog(connection.cableNotes());
+        dialog.initOwner(stage);
+        dialog.setTitle("Kaabli märkus");
+        dialog.setHeaderText("%s → %s".formatted(row.consumerName(), row.sourceName()));
+        dialog.setContentText("Märkus");
+        dialog.showAndWait().ifPresent(notes -> {
+            plan.updateCableNotesForConnection(connection.id(), notes);
+            if (connection.id().equals(selectedPowerConnectionId())) {
+                cableNotesField.setText(plan.findPowerConnection(connection.id())
+                        .map(PowerConnection::cableNotes)
+                        .orElse(""));
+            }
+            refreshInventory();
+            redrawMap();
+            markDirty();
+        });
+    }
+
+    private void showCableInventoryOnMap(CableInventorySummaryService.Row row) {
+        PlannerObject consumer = plan.findObject(row.consumerId()).orElse(null);
+        PowerConnection connection = plan.findPowerConnection(row.connectionId()).orElse(null);
+        if (consumer == null || connection == null) {
+            return;
+        }
+        selectObject(consumer);
+        if (!isObjectVisibleOnMap(consumer)) {
+            revealSelectedObjectOnMap();
+        }
+        showCablesButton.setSelected(true);
+        switch (connection.connectorType()) {
+            case SCHUKO_230V -> show230VCablesButton.setSelected(true);
+            case INDUSTRIAL_16A -> show16ACablesButton.setSelected(true);
+            case INDUSTRIAL_32A -> show32ACablesButton.setSelected(true);
+            case INDUSTRIAL_63A -> show63ACablesButton.setSelected(true);
+        }
+        updateMapLayerVisibility();
+        selectPowerConnection(connection.id());
+        centerMapOnObject(consumer);
+    }
+
+    private boolean isTentInventoryName(String name) {
+        return "telk".equalsIgnoreCase(name.trim()) || "telgid".equalsIgnoreCase(name.trim());
+    }
+
+    private int standaloneTentCount() {
+        return plan.standaloneInventoryItems().stream()
+                .filter(item -> isTentInventoryName(item.name()))
+                .mapToInt(InventoryItem::quantity)
+                .sum();
+    }
+
+    private String hiddenInventorySuffix(PlannerObject object) {
+        return object != null && object.hidden() ? " (peidetud)" : "";
+    }
+
+    private String inventoryNotesSuffix(String notes) {
+        return notes == null || notes.isBlank() ? "" : " · " + notes;
+    }
+
+    private boolean fenceNetworkHidden(FenceRow fenceRow) {
+        return plan.fenceNetworkRows(fenceRow.id()).stream().allMatch(PlannerObject::hidden);
+    }
+
+    private void showInventoryObjectOnMap(PlannerObject object) {
+        selectObject(object);
+        if (!isObjectVisibleOnMap(object)) {
+            revealSelectedObjectOnMap();
+        }
+        centerMapOnObject(object);
     }
 
     private void showStandaloneInventoryDialog(InventoryItem existingItem) {
         ComboBox<String> nameBox = new ComboBox<>();
         nameBox.setEditable(true);
-        nameBox.getItems().addAll("Telgiraskus", "Laud", "Pink", "Aiakivi");
+        nameBox.getItems().addAll("Telk", "Telgiraskus", "Laud", "Pink", "Aiakivi");
         nameBox.getEditor().setText(existingItem == null ? "Laud" : existingItem.name());
         TextField quantityField = new TextField(
                 Integer.toString(existingItem == null ? 1 : existingItem.quantity())
@@ -11025,11 +11268,13 @@ public class PlaaniseppApp extends Application {
                         summary.totalNotedLengthMeters(), summary.totalMapLengthMeters()
                 )
                 : "Kaablid: %.1f m".formatted(summary.totalMapLengthMeters());
-        details.getChildren().addAll(summary.rows().stream()
-                .map(CableInventoryTextFormatter::connectionRow)
-                .map(String::stripLeading)
-                .map(this::inventoryDetailLabel)
-                .toList());
+        for (CableInventorySummaryService.Row row : summary.rows()) {
+            Label rowLabel = inventoryDetailLabel(
+                    CableInventoryTextFormatter.connectionRow(row).stripLeading()
+            );
+            attachInventoryContextMenu(rowLabel, cableInventoryContextMenu(row));
+            details.getChildren().add(rowLabel);
+        }
         for (String row : CableInventoryTextFormatter.typeSummaryRows(summary.byType())) {
             details.getChildren().add(inventoryDetailLabel(row.stripLeading()));
         }

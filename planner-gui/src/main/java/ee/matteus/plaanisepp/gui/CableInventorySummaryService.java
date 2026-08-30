@@ -42,7 +42,7 @@ final class CableInventorySummaryService {
                     CablePathHelper.cablePath(consumer, source, connection, plan.pixelsPerMeter()),
                     plan.pixelsPerMeter()
             );
-            inputs.add(new Input(consumer.name(), source.name(), connection, mapLengthMeters));
+            inputs.add(new Input(consumer.name(), source.name(), connection, mapLengthMeters, consumer.hidden()));
         }
         return summarize(inputs);
     }
@@ -74,10 +74,13 @@ final class CableInventorySummaryService {
                 pieces.forEach(piece -> type.pieceCounts.merge(piece, 1, Integer::sum));
             }
             rows.add(new Row(
+                    connection.id(),
+                    connection.consumerId(),
                     input.consumerName(),
                     input.sourceName(),
                     connection.connectorType(),
                     !connection.defaultForConsumer(),
+                    input.consumerHidden(),
                     input.mapLengthMeters(),
                     notedLength,
                     connection.cableNotes(),
@@ -112,7 +115,16 @@ final class CableInventorySummaryService {
         return false;
     }
 
-    record Input(String consumerName, String sourceName, PowerConnection connection, double mapLengthMeters) {
+    record Input(
+            String consumerName,
+            String sourceName,
+            PowerConnection connection,
+            double mapLengthMeters,
+            boolean consumerHidden
+    ) {
+        Input(String consumerName, String sourceName, PowerConnection connection, double mapLengthMeters) {
+            this(consumerName, sourceName, connection, mapLengthMeters, false);
+        }
     }
 
     record Summary(
@@ -133,10 +145,13 @@ final class CableInventorySummaryService {
     }
 
     record Row(
+            String connectionId,
+            String consumerId,
             String consumerName,
             String sourceName,
             ConnectorType connectorType,
             boolean alternativeConnection,
+            boolean consumerHidden,
             double mapLengthMeters,
             OptionalDouble notedLengthMeters,
             String cableNotes,
