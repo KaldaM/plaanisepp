@@ -1316,7 +1316,9 @@ public class PlaaniseppApp extends Application {
             } else {
                 throw new IOException("Töölauarakenduste avamine ei ole selles keskkonnas toetatud.");
             }
-            Platform.exit();
+            // JavaFX GTK cleanup can abort while Discover is opening the RPM.
+            // The updater process is already detached, so terminate directly.
+            System.exit(0);
         } catch (IOException | UnsupportedOperationException exception) {
             showError("Allalaaditud faili ei saanud avada", exception.getMessage());
         }
