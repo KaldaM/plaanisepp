@@ -1307,6 +1307,9 @@ public class PlaaniseppApp extends Application {
         try {
             Path target = installer ? file : file.getParent();
             if (GitHubReleaseService.Platform.current() != GitHubReleaseService.Platform.WINDOWS) {
+                if (installer) {
+                    scheduleLinuxRestartAfterInstall();
+                }
                 new ProcessBuilder("xdg-open", target.toString()).start();
             } else if (Desktop.isDesktopSupported()) {
                 Desktop.getDesktop().open(target.toFile());
@@ -1316,6 +1319,29 @@ public class PlaaniseppApp extends Application {
             Platform.exit();
         } catch (IOException | UnsupportedOperationException exception) {
             showError("Allalaaditud faili ei saanud avada", exception.getMessage());
+        }
+    }
+
+    private void scheduleLinuxRestartAfterInstall() {
+        Optional<String> executable = ProcessHandle.current().info().command();
+        if (executable.isEmpty() || !Files.isExecutable(Path.of(executable.get()))) {
+            return;
+        }
+        String monitorScript = ""
+                + "target=\"$1\"; "
+                + "before=$(stat -c '%i:%Y:%s' -- \"$target\" 2>/dev/null || true); "
+                + "i=0; "
+                + "while [ $i -lt 300 ]; do "
+                + "sleep 1; "
+                + "after=$(stat -c '%i:%Y:%s' -- \"$target\" 2>/dev/null || true); "
+                + "if [ -n \"$before\" ] && [ \"$after\" != \"$before\" ]; then "
+                + "nohup \"$target\" >/dev/null 2>&1 </dev/null & exit 0; fi; "
+                + "i=$((i + 1)); done";
+        try {
+            new ProcessBuilder("sh", "-c", monitorScript, "plaanisepp-updater", executable.get())
+                    .start();
+        } catch (IOException ignored) {
+            // The installer can still be opened; automatic restart is best effort.
         }
     }
 
