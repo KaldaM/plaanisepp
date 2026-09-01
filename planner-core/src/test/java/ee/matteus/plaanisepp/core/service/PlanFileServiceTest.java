@@ -18,6 +18,7 @@ import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.model.TentPreset;
+import ee.matteus.plaanisepp.core.model.TextObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -116,13 +117,34 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(16, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(17, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
         assertEquals("Kontrolli elektrit", loadedPlan.checklistItems().getFirst().text());
         assertTrue(loadedPlan.checklistItems().getFirst().completed());
         assertFalse(loadedPlan.checklistItems().getLast().completed());
+    }
+
+    @Test
+    void savesAndLoadsTextObjectSourceLink() throws IOException {
+        EventPlan plan = new EventPlan("Seotud tekst");
+        Tent tent = new Tent("tent-1", "Pudrutelk", new Position(20, 30));
+        TextObject text = new TextObject("text-1", "Pudrutelk", new Position(80, 90));
+        text.setSourceObjectId(tent.id());
+        text.setSyncSourceNotes(true);
+        text.setShowReferenceLine(true);
+        plan.addObject(tent);
+        plan.addObject(text);
+        Path file = tempDirectory.resolve("linked-text.pplan");
+
+        service.save(plan, file);
+        EventPlan loadedPlan = service.load(file);
+
+        TextObject loadedText = (TextObject) loadedPlan.findObject(text.id()).orElseThrow();
+        assertEquals(tent.id(), loadedText.sourceObjectId());
+        assertTrue(loadedText.syncSourceNotes());
+        assertTrue(loadedText.showReferenceLine());
     }
 
     @Test
@@ -771,7 +793,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(16, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(17, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

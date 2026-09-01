@@ -328,6 +328,8 @@ public class PlaaniseppApp extends Application {
     private ColorPicker textObjectColorPicker;
     private Slider textObjectFontSizeSlider;
     private Slider textObjectTextOpacitySlider;
+    private CheckBox textObjectSyncNotesCheckBox;
+    private CheckBox textObjectReferenceLineCheckBox;
     private ComboBox<MarkerType> markerTypeComboBox;
     private ColorPicker markerColorPicker;
     private ColorPicker areaColorPicker;
@@ -3199,6 +3201,12 @@ public class PlaaniseppApp extends Application {
         textObjectForm.addRow(0, new Label("Värv"), textObjectColorPicker);
         textObjectForm.addRow(1, new Label("Suurus"), pixelControl(textObjectFontSizeSlider));
         textObjectForm.addRow(2, new Label("Teksti läbipaistvus"), opacityControl(textObjectTextOpacitySlider));
+        textObjectSyncNotesCheckBox = new CheckBox("Uuenda objekti nimest ja märkmetest");
+        textObjectSyncNotesCheckBox.setOnAction(event -> updateSelectedTextObjectLinkOptions());
+        textObjectReferenceLineCheckBox = new CheckBox("Näita viitavat joont");
+        textObjectReferenceLineCheckBox.setOnAction(event -> updateSelectedTextObjectLinkOptions());
+        textObjectForm.addRow(3, new Label("Seos"), textObjectSyncNotesCheckBox);
+        textObjectForm.addRow(4, new Label("Kaardil"), textObjectReferenceLineCheckBox);
         textObjectPanel = new VBox(8, sectionLabel("Tekst"), textObjectForm);
 
         markerTypeComboBox = new ComboBox<>();
@@ -3458,6 +3466,25 @@ public class PlaaniseppApp extends Application {
             return true;
         }
         return false;
+    }
+
+    private void updateSelectedTextObjectLinkOptions() {
+        if (updatingDetailControls || !(selectedObject instanceof TextObject textObject)) {
+            return;
+        }
+        textObject.setSyncSourceNotes(textObjectSyncNotesCheckBox.isSelected());
+        textObject.setShowReferenceLine(textObjectReferenceLineCheckBox.isSelected());
+        if (textObject.syncSourceNotes()) {
+            plan.findObject(textObject.sourceObjectId())
+                    .ifPresent(source -> {
+                        textObject.rename(source.name());
+                        textObject.setNotes(source.notes());
+                    });
+        }
+        notesArea.setDisable(textObject.syncSourceNotes());
+        notesArea.setText(textObject.notes());
+        redrawMap();
+        markDirty();
     }
 
     private void setOpacitySliderValue(Slider slider, double percentage) {
@@ -4729,6 +4756,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void redrawMap() {
+        synchronizeLinkedTextObjects();
         synchronizeSelectionState();
         plan.synchronizeFenceRows(pixelsPerMeter());
         mapPane.getChildren().clear();
@@ -6541,6 +6569,24 @@ public class PlaaniseppApp extends Application {
     }
 
     private void drawTextObject(TextObject object) {
+        if (object.showReferenceLine()) {
+            plan.findObject(object.sourceObjectId()).ifPresent(source -> {
+                Line referenceLine = new Line(
+                        source.position().x(),
+                        source.position().y(),
+                        object.position().x(),
+                        object.position().y()
+                );
+                referenceLine.setStroke(Color.web(object.colorHex(), 0.7));
+                referenceLine.setStrokeWidth(1.5 / Math.max(zoomLevel, 0.1));
+                referenceLine.getStrokeDashArray().addAll(
+                        6.0 / Math.max(zoomLevel, 0.1),
+                        4.0 / Math.max(zoomLevel, 0.1)
+                );
+                referenceLine.setMouseTransparent(true);
+                mapPane.getChildren().add(referenceLine);
+            });
+        }
         VBox textBox = new VBox(3);
         textBox.setLayoutX(object.position().x());
         textBox.setLayoutY(object.position().y());
@@ -6594,6 +6640,20 @@ public class PlaaniseppApp extends Application {
                 textBoxHeight,
                 object.rotationDegrees()
         );
+    }
+
+    private void synchronizeLinkedTextObjects() {
+        for (PlannerObject object : plan.objects()) {
+            if (!(object instanceof TextObject textObject) || !textObject.syncSourceNotes()) {
+                continue;
+            }
+            plan.findObject(textObject.sourceObjectId())
+                    .filter(source -> source != textObject)
+                    .ifPresent(source -> {
+                        textObject.rename(source.name());
+                        textObject.setNotes(source.notes());
+                    });
+        }
     }
 
     private void drawMarkerObject(MarkerObject object) {
@@ -7404,6 +7464,11 @@ public class PlaaniseppApp extends Application {
         rotateItem.setOnAction(event -> startObjectRotation(object));
         MenuItem copyItem = new MenuItem("Kopeeri");
         copyItem.setOnAction(event -> copySelectedObject());
+        MenuItem notesAsTextItem = new MenuItem("Loo märkmetest tekstiobjekt");
+        notesAsTextItem.setDisable(selectionCount > 1 || object.notes().isBlank());
+        notesAsTextItem.setOnAction(event -> showNotesTextObjectDialog(object));
+        MenuItem inventoryAsTextItem = inventoryAsTextMenuItem(object);
+        inventoryAsTextItem.setDisable(selectionCount > 1 || inventoryAsTextItem.isDisable());
         MenuItem visibilityItem = new MenuItem(allSelectedObjectsHidden() ? "Kuva valitud" : "Peida valitud");
         visibilityItem.setOnAction(event -> toggleSelectedObjectsHidden());
         MenuItem lockItem = new MenuItem(allSelectedObjectsLocked()
@@ -7419,7 +7484,16 @@ public class PlaaniseppApp extends Application {
         deleteItem.setDisable(mapLayoutLocked || selectedObjects().stream().anyMatch(PlannerObject::locked));
         deleteItem.setOnAction(event -> deleteSelectedObject());
         showContextMenu(
-                new ContextMenu(editItem, rotateItem, copyItem, visibilityItem, lockItem, deleteItem),
+                new ContextMenu(
+                        editItem,
+                        rotateItem,
+                        copyItem,
+                        notesAsTextItem,
+                        inventoryAsTextItem,
+                        visibilityItem,
+                        lockItem,
+                        deleteItem
+                ),
                 mapPane,
                 screenX,
                 screenY
@@ -7911,9 +7985,12 @@ public class PlaaniseppApp extends Application {
         boolean powerConsumerSelected = selectedObject instanceof PowerConsumer;
         boolean equipmentContainerSelected = selectedObject instanceof EquipmentContainer;
         boolean inventoryContainerSelected = selectedObject instanceof InventoryContainer;
+        boolean linkedTextObject = selectedObject instanceof TextObject textObject
+                && !textObject.sourceObjectId().isBlank();
         nameField.setDisable(!hasSelection);
         groupField.setDisable(!hasSelection);
-        notesArea.setDisable(!hasSelection);
+        notesArea.setDisable(!hasSelection
+                || selectedObject instanceof TextObject textObject && textObject.syncSourceNotes());
         lockedCheckBox.setDisable(!hasSelection);
         boolean selectionHasMapLabels = currentSelection.stream()
                 .anyMatch(object -> !(object instanceof TextObject));
@@ -7940,6 +8017,8 @@ public class PlaaniseppApp extends Application {
         textObjectColorPicker.setDisable(!textObjectSelected);
         textObjectFontSizeSlider.setDisable(!textObjectSelected);
         textObjectTextOpacitySlider.setDisable(!textObjectSelected);
+        textObjectSyncNotesCheckBox.setDisable(!linkedTextObject);
+        textObjectReferenceLineCheckBox.setDisable(!linkedTextObject);
         markerTypeComboBox.setDisable(!markerSelected);
         markerColorPicker.setDisable(!markerSelected);
         areaColorPicker.setDisable(!areaSelected);
@@ -8058,6 +8137,8 @@ public class PlaaniseppApp extends Application {
             textObjectColorPicker.setValue(Color.web("#111827"));
             textObjectFontSizeSlider.setValue(TextObject.DEFAULT_FONT_SIZE);
             setOpacitySliderValue(textObjectTextOpacitySlider, 100);
+            textObjectSyncNotesCheckBox.setSelected(false);
+            textObjectReferenceLineCheckBox.setSelected(false);
             markerTypeComboBox.getSelectionModel().select(MarkerType.WC);
             markerColorPicker.setValue(Color.web(MarkerType.WC.defaultColorHex()));
             areaColorPicker.setValue(Color.web("#f59e0b"));
@@ -8162,6 +8243,8 @@ public class PlaaniseppApp extends Application {
             textObjectColorPicker.setValue(Color.web(textObject.colorHex()));
             textObjectFontSizeSlider.setValue(textObject.fontSize());
             setOpacitySliderValue(textObjectTextOpacitySlider, textObject.textOpacity() * 100.0);
+            textObjectSyncNotesCheckBox.setSelected(textObject.syncSourceNotes());
+            textObjectReferenceLineCheckBox.setSelected(textObject.showReferenceLine());
             markerTypeComboBox.getSelectionModel().select(MarkerType.WC);
             markerColorPicker.setValue(Color.web(MarkerType.WC.defaultColorHex()));
             customObjectWidthField.clear();
@@ -9040,6 +9123,10 @@ public class PlaaniseppApp extends Application {
             TextObject textCopy = new TextObject(planFactory.newId(), copyName, copyPosition);
             textCopy.setColorHex(textObject.colorHex());
             textCopy.setFontSize(textObject.fontSize());
+            textCopy.setTextOpacity(textObject.textOpacity());
+            textCopy.setSourceObjectId(textObject.sourceObjectId());
+            textCopy.setSyncSourceNotes(textObject.syncSourceNotes());
+            textCopy.setShowReferenceLine(textObject.showReferenceLine());
             copy = textCopy;
         } else if (original instanceof MarkerObject markerObject) {
             MarkerObject markerCopy = new MarkerObject(planFactory.newId(), copyName, copyPosition);
@@ -11208,6 +11295,7 @@ public class PlaaniseppApp extends Application {
                 }
             });
             pane.setAnimated(false);
+            configureInventoryTextAction(pane);
             inventoryContent.getChildren().add(pane);
         });
     }
@@ -11241,26 +11329,75 @@ public class PlaaniseppApp extends Application {
     private ContextMenu inventoryObjectContextMenu(PlannerObject object) {
         MenuItem noteItem = new MenuItem("Muuda märkust");
         noteItem.setOnAction(event -> showInventoryObjectNoteDialog(object));
+        MenuItem notesAsTextItem = inventoryNotesAsTextMenuItem(object, object.name(), object.notes());
+        MenuItem inventoryAsTextItem = inventoryAsTextMenuItem(object);
         MenuItem revealItem = new MenuItem("Kuva kaardil");
         revealItem.setOnAction(event -> showInventoryObjectOnMap(object));
-        return new ContextMenu(noteItem, revealItem);
+        return new ContextMenu(noteItem, notesAsTextItem, inventoryAsTextItem, revealItem);
     }
 
     private ContextMenu inventoryContributionContextMenu(InventorySummaryService.ObjectInventoryContribution contribution) {
         MenuItem noteItem = new MenuItem("Muuda märkust");
         noteItem.setOnAction(event -> showInventoryContributionNoteDialog(contribution));
+        PlannerObject sourceObject = plan.findObject(contribution.objectId()).orElse(null);
+        MenuItem notesAsTextItem = inventoryNotesAsTextMenuItem(
+                sourceObject, contribution.objectName(), contribution.notes()
+        );
+        MenuItem inventoryAsTextItem = inventoryAsTextMenuItem(sourceObject);
         MenuItem revealItem = new MenuItem("Kuva kaardil");
         revealItem.setOnAction(event -> plan.findObject(contribution.objectId())
                 .ifPresent(this::showInventoryObjectOnMap));
-        return new ContextMenu(noteItem, revealItem);
+        return new ContextMenu(noteItem, notesAsTextItem, inventoryAsTextItem, revealItem);
     }
 
     private ContextMenu inventoryFenceContextMenu(FenceRow fenceRow) {
         MenuItem noteItem = new MenuItem("Muuda märkust");
         noteItem.setOnAction(event -> showFenceInventoryNoteDialog(fenceRow));
+        MenuItem notesAsTextItem = inventoryNotesAsTextMenuItem(fenceRow, fenceRow.name(), fenceRow.notes());
         MenuItem revealItem = new MenuItem("Kuva kaardil");
         revealItem.setOnAction(event -> showInventoryObjectOnMap(fenceRow));
-        return new ContextMenu(noteItem, revealItem);
+        return new ContextMenu(noteItem, notesAsTextItem, revealItem);
+    }
+
+    private MenuItem inventoryNotesAsTextMenuItem(PlannerObject sourceObject, String title, String notes) {
+        MenuItem item = new MenuItem("Loo märkmetest tekstiobjekt");
+        item.setDisable(notes == null || notes.isBlank());
+        item.setOnAction(event -> {
+            if (sourceObject == null) {
+                createStaticTextObject(title, notes);
+            } else {
+                showNotesTextObjectDialog(sourceObject);
+            }
+        });
+        return item;
+    }
+
+    private MenuItem inventoryAsTextMenuItem(PlannerObject object) {
+        MenuItem item = new MenuItem("Loo inventarist tekstiobjekt");
+        if (!(object instanceof InventoryContainer container) || container.inventoryItems().isEmpty()) {
+            item.setDisable(true);
+            return item;
+        }
+        item.setOnAction(event -> createObjectInventoryTextObject(object, container));
+        return item;
+    }
+
+    private void createObjectInventoryTextObject(PlannerObject object, InventoryContainer container) {
+        String content = container.inventoryItems().stream()
+                .map(item -> "%s: %d tk%s".formatted(
+                        item.name(),
+                        item.quantity(),
+                        item.notes().isBlank() ? "" : " · " + item.notes()
+                ))
+                .collect(java.util.stream.Collectors.joining(System.lineSeparator()));
+        createTextObject(
+                object.name() + " — inventar",
+                content,
+                object.groupName(),
+                "",
+                false,
+                false
+        );
     }
 
     private ContextMenu cableInventoryContextMenu(CableInventorySummaryService.Row row) {
@@ -11579,7 +11716,106 @@ public class PlaaniseppApp extends Application {
         pane.setExpanded(expanded);
         pane.expandedProperty().addListener((observable, oldValue, newValue) -> expandedState.accept(newValue));
         pane.setAnimated(false);
+        configureInventoryTextAction(pane);
         return pane;
+    }
+
+    private void configureInventoryTextAction(TitledPane pane) {
+        pane.setContextMenu(inventoryTextObjectContextMenu(pane));
+        Button createTextButton = new Button("Tekst kaardile");
+        createTextButton.setFocusTraversable(false);
+        createTextButton.setTooltip(new Tooltip("Loo selle inventariharu kokkuvõttest tekstiobjekt"));
+        createTextButton.setOnAction(event -> createInventoryTextObject(pane));
+        pane.setGraphic(createTextButton);
+    }
+
+    private ContextMenu inventoryTextObjectContextMenu(TitledPane pane) {
+        MenuItem createTextItem = new MenuItem("Loo kaardile tekstiobjekt");
+        createTextItem.setOnAction(event -> createInventoryTextObject(pane));
+        return new ContextMenu(createTextItem);
+    }
+
+    private void createInventoryTextObject(TitledPane pane) {
+        List<String> detailLines = new ArrayList<>();
+        collectInventoryTextLines(pane.getContent(), detailLines);
+        createStaticTextObject(pane.getText(), String.join(System.lineSeparator(), detailLines));
+    }
+
+    private void createStaticTextObject(String title, String content) {
+        createTextObject(title, content, "", "", false, false);
+    }
+
+    private void showNotesTextObjectDialog(PlannerObject sourceObject) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle("Loo märkmetest tekstiobjekt");
+        dialog.setHeaderText(sourceObject.name());
+        CheckBox syncNotes = new CheckBox("Uuenda teksti objekti nime või märkmete muutmisel");
+        syncNotes.setSelected(true);
+        CheckBox referenceLine = new CheckBox("Näita kaardil viitavat joont");
+        VBox options = new VBox(8, syncNotes, referenceLine);
+        dialog.getDialogPane().setContent(options);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        if (dialog.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+            return;
+        }
+        createTextObject(
+                sourceObject.name(),
+                sourceObject.notes(),
+                sourceObject.groupName(),
+                sourceObject.id(),
+                syncNotes.isSelected(),
+                referenceLine.isSelected()
+        );
+    }
+
+    private void createTextObject(
+            String title,
+            String content,
+            String groupName,
+            String sourceObjectId,
+            boolean syncSourceNotes,
+            boolean showReferenceLine
+    ) {
+        TextObject textObject = new TextObject(
+                planFactory.newId(),
+                title,
+                visibleMapCenter()
+        );
+        textObject.setNotes(content);
+        textObject.setGroupName(groupName);
+        textObject.setSourceObjectId(sourceObjectId);
+        textObject.setSyncSourceNotes(syncSourceNotes);
+        textObject.setShowReferenceLine(showReferenceLine);
+        plan.addObject(textObject);
+        refreshGroupFilters();
+        selectObject(textObject);
+        refreshSummary();
+        markDirty();
+    }
+
+    private void collectInventoryTextLines(Node node, List<String> lines) {
+        if (node instanceof Label label && !label.getText().isBlank()) {
+            lines.add(label.getText());
+        }
+        if (node instanceof Pane pane) {
+            pane.getChildren().forEach(child -> collectInventoryTextLines(child, lines));
+        } else if (node instanceof TitledPane titledPane && titledPane.getContent() != null) {
+            collectInventoryTextLines(titledPane.getContent(), lines);
+        }
+    }
+
+    private Position visibleMapCenter() {
+        Node viewport = mapScrollPane.lookup(".viewport");
+        if (viewport == null) {
+            return new Position(mapPane.getWidth() / 2, mapPane.getHeight() / 2);
+        }
+        Bounds viewportSceneBounds = viewport.localToScene(viewport.getBoundsInLocal());
+        Point2D center = mapPane.sceneToLocal(
+                viewportSceneBounds.getCenterX(),
+                viewportSceneBounds.getCenterY()
+        );
+        return new Position(center.getX(), center.getY());
     }
 
     private void addConnectedConsumers(PowerHierarchyService.SourceRow source) {

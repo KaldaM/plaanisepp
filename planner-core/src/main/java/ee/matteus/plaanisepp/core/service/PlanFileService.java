@@ -51,7 +51,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 16;
+    public static final int CURRENT_FORMAT_VERSION = 17;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -758,6 +758,9 @@ public class PlanFileService {
         properties.setProperty(prefix + "colorHex", object.colorHex());
         properties.setProperty(prefix + "fontSize", Double.toString(object.fontSize()));
         properties.setProperty(prefix + "textOpacity", Double.toString(object.textOpacity()));
+        properties.setProperty(prefix + "sourceObjectId", object.sourceObjectId());
+        properties.setProperty(prefix + "syncSourceNotes", Boolean.toString(object.syncSourceNotes()));
+        properties.setProperty(prefix + "showReferenceLine", Boolean.toString(object.showReferenceLine()));
     }
 
     private void writeMarkerObject(Properties properties, String prefix, MarkerObject object) {
@@ -1024,6 +1027,9 @@ public class PlanFileService {
         object.setColorHex(properties.getProperty(prefix + "colorHex", "#111827"));
         object.setFontSize(doubleValue(properties, prefix + "fontSize", TextObject.DEFAULT_FONT_SIZE));
         object.setTextOpacity(doubleValue(properties, prefix + "textOpacity", 1.0));
+        object.setSourceObjectId(properties.getProperty(prefix + "sourceObjectId", ""));
+        object.setSyncSourceNotes(booleanValue(properties, prefix + "syncSourceNotes", false));
+        object.setShowReferenceLine(booleanValue(properties, prefix + "showReferenceLine", false));
         return object;
     }
 

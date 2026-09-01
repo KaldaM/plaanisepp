@@ -6,12 +6,18 @@ public class TextObject extends PlannerObject {
     private String colorHex;
     private double fontSize;
     private double textOpacity;
+    private String sourceObjectId;
+    private boolean syncSourceNotes;
+    private boolean showReferenceLine;
 
     public TextObject(String id, String name, Position position) {
         super(id, name, position);
         this.colorHex = "#111827";
         this.fontSize = DEFAULT_FONT_SIZE;
         this.textOpacity = 1.0;
+        this.sourceObjectId = "";
+        this.syncSourceNotes = false;
+        this.showReferenceLine = false;
     }
 
     public String colorHex() {
@@ -39,5 +45,33 @@ public class TextObject extends PlannerObject {
 
     public void setTextOpacity(double textOpacity) {
         this.textOpacity = Math.max(0.0, Math.min(1.0, textOpacity));
+    }
+
+    public String sourceObjectId() {
+        return sourceObjectId;
+    }
+
+    public void setSourceObjectId(String sourceObjectId) {
+        this.sourceObjectId = sourceObjectId == null ? "" : sourceObjectId;
+        if (this.sourceObjectId.isBlank()) {
+            syncSourceNotes = false;
+            showReferenceLine = false;
+        }
+    }
+
+    public boolean syncSourceNotes() {
+        return syncSourceNotes;
+    }
+
+    public void setSyncSourceNotes(boolean syncSourceNotes) {
+        this.syncSourceNotes = syncSourceNotes && !sourceObjectId.isBlank();
+    }
+
+    public boolean showReferenceLine() {
+        return showReferenceLine;
+    }
+
+    public void setShowReferenceLine(boolean showReferenceLine) {
+        this.showReferenceLine = showReferenceLine && !sourceObjectId.isBlank();
     }
 }
