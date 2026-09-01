@@ -120,6 +120,20 @@ class InventorySummaryServiceTest {
     }
 
     @Test
+    void includesStandaloneFencesAndGardenStonesInBuiltInTotals() {
+        EventPlan plan = new EventPlan("Lisainventar");
+        plan.addStandaloneInventoryItem(new InventoryItem("Aed", 4, "Varu"));
+        plan.addStandaloneInventoryItem(new InventoryItem("Aiakivid", 3, "Labürint"));
+
+        InventorySummaryService.Summary summary = new InventorySummaryService().summarize(plan);
+
+        assertEquals(4, summary.standaloneFenceCount());
+        assertEquals(4, summary.totalFenceCount());
+        assertEquals(3, summary.standaloneGardenStoneCount());
+        assertEquals(3, summary.gardenStoneCount());
+    }
+
+    @Test
     void networkAdjustmentCannotReduceTotalBelowZero() {
         EventPlan plan = new EventPlan("Liiga suur miinus");
         FenceRow row = fence("fence", "Peaaed", new Position(0, 0), 1);

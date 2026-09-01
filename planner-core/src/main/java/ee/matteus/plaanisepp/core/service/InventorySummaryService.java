@@ -3,6 +3,7 @@ package ee.matteus.plaanisepp.core.service;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.InventoryContainer;
+import ee.matteus.plaanisepp.core.model.InventoryItemNames;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.Tent;
 
@@ -30,6 +31,15 @@ public final class InventorySummaryService {
         List<FenceStoneNetwork> fenceStoneNetworks = fences.byNetwork().stream()
                 .map(network -> fenceStoneNetwork(plan, network))
                 .toList();
+        int standaloneFenceCount = plan.standaloneInventoryItems().stream()
+                .filter(item -> InventoryItemNames.isFence(item.name()))
+                .mapToInt(item -> item.quantity())
+                .sum();
+        int standaloneGardenStoneCount = plan.standaloneGardenStoneCount()
+                + plan.standaloneInventoryItems().stream()
+                .filter(item -> InventoryItemNames.isGardenStone(item.name()))
+                .mapToInt(item -> item.quantity())
+                .sum();
         Map<String, Integer> inventoryCounts = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         Map<String, List<ObjectInventoryContribution>> inventoryContributions =
                 new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
@@ -61,9 +71,10 @@ public final class InventorySummaryService {
                 .toList();
         return new Summary(
                 fences,
+                standaloneFenceCount,
                 tentCount,
                 fenceStoneNetworks,
-                plan.standaloneGardenStoneCount(),
+                standaloneGardenStoneCount,
                 List.of(),
                 objectInventoryItems,
                 objectInventoryGroups
@@ -100,6 +111,7 @@ public final class InventorySummaryService {
 
     public record Summary(
             FenceInventoryService.Summary fences,
+            int standaloneFenceCount,
             int tentCount,
             List<FenceStoneNetwork> fenceStoneNetworks,
             int standaloneGardenStoneCount,
@@ -116,6 +128,7 @@ public final class InventorySummaryService {
 
         public boolean isEmpty() {
             return fences.totalCount() == 0
+                    && standaloneFenceCount == 0
                     && tentCount == 0
                     && gardenStoneCount() == 0
                     && otherCustomItems.isEmpty()
@@ -125,6 +138,10 @@ public final class InventorySummaryService {
         public int gardenStoneCount() {
             return fenceStoneNetworks.stream().mapToInt(FenceStoneNetwork::totalCount).sum()
                     + standaloneGardenStoneCount;
+        }
+
+        public int totalFenceCount() {
+            return fences.totalCount() + standaloneFenceCount;
         }
 
         public int automaticGardenStoneCount() {

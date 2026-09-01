@@ -5,6 +5,7 @@ import ee.matteus.plaanisepp.core.model.CustomObject;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.LineObject;
+import ee.matteus.plaanisepp.core.model.InventoryItemNames;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
 import ee.matteus.plaanisepp.core.model.PowerSource;
@@ -23,8 +24,20 @@ final class ObjectReportTextFormatter {
                 .summarize(plan)
                 .objectInventoryItems();
         Map<String, Integer> totals = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        items.forEach(item -> totals.merge(item.name(), item.count(), Integer::sum));
-        plan.standaloneInventoryItems().forEach(item -> totals.merge(item.name(), item.quantity(), Integer::sum));
+        items.stream()
+                .filter(item -> !InventoryItemNames.isBuiltInInventory(item.name()))
+                .forEach(item -> totals.merge(item.name(), item.count(), Integer::sum));
+        int tentCount = (int) plan.objects().stream().filter(Tent.class::isInstance).count();
+        tentCount += plan.standaloneInventoryItems().stream()
+                .filter(item -> InventoryItemNames.isTent(item.name()))
+                .mapToInt(item -> item.quantity())
+                .sum();
+        if (tentCount > 0) {
+            totals.put("Telgid", tentCount);
+        }
+        plan.standaloneInventoryItems().stream()
+                .filter(item -> !InventoryItemNames.isBuiltInInventory(item.name()))
+                .forEach(item -> totals.merge(item.name(), item.quantity(), Integer::sum));
         if (totals.isEmpty()) {
             return;
         }
@@ -39,6 +52,8 @@ final class ObjectReportTextFormatter {
 
         List<ee.matteus.plaanisepp.core.model.InventoryItem> notedStandaloneItems = plan.standaloneInventoryItems()
                 .stream()
+                .filter(item -> !InventoryItemNames.isFence(item.name()))
+                .filter(item -> !InventoryItemNames.isGardenStone(item.name()))
                 .filter(item -> !item.notes().isBlank())
                 .toList();
         if (notedStandaloneItems.isEmpty()) {

@@ -116,7 +116,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(15, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(16, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -179,7 +179,11 @@ class PlanFileServiceTest {
         assertEquals(loadedRow.endJointId(), loadedContinuation.startJointId());
         assertEquals(-2, loadedPlan.fenceNetworkGardenStoneAdjustment(loadedRow.id()));
         assertFalse(loadedPlan.showFenceNetworkInventoryLabel(loadedRow.id()));
-        assertEquals(7, loadedPlan.standaloneGardenStoneCount());
+        assertEquals(0, loadedPlan.standaloneGardenStoneCount());
+        assertEquals(7, loadedPlan.standaloneInventoryItems().stream()
+                .filter(item -> item.name().equals("Aiakivi"))
+                .mapToInt(InventoryItem::quantity)
+                .sum());
     }
 
     @Test
@@ -767,7 +771,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(15, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(16, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

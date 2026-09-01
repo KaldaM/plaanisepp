@@ -29,6 +29,14 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 18. **Peaaegu tehtud:** interaktiivne pööramine, mitmikvalik, valikukast ja põhilised ühistoimingud töötavad; ühise grupi ja nimesildi nähtavuse hulgi muutmine on teostatud ning viimased mitmikvaliku mugavused ootavad käsitsi kontrolli.
 19. **Jätkuv töö:** `PlaaniseppApp` refaktoreerimine väikeste funktsioonipõhiste sammudena.
 
+## Järgmise töökorra märkmed — 31. august 2026
+
+- **Tehtud:** aiata aiakivid on ühtlustatud muu objektita inventariga. Need lisatakse „Lisa inventar” kaudu ja koondatakse „Aiakivid” harusse; sama lisamisvoog toetab objektita aedu, mis liidetakse „Aiad” koondkogusesse.
+- **Tehtud:** kaabliinventari rea ning kaardil oleva kaabli paremklõpsumenüüst saab muuta konkreetse kaabli märkust ja kaablitükke.
+- **Tehtud:** üleliigne „Paigutus lukus” nupp on tööriistaribalt eemaldatud. Paigutuslukustus säilib menüüs ja kiirklahvina ning aktiivne olek kuvatakse tööriista olekureal.
+- Vaadata mõõdulindi töövoog tervikuna üle: praegune klikkidel põhinev loogika tundub aegunud ning enne muutmist tuleb täpsustada loomulikum käivitamine, mõõtmine, lõpetamine ja mõõtude säilitamine või eemaldamine.
+- **Tehtud:** kaabli trajektoori muutmise nupud on tööriistaribalt eemaldatud. Trajektoori muutmine, punktide lisamine ja režiimi lõpetamine on kättesaadavad kaabli paremklõpsumenüü ning `Escape`-klahvi kaudu.
+
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
 ## Teostatud 25. augustil 2026
@@ -471,15 +479,15 @@ Elektrikilpide ja alajaotuskilpide muutmisvaates saab muuta objekti värvi ning 
 
 ### Planeeritud inventarimudel
 
-- **Tehtud: aiakivid arvutatakse aia geomeetriast automaatselt.** Iga füüsilise aia kahe lõigu vahel ning iga vaba otspunkti juures on üks aiakivi. Kui ühes ühenduspunktis kohtuvad kolm, neli või rohkem aeda, läheb inventari siiski ainult üks aiakivi. Suletud N lõiguga ring vajab seega N aiakivi ja avatud N lõiguga ahel N + 1 aiakivi. Igal aiakogumikul on oma `− / +` parandus, mis võimaldab näiteks otspunktikivi ära jätta. Lisaks saab eraldi muuta aiata aiakivide kogust labürintide ja muude kasutuste jaoks; nimepõhiseid „Aiakivi” objekte arvestuseks ei kasutata.
+- **Tehtud: aiakivid arvutatakse aia geomeetriast automaatselt.** Iga füüsilise aia kahe lõigu vahel ning iga vaba otspunkti juures on üks aiakivi. Kui ühes ühenduspunktis kohtuvad kolm, neli või rohkem aeda, läheb inventari siiski ainult üks aiakivi. Suletud N lõiguga ring vajab seega N aiakivi ja avatud N lõiguga ahel N + 1 aiakivi. Igal aiakogumikul on oma `− / +` parandus, mis võimaldab näiteks otspunktikivi ära jätta. Aiata aiakivid lisatakse „Lisa inventar” kaudu ja koondatakse sama „Aiakivid” haru kogusesse.
 - **Tehtud: telgiraskused, lauad ja pingid** on objektipõhise inventari kiirvalikud. Telgile, alale ja kujuobjektile saab lisada ka vabalt nimetatud inventariridu koos koguse ja märkusega; kogused liidetakse automaatselt kogu plaani inventari ning TXT- ja PDF-raportisse.
 - **Tehtud: kujuobjektid, telgid ja alad kasutavad sama üldist objektipõhist inventarimudelit**, et uusi inventariliike ei peaks eraldi koodi sisse ehitama. Inventar kopeerub objektiga, kustutamisel kaob koondist, osaleb undo/redo ajaloos ning säilib `.pplan` versioon 14 failis.
 - Inventarikirjel on vähemalt nimetus, kogus ja vajaduse korral märkus. Objekti kopeerimisel kopeeritakse selle inventar kaasa; kustutamisel kaob selle panus koondinventarist; muudatused osalevad undo/redo ajaloos ja säilivad `.pplan` failis.
-- **Tehtud:** inventari koondist saab lisada ka objektita lisainventari, näiteks eraldi lauad, telgiraskused või aiakivid. Kirjel on nimetus, kogus ja märkus; kogust saab muuta `− / +` nuppudega, kirjet muuta või eemaldada ning see säilib `.pplan` versioon 15 failis ja jõuab TXT/PDF-raportisse.
+- **Tehtud:** inventari koondist saab lisada ka objektita lisainventari, sealhulgas aedu, aiakive, telke, laudu ja telgiraskusi. Sisseehitatud inventariliigid liidetakse oma põhiharude kogustesse. Kirjel on nimetus, kogus ja märkus; kogust saab muuta `− / +` nuppudega, kirjet muuta või eemaldada ning see säilib `.pplan` versioon 16 failis ja jõuab TXT/PDF-raportisse.
 
 ### Käsitsi koguseparandused
 
-Aiakivide esimene parandusetapp on teostatud. „Aiakivid” inventarirea pealkiri näitab kogusummat ning selle noole all kuvatakse iga aiakogumiku automaatne kogus, käsitsi parandus, lõppkogus ja `− / +` nupud. Samas jaotises on eraldi `− / +` rida aiata aiakividele. Lõppkogus ei saa langeda alla nulli. Korrigeeritud kogus kuvatakse ka aia objektireal ja kaardi kogusesildil. Valitud aiakogumiku vaates kuvatakse terve kogumiku aedade arv, kogupikkus ja aiakivide arv; seal saab aiakivide parandust muuta ning selle kogumiku kogusesildi eraldi peita või näidata. Peidetud kogusesilt on kogumiku valimise ajal siiski nähtav nagu nimesilt ja kaablisilt. Aiarea ja aiaringi loomisdialoogis saab määrata ühe aia pikkuse ning kogusesildi nähtavuse; viimati kasutatud väärtused jäetakse meelde. Need väärtused säilivad `.pplan` versioon 13 failis, osalevad undo/redo ajaloos, liiguvad aiavõrgu kopeerimisel kaasa ning jõuavad TXT- ja PDF-raportisse.
+Aiakivide esimene parandusetapp on teostatud. „Aiakivid” inventarirea pealkiri näitab kogusummat ning selle noole all kuvatakse iga aiakogumiku automaatne kogus, käsitsi parandus, lõppkogus ja `− / +` nupud. Aiata aiakivid kuvatakse sama haru lisainventarina ning nende kogust saab samuti `− / +` nuppudega muuta. Lõppkogus ei saa langeda alla nulli. Korrigeeritud kogus kuvatakse ka aia objektireal ja kaardi kogusesildil. Valitud aiakogumiku vaates kuvatakse terve kogumiku aedade arv, kogupikkus ja aiakivide arv; seal saab aiakivide parandust muuta ning selle kogumiku kogusesildi eraldi peita või näidata. Peidetud kogusesilt on kogumiku valimise ajal siiski nähtav nagu nimesilt ja kaablisilt. Aiarea ja aiaringi loomisdialoogis saab määrata ühe aia pikkuse ning kogusesildi nähtavuse; viimati kasutatud väärtused jäetakse meelde. Need väärtused säilivad `.pplan` failis, osalevad undo/redo ajaloos, liiguvad aiavõrgu kopeerimisel kaasa ning jõuavad TXT- ja PDF-raportisse.
 
 - Iga Inventari jaotises kuvatava liigi juures näidatakse selgelt kolm väärtust: **automaatselt arvutatud**, **käsitsi parandus** ja **lõplik kogus**.
 - Kasutaja saab iga liigi kogust käsitsi suurendada või vähendada. Näited: kõlarite stabiliseerimiseks lisatud telgiraskused, tegelikust lahendusest tulenevalt kaks aiakivi vähem või telgi ja alaga sidumata lauad ning pingid.

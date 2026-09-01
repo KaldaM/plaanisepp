@@ -51,7 +51,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 15;
+    public static final int CURRENT_FORMAT_VERSION = 16;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -129,9 +129,6 @@ public class PlanFileService {
         properties.setProperty("layers.showAreaObjects", Boolean.toString(plan.showAreaObjects()));
         properties.setProperty("layers.showLineObjects", Boolean.toString(plan.showLineObjects()));
         properties.setProperty("layers.showFenceInventoryLabels", Boolean.toString(plan.showFenceInventoryLabels()));
-        properties.setProperty("inventory.standaloneGardenStoneCount", Integer.toString(
-                plan.standaloneGardenStoneCount()
-        ));
         writeStandaloneInventoryItems(properties, plan);
         properties.setProperty("hiddenGroups.count", Integer.toString(plan.hiddenGroups().size()));
 
@@ -241,10 +238,15 @@ public class PlanFileService {
         plan.setShowAreaObjects(booleanValue(properties, "layers.showAreaObjects", true));
         plan.setShowLineObjects(booleanValue(properties, "layers.showLineObjects", true));
         plan.setShowFenceInventoryLabels(booleanValue(properties, "layers.showFenceInventoryLabels", true));
-        plan.setStandaloneGardenStoneCount(intValue(
+        int legacyStandaloneGardenStoneCount = intValue(
                 properties, "inventory.standaloneGardenStoneCount", 0
-        ));
+        );
         readStandaloneInventoryItems(properties, plan);
+        if (legacyStandaloneGardenStoneCount > 0) {
+            plan.addStandaloneInventoryItem(new InventoryItem(
+                    "Aiakivi", legacyStandaloneGardenStoneCount, ""
+            ));
+        }
 
         int checklistCount = intValue(properties, "checklist.count", 0);
         for (int index = 0; index < checklistCount; index++) {
@@ -859,13 +861,21 @@ public class PlanFileService {
     }
 
     private void writeStandaloneInventoryItems(Properties properties, EventPlan plan) {
-        properties.setProperty("inventory.standalone.count", Integer.toString(plan.standaloneInventoryItems().size()));
+        int legacyGardenStoneCount = plan.standaloneGardenStoneCount();
+        int itemCount = plan.standaloneInventoryItems().size() + (legacyGardenStoneCount > 0 ? 1 : 0);
+        properties.setProperty("inventory.standalone.count", Integer.toString(itemCount));
         for (int index = 0; index < plan.standaloneInventoryItems().size(); index++) {
             InventoryItem item = plan.standaloneInventoryItems().get(index);
             String prefix = "inventory.standalone." + index + ".";
             properties.setProperty(prefix + "name", item.name());
             properties.setProperty(prefix + "quantity", Integer.toString(item.quantity()));
             properties.setProperty(prefix + "notes", item.notes());
+        }
+        if (legacyGardenStoneCount > 0) {
+            String prefix = "inventory.standalone." + plan.standaloneInventoryItems().size() + ".";
+            properties.setProperty(prefix + "name", "Aiakivi");
+            properties.setProperty(prefix + "quantity", Integer.toString(legacyGardenStoneCount));
+            properties.setProperty(prefix + "notes", "");
         }
     }
 

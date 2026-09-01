@@ -116,7 +116,7 @@ class ReportTextExporterTest {
         assertTrue(report.contains("Aiaring: 5 × 3.50 m = 17.50 m"), report);
         assertTrue(report.contains("Kokku: 5 aeda, 17.50 m"), report);
         assertTrue(report.contains("Aiakivid: 6 automaatne, -1 parandus, 5 kokku"), report);
-        assertTrue(report.contains("Aiakive kokku: 7 tk (ilma aiata 2 tk)"), report);
+        assertTrue(report.contains("Aiakive kokku: 7 tk (lisainventar 2 tk)"), report);
     }
 
     @Test
