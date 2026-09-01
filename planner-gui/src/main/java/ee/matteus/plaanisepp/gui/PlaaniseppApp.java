@@ -254,9 +254,16 @@ public class PlaaniseppApp extends Application {
     private double mapPressSceneX;
     private double mapPressSceneY;
     private Position measurementStart;
+    private Line measurementPreviewLine;
+    private Circle measurementPreviewEndMarker;
+    private Label measurementPreviewLabel;
+    private MeasurementPathView activeMeasurementPath;
+    private MeasurementPathView editingMeasurementPath;
     private final List<Node> measurementNodes = new ArrayList<>();
     private final List<Node> powerConnectionAnchorMarkers = new ArrayList<>();
     private final List<MeasurementView> measurements = new ArrayList<>();
+    private final List<MeasurementPathView> measurementPaths = new ArrayList<>();
+    private final List<MeasurementPathView> selectedMeasurementPaths = new ArrayList<>();
     private final List<Position> pendingShapePoints = new ArrayList<>();
     private final Set<String> visibleGroups = new HashSet<>();
     private final Set<String> collapsedSummaryKeys = new HashSet<>();
@@ -539,9 +546,33 @@ public class PlaaniseppApp extends Application {
             planDragInProgress = false;
             planDragRecorded = false;
         });
+        scene.addEventFilter(MouseEvent.MOUSE_MOVED, event -> {
+            if (measuringActive && measurementStart != null && isInsideMapPane(event.getTarget())) {
+                Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+                updateMeasurementPreview(new Position(mapPoint.getX(), mapPoint.getY()));
+            }
+        });
+        scene.addEventFilter(MouseEvent.MOUSE_CLICKED, event -> {
+            if (measuringActive && isInsideMapPane(event.getTarget())) {
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    if (editingMeasurementPath == null) {
+                        Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+                        addMeasurementPoint(new Position(mapPoint.getX(), mapPoint.getY()));
+                    }
+                    if (event.getClickCount() == 2) {
+                        finishMeasurementTool();
+                    }
+                }
+                event.consume();
+            }
+        });
         scene.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ESCAPE && selectionBox != null) {
                 cancelSelectionBox();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ENTER && measuringActive
+                    && (activeMeasurementPath != null || editingMeasurementPath != null)) {
+                finishMeasurementTool();
                 event.consume();
             } else if (event.getCode() == KeyCode.ENTER && isShapePlacementPending()) {
                 finishPendingShapePlacement();
@@ -554,6 +585,9 @@ public class PlaaniseppApp extends Application {
                 event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && addingCablePoint) {
                 finishEditingCableRoute();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE && measuringActive) {
+                finishMeasurementTool();
                 event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && selectedLogicalObjects().size() > 1) {
                 selectObject(null);
@@ -639,6 +673,10 @@ public class PlaaniseppApp extends Application {
             return;
         }
         if (selectedObject == null) {
+            if (event.getCode() == KeyCode.DELETE && !selectedMeasurementPaths.isEmpty()) {
+                deleteSelectedMeasurementPaths();
+                event.consume();
+            }
             return;
         }
         if (event.getCode() == KeyCode.ENTER
@@ -823,6 +861,20 @@ public class PlaaniseppApp extends Application {
         Node current = node;
         while (current != null) {
             if (current == objectListSection) {
+                return true;
+            }
+            current = current.getParent();
+        }
+        return false;
+    }
+
+    private boolean isInsideMapPane(Object target) {
+        if (!(target instanceof Node node)) {
+            return false;
+        }
+        Node current = node;
+        while (current != null) {
+            if (current == mapPane) {
                 return true;
             }
             current = current.getParent();
@@ -1714,10 +1766,6 @@ public class PlaaniseppApp extends Application {
                 addCableRoutePoint(new Position(event.getX(), event.getY()));
                 return;
             }
-            if (measuringActive && !mapDraggedSincePress) {
-                handleMeasureClick(new Position(event.getX(), event.getY()));
-                return;
-            }
             if (event.getButton() == MouseButton.PRIMARY
                     && !event.isControlDown()
                     && !mapDraggedSincePress
@@ -1945,15 +1993,21 @@ public class PlaaniseppApp extends Application {
                 .filter(this::isObjectVisibleOnMap)
                 .filter(object -> selectionBoxIntersectsObject(completedBox, object))
                 .toList();
-        if (intersectingObjects.isEmpty()) {
+        List<MeasurementPathView> intersectingMeasurements = measurementPaths.stream()
+                .filter(path -> selectionBoxIntersectsMeasurement(completedBox, path))
+                .toList();
+        if (intersectingObjects.isEmpty() && intersectingMeasurements.isEmpty()) {
             return;
         }
         if (selectedObject != null && !updatingDetailControls) {
             commitPendingDetailFieldsBeforeSelectionChange();
         }
         intersectingObjects.forEach(object -> selectedObjectIds.addAll(logicalObjectIds(object)));
+        intersectingMeasurements.stream()
+                .filter(path -> !selectedMeasurementPaths.contains(path))
+                .forEach(selectedMeasurementPaths::add);
         if (selectedObject == null) {
-            selectedObject = intersectingObjects.getFirst();
+            selectedObject = intersectingObjects.isEmpty() ? null : intersectingObjects.getFirst();
         }
         refreshDetails();
         refreshObjectList();
@@ -1964,6 +2018,11 @@ public class PlaaniseppApp extends Application {
     private boolean selectionBoxIntersectsObject(Rectangle box, PlannerObject object) {
         Node node = mapObjectNodes.get(object.id());
         return node != null && box.getBoundsInParent().intersects(node.getBoundsInParent());
+    }
+
+    private boolean selectionBoxIntersectsMeasurement(Rectangle box, MeasurementPathView path) {
+        return path.nodes().stream()
+                .anyMatch(node -> box.getBoundsInParent().intersects(node.getBoundsInParent()));
     }
 
     private VBox createObjectListPanel() {
@@ -4477,9 +4536,13 @@ public class PlaaniseppApp extends Application {
         if (addCablePointButton != null) {
             addCablePointButton.setSelected(false);
         }
-        measurementStart = null;
+        clearMeasurementPreviewReferences();
         measurementNodes.clear();
         measurements.clear();
+        measurementPaths.clear();
+        selectedMeasurementPaths.clear();
+        activeMeasurementPath = null;
+        editingMeasurementPath = null;
         visibleGroups.clear();
         knownGroups.clear();
         collapsedObjectGroups.clear();
@@ -4642,7 +4705,11 @@ public class PlaaniseppApp extends Application {
             return;
         }
         if (measuringActive) {
-            mapToolStatusLabel.setText("Mõõdulint aktiivne");
+            mapToolStatusLabel.setText(editingMeasurementPath != null
+                    ? "Lohista mõõdulindi punkte · lõpeta Enteri, topeltklõpsu või Escape'iga"
+                    : activeMeasurementPath == null
+                    ? "Märgi mõõdulindi esimene punkt · lõpeta Escape'iga"
+                    : "Lisa järgmine punkt · lõpeta lint Enteriga");
             return;
         }
         mapToolStatusLabel.setText(organizerView
@@ -4778,15 +4845,21 @@ public class PlaaniseppApp extends Application {
     }
 
     private void drawMultiSelectionBounds() {
-        if (selectedLogicalObjects().size() < 2 || rotatingObjectId != null) {
+        int selectedObjectCount = selectedLogicalObjects().size();
+        if (rotatingObjectId != null
+                || (selectedMeasurementPaths.isEmpty() && selectedObjectCount < 2)) {
             return;
         }
-        List<Bounds> bounds = selectedObjects().stream()
+        List<Bounds> bounds = new ArrayList<>(selectedObjects().stream()
                 .map(object -> mapObjectNodes.get(object.id()))
                 .filter(java.util.Objects::nonNull)
                 .map(Node::getBoundsInParent)
-                .toList();
-        if (bounds.size() < 2) {
+                .toList());
+        selectedMeasurementPaths.stream()
+                .flatMap(path -> path.nodes().stream())
+                .map(Node::getBoundsInParent)
+                .forEach(bounds::add);
+        if (bounds.isEmpty()) {
             return;
         }
         double minX = bounds.stream().mapToDouble(Bounds::getMinX).min().orElse(0);
@@ -5115,12 +5188,6 @@ public class PlaaniseppApp extends Application {
                     }
                     insertCableRoutePoint(cable, point);
                 }
-                event.consume();
-                return;
-            }
-            if (measuringActive) {
-                Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-                handleMeasureClick(new Position(mapPoint.getX(), mapPoint.getY()));
                 event.consume();
                 return;
             }
@@ -6719,12 +6786,6 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
-            if (measuringActive) {
-                Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-                handleMeasureClick(new Position(mapPoint.getX(), mapPoint.getY()));
-                event.consume();
-                return;
-            }
             if (pendingPowerSourceConsumer != null && object instanceof PowerSource source) {
                 connectPowerSourceFromMap(source);
                 event.consume();
@@ -7450,6 +7511,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void selectObject(PlannerObject object) {
+        selectedMeasurementPaths.clear();
         if (rotatingObjectId != null && (object == null || !object.id().equals(rotatingObjectId))) {
             if (selectedObject != null) {
                 syncInteractiveRotationField(selectedObject, selectedObjectRotationDegrees(selectedObject));
@@ -9085,6 +9147,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
 
+        deleteSelectedMeasurementPaths();
         objectsToDelete.stream().map(PlannerObject::id).toList().forEach(plan::removeObject);
         selectedObject = null;
         selectedObjectIds.clear();
@@ -9139,6 +9202,12 @@ public class PlaaniseppApp extends Application {
     }
 
     private void setMeasuringActive(boolean measuringActive) {
+        if (measuringActive) {
+            cancelMeasurementPreview();
+        } else {
+            finishActiveMeasurementPath();
+            finishEditingMeasurementPath();
+        }
         this.measuringActive = measuringActive;
         if (measuringActive) {
             addingCablePoint = false;
@@ -9156,7 +9225,6 @@ public class PlaaniseppApp extends Application {
             clearPendingPlacementDetails();
             refreshPlacementButtons();
         }
-        measurementStart = null;
         updateMapToolStatus();
     }
 
@@ -9166,6 +9234,8 @@ public class PlaaniseppApp extends Application {
             editingCableConnectionId = null;
         }
         if (addingCablePoint) {
+            finishActiveMeasurementPath();
+            finishEditingMeasurementPath();
             measuringActive = false;
             if (measureButton != null) {
                 measureButton.setSelected(false);
@@ -9181,7 +9251,9 @@ public class PlaaniseppApp extends Application {
             pendingPowerSourceConsumer = null;
             refreshPlacementButtons();
         }
-        measurementStart = null;
+        if (!addingCablePoint) {
+            cancelMeasurementPreview();
+        }
         refreshDetails();
         updateMapToolStatus();
     }
@@ -9345,37 +9417,322 @@ public class PlaaniseppApp extends Application {
         redrawMap();
     }
 
-    private void handleMeasureClick(Position point) {
-        if (measurementStart == null) {
-            measurementStart = point;
-            Circle marker = createMeasurementMarker(point);
-            measurementNodes.add(marker);
-            mapPane.getChildren().add(marker);
+    private void addMeasurementPoint(Position point) {
+        if (activeMeasurementPath == null) {
+            Circle startMarker = createMeasurementMarker(point);
+            Label totalLabel = createMeasurementLabel("Kokku 0.00 m");
+            positionMeasurementTotalLabel(totalLabel, point);
+            activeMeasurementPath = new MeasurementPathView(
+                    new ArrayList<>(List.of(point)),
+                    new ArrayList<>(),
+                    new ArrayList<>(List.of(startMarker, totalLabel)),
+                    new ArrayList<>(List.of(startMarker)),
+                    totalLabel
+            );
+            measurementNodes.addAll(List.of(startMarker, totalLabel));
+            mapPane.getChildren().addAll(startMarker, totalLabel);
+            startMeasurementPreview(point);
+            updateMapToolStatus();
             return;
         }
 
-        Position end = point;
-        Line line = new Line(measurementStart.x(), measurementStart.y(), end.x(), end.y());
-        line.setStroke(Color.web("#111827"));
-        line.setStrokeWidth(2);
+        if (measurementStart == null
+                || distancePixels(measurementStart, point) < MAP_CLICK_DRAG_TOLERANCE_PX / mapScale.getX()) {
+            return;
+        }
+        updateMeasurementPreview(point);
+        MeasurementView segment = new MeasurementView(
+                measurementStart,
+                point,
+                measurementPreviewLine,
+                measurementPreviewLabel
+        );
+        measurements.add(segment);
+        activeMeasurementPath.points().add(point);
+        activeMeasurementPath.segments().add(segment);
+        activeMeasurementPath.nodes().addAll(List.of(
+                measurementPreviewLine,
+                measurementPreviewEndMarker,
+                measurementPreviewLabel
+        ));
+        activeMeasurementPath.pointMarkers().add(measurementPreviewEndMarker);
+        updateMeasurementTotal(activeMeasurementPath);
+        clearMeasurementPreviewReferences();
+        startMeasurementPreview(point);
+        updateMapToolStatus();
+    }
 
-        Circle endMarker = createMeasurementMarker(end);
-        Label distanceLabel = new Label("%.2f m".formatted(distanceMeters(measurementStart, end)));
-        distanceLabel.setStyle("-fx-background-color: white; -fx-padding: 2 4 2 4;");
-        distanceLabel.setLayoutX((measurementStart.x() + end.x()) / 2 + 6);
-        distanceLabel.setLayoutY((measurementStart.y() + end.y()) / 2 + 6);
+    private void startMeasurementPreview(Position start) {
+        measurementStart = start;
+        measurementPreviewLine = new Line(start.x(), start.y(), start.x(), start.y());
+        measurementPreviewLine.setStroke(Color.web("#111827"));
+        measurementPreviewLine.setStrokeWidth(2);
+        measurementPreviewEndMarker = createMeasurementMarker(start);
+        measurementPreviewLabel = createMeasurementLabel("0.00 m");
+        measurementPreviewLabel.setVisible(false);
+        measurementNodes.addAll(List.of(
+                measurementPreviewLine,
+                measurementPreviewEndMarker,
+                measurementPreviewLabel
+        ));
+        mapPane.getChildren().addAll(
+                measurementPreviewLine,
+                measurementPreviewEndMarker,
+                measurementPreviewLabel
+        );
+    }
 
-        measurementNodes.add(line);
-        measurementNodes.add(endMarker);
-        measurementNodes.add(distanceLabel);
-        measurements.add(new MeasurementView(measurementStart, end, distanceLabel));
-        mapPane.getChildren().addAll(line, endMarker, distanceLabel);
+    private Label createMeasurementLabel(String text) {
+        Label label = new Label(text);
+        label.setStyle("-fx-background-color: white; -fx-padding: 2 4 2 4;");
+        return label;
+    }
+
+    private void updateMeasurementPreview(Position end) {
+        if (measurementStart == null || measurementPreviewLine == null) {
+            return;
+        }
+        measurementPreviewLine.setEndX(end.x());
+        measurementPreviewLine.setEndY(end.y());
+        measurementPreviewEndMarker.setCenterX(end.x());
+        measurementPreviewEndMarker.setCenterY(end.y());
+        measurementPreviewLabel.setVisible(true);
+        measurementPreviewLabel.setText("%.2f m".formatted(distanceMeters(measurementStart, end)));
+        measurementPreviewLabel.setLayoutX((measurementStart.x() + end.x()) / 2 + 6);
+        measurementPreviewLabel.setLayoutY((measurementStart.y() + end.y()) / 2 + 6);
+        if (activeMeasurementPath != null) {
+            double totalMeters = activeMeasurementPath.segments().stream()
+                    .mapToDouble(segment -> distanceMeters(segment.start(), segment.end()))
+                    .sum() + distanceMeters(measurementStart, end);
+            activeMeasurementPath.totalLabel().setText("Kokku %.2f m".formatted(totalMeters));
+            positionMeasurementTotalLabel(activeMeasurementPath.totalLabel(), end);
+            activeMeasurementPath.totalLabel().toFront();
+        }
+    }
+
+    private void finishActiveMeasurementPath() {
+        cancelMeasurementPreview();
+        if (activeMeasurementPath == null) {
+            return;
+        }
+        if (activeMeasurementPath.segments().isEmpty()) {
+            measurementNodes.removeAll(activeMeasurementPath.nodes());
+            mapPane.getChildren().removeAll(activeMeasurementPath.nodes());
+            activeMeasurementPath = null;
+            updateMapToolStatus();
+            return;
+        }
+        updateMeasurementTotal(activeMeasurementPath);
+        MeasurementPathView completedPath = activeMeasurementPath;
+        measurementPaths.add(completedPath);
+        completedPath.nodes().forEach(node -> {
+            node.setOnMouseClicked(event -> {
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    selectMeasurementPath(completedPath, event.isControlDown());
+                    event.consume();
+                }
+            });
+            node.setOnContextMenuRequested(event -> {
+                ContextMenu menu = new ContextMenu();
+                MenuItem editRouteItem = new MenuItem("Muuda trajektoori");
+                editRouteItem.setOnAction(actionEvent -> startEditingMeasurementPath(completedPath));
+                MenuItem removeItem = new MenuItem("Eemalda mõõdulint");
+                removeItem.setOnAction(actionEvent -> removeMeasurementPath(completedPath));
+                menu.getItems().addAll(editRouteItem, removeItem);
+                menu.show(node, event.getScreenX(), event.getScreenY());
+                event.consume();
+            });
+        });
+        configureMeasurementPointDragging(completedPath);
+        activeMeasurementPath = null;
+        updateMapToolStatus();
+    }
+
+    private void finishMeasurementTool() {
+        finishActiveMeasurementPath();
+        finishEditingMeasurementPath();
+        measuringActive = false;
+        if (measureButton != null) {
+            measureButton.setSelected(false);
+        }
+        updateMapToolStatus();
+    }
+
+    private void finishEditingMeasurementPath() {
+        if (editingMeasurementPath == null) {
+            return;
+        }
+        editingMeasurementPath.pointMarkers().forEach(marker -> {
+            marker.setRadius(4);
+            marker.setFill(Color.web("#111827"));
+            marker.setStroke(Color.WHITE);
+            marker.setStrokeWidth(1);
+        });
+        editingMeasurementPath = null;
+        mapScrollPane.setPannable(true);
+    }
+
+    private void startEditingMeasurementPath(MeasurementPathView path) {
+        if (activeMeasurementPath != null) {
+            finishActiveMeasurementPath();
+        }
+        editingMeasurementPath = path;
+        measuringActive = true;
+        if (measureButton != null) {
+            measureButton.setSelected(true);
+        }
+        path.pointMarkers().forEach(marker -> {
+            marker.setRadius(6 / Math.max(zoomLevel, 0.1));
+            marker.setFill(Color.web("#ffffff"));
+            marker.setStroke(Color.web("#2563eb"));
+            marker.toFront();
+        });
+        updateMapToolStatus();
+    }
+
+    private void configureMeasurementPointDragging(MeasurementPathView path) {
+        for (int index = 0; index < path.pointMarkers().size(); index++) {
+            int pointIndex = index;
+            Circle marker = path.pointMarkers().get(index);
+            marker.setOnMousePressed(event -> {
+                if (editingMeasurementPath == path && event.getButton() == MouseButton.PRIMARY) {
+                    mapScrollPane.setPannable(false);
+                    event.consume();
+                }
+            });
+            marker.setOnMouseDragged(event -> {
+                if (editingMeasurementPath != path) {
+                    return;
+                }
+                Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+                path.points().set(pointIndex, new Position(mapPoint.getX(), mapPoint.getY()));
+                updateMeasurementPathGeometry(path);
+                event.consume();
+            });
+            marker.setOnMouseReleased(event -> {
+                if (editingMeasurementPath == path) {
+                    mapScrollPane.setPannable(true);
+                    event.consume();
+                }
+            });
+        }
+    }
+
+    private void updateMeasurementPathGeometry(MeasurementPathView path) {
+        for (int index = 0; index < path.points().size(); index++) {
+            Position point = path.points().get(index);
+            Circle marker = path.pointMarkers().get(index);
+            marker.setCenterX(point.x());
+            marker.setCenterY(point.y());
+        }
+        for (int index = 0; index < path.segments().size(); index++) {
+            MeasurementView oldSegment = path.segments().get(index);
+            Position start = path.points().get(index);
+            Position end = path.points().get(index + 1);
+            oldSegment.line().setStartX(start.x());
+            oldSegment.line().setStartY(start.y());
+            oldSegment.line().setEndX(end.x());
+            oldSegment.line().setEndY(end.y());
+            oldSegment.distanceLabel().setText("%.2f m".formatted(distanceMeters(start, end)));
+            oldSegment.distanceLabel().setLayoutX((start.x() + end.x()) / 2 + 6);
+            oldSegment.distanceLabel().setLayoutY((start.y() + end.y()) / 2 + 6);
+            path.segments().set(index, new MeasurementView(
+                    start,
+                    end,
+                    oldSegment.line(),
+                    oldSegment.distanceLabel()
+            ));
+        }
+        rebuildMeasurementSegments();
+        updateMeasurementTotal(path);
+    }
+
+    private void rebuildMeasurementSegments() {
+        measurements.clear();
+        measurementPaths.forEach(path -> measurements.addAll(path.segments()));
+        if (activeMeasurementPath != null) {
+            measurements.addAll(activeMeasurementPath.segments());
+        }
+    }
+
+    private void removeMeasurementPath(MeasurementPathView path) {
+        if (editingMeasurementPath == path) {
+            editingMeasurementPath = null;
+        }
+        measurementPaths.remove(path);
+        selectedMeasurementPaths.remove(path);
+        measurements.removeAll(path.segments());
+        measurementNodes.removeAll(path.nodes());
+        redrawMap();
+    }
+
+    private void selectMeasurementPath(MeasurementPathView path, boolean toggle) {
+        if (toggle) {
+            if (selectedMeasurementPaths.contains(path)) {
+                selectedMeasurementPaths.remove(path);
+            } else {
+                selectedMeasurementPaths.add(path);
+            }
+        } else {
+            selectedObject = null;
+            selectedObjectIds.clear();
+            selectionRangeAnchorObjectId = null;
+            selectedMeasurementPaths.clear();
+            selectedMeasurementPaths.add(path);
+            refreshDetails();
+            refreshObjectList();
+        }
+        redrawMap();
+    }
+
+    private void deleteSelectedMeasurementPaths() {
+        List.copyOf(selectedMeasurementPaths).forEach(this::removeMeasurementPath);
+        selectedMeasurementPaths.clear();
+    }
+
+    private void updateMeasurementTotal(MeasurementPathView path) {
+        double totalMeters = path.segments().stream()
+                .mapToDouble(segment -> distanceMeters(segment.start(), segment.end()))
+                .sum();
+        path.totalLabel().setText("Kokku %.2f m".formatted(totalMeters));
+        positionMeasurementTotalLabel(path.totalLabel(), path.points().getLast());
+        path.totalLabel().toFront();
+    }
+
+    private void positionMeasurementTotalLabel(Label label, Position point) {
+        label.setLayoutX(point.x() + 10);
+        label.setLayoutY(point.y() + 10);
+    }
+
+    private void cancelMeasurementPreview() {
+        if (measurementPreviewLine != null) {
+            List<Node> previewNodes = List.of(
+                    measurementPreviewLine,
+                    measurementPreviewEndMarker,
+                    measurementPreviewLabel
+            );
+            measurementNodes.removeAll(previewNodes);
+            if (mapPane != null) {
+                mapPane.getChildren().removeAll(previewNodes);
+            }
+        }
+        clearMeasurementPreviewReferences();
+    }
+
+    private void clearMeasurementPreviewReferences() {
         measurementStart = null;
+        measurementPreviewLine = null;
+        measurementPreviewEndMarker = null;
+        measurementPreviewLabel = null;
     }
 
     private void refreshMeasurementLabels() {
         for (MeasurementView measurement : measurements) {
             measurement.distanceLabel().setText("%.2f m".formatted(distanceMeters(measurement.start(), measurement.end())));
+        }
+        measurementPaths.forEach(this::updateMeasurementTotal);
+        if (activeMeasurementPath != null) {
+            updateMeasurementTotal(activeMeasurementPath);
         }
     }
 
@@ -9389,7 +9746,7 @@ public class PlaaniseppApp extends Application {
         TextInputDialog dialog = new TextInputDialog("%.2f".formatted(distanceMeters(measurement.start(), measurement.end())));
         dialog.initOwner(stage);
         dialog.setTitle("Määra mõõtkava");
-        dialog.setHeaderText("Sisesta viimase mõõdulindi joone tegelik pikkus meetrites");
+        dialog.setHeaderText("Sisesta viimase mõõdulindi lõigu tegelik pikkus meetrites");
         dialog.setContentText("Tegelik pikkus m:");
         String value = dialog.showAndWait().orElse(null);
         if (value == null) {
@@ -9475,9 +9832,13 @@ public class PlaaniseppApp extends Application {
     }
 
     private void clearMeasurements() {
+        cancelMeasurementPreview();
         measurementNodes.clear();
         measurements.clear();
-        measurementStart = null;
+        measurementPaths.clear();
+        selectedMeasurementPaths.clear();
+        activeMeasurementPath = null;
+        editingMeasurementPath = null;
         redrawMap();
     }
 
@@ -11512,7 +11873,16 @@ public class PlaaniseppApp extends Application {
         }
     }
 
-    private record MeasurementView(Position start, Position end, Label distanceLabel) {
+    private record MeasurementView(Position start, Position end, Line line, Label distanceLabel) {
+    }
+
+    private record MeasurementPathView(
+            List<Position> points,
+            List<MeasurementView> segments,
+            List<Node> nodes,
+            List<Circle> pointMarkers,
+            Label totalLabel
+    ) {
     }
 
     private void loadMapImage() {
