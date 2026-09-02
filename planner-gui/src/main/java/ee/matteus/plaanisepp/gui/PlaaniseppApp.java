@@ -1995,28 +1995,39 @@ public class PlaaniseppApp extends Application {
         return switcher;
     }
 
-    private void chooseBaseMapFromRealMap() {
-        BaseMapSelectionDialog.show(stage).ifPresent(this::applyDownloadedBaseMap);
-    }
-
     private void applyDownloadedBaseMap(BaseMapDownload download) {
         PlanSnapshot before = planSnapshotService.create(plan);
+        BaseMapBounds previousBounds = plan.downloadedMapBounds();
         double previousPixelsPerMeter = plan.pixelsPerMeter();
         plan.setDownloadedBaseMaps(download);
-        plan.scalePixelGeometry(plan.pixelsPerMeter() / previousPixelsPerMeter);
+        if (previousBounds == null) {
+            plan.scalePixelGeometry(plan.pixelsPerMeter() / previousPixelsPerMeter);
+        } else {
+            plan.reprojectPixelGeometry(
+                    previousBounds,
+                    previousPixelsPerMeter,
+                    download.bounds(),
+                    plan.pixelsPerMeter()
+            );
+        }
         if (pixelsPerMeterField != null) {
             pixelsPerMeterField.setText(String.format(Locale.ROOT, "%.4f", plan.pixelsPerMeter())
                     .replaceAll("0+$", "").replaceAll("\\.$", ""));
         }
         refreshBaseMapSwitcher();
         finishAutoAppliedDetailsChange(before, false);
+        importTartuPowerCabinets(false);
     }
 
     private void importTartuPowerCabinets() {
+        importTartuPowerCabinets(true);
+    }
+
+    private void importTartuPowerCabinets(boolean interactive) {
         if (!plan.hasDownloadedBaseMaps() || plan.downloadedMapBounds() == null) {
             showError(
                     "Püsivoolukilpe ei imporditud",
-                    "Impordiks määra esmalt aluskaart valikuga „Määra aluskaart päriskaardilt…“."
+                    "Impordiks määra esmalt georefereeritud aluskaart Plaani andmete alt."
             );
             return;
         }
@@ -2032,19 +2043,23 @@ public class PlaaniseppApp extends Application {
                     .filter(cabinet -> !existingNames.contains(cabinet.name().toLowerCase(Locale.ROOT)))
                     .toList();
             if (newCabinets.isEmpty()) {
-                showInformation("Püsivoolukilpide import", cabinets.isEmpty()
-                        ? "Valitud kaardialal ei leitud püsivoolukilpe."
-                        : "Kõik valitud kaardiala püsivoolukilbid on juba plaanis.");
+                if (interactive) {
+                    showInformation("Püsivoolukilpide import", cabinets.isEmpty()
+                            ? "Valitud kaardialal ei leitud püsivoolukilpe."
+                            : "Kõik valitud kaardiala püsivoolukilbid on juba plaanis.");
+                }
                 return;
             }
-            Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
-            confirmation.initOwner(stage);
-            confirmation.setTitle("Impordi Tartu püsivoolukilbid");
-            confirmation.setHeaderText("Leiti " + cabinets.size() + " püsivoolukilpi");
-            confirmation.setContentText("Plaani lisatakse " + newCabinets.size()
-                    + " uut kilpi koos nime ja saadaoleva lisainfoga. Jätkata?");
-            if (confirmation.showAndWait().filter(ButtonType.OK::equals).isEmpty()) {
-                return;
+            if (interactive) {
+                Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+                confirmation.initOwner(stage);
+                confirmation.setTitle("Impordi Tartu püsivoolukilbid");
+                confirmation.setHeaderText("Leiti " + cabinets.size() + " püsivoolukilpi");
+                confirmation.setContentText("Plaani lisatakse " + newCabinets.size()
+                        + " uut kilpi koos nime ja saadaoleva lisainfoga. Jätkata?");
+                if (confirmation.showAndWait().filter(ButtonType.OK::equals).isEmpty()) {
+                    return;
+                }
             }
             PlanSnapshot before = planSnapshotService.create(plan);
             ee.matteus.plaanisepp.core.map.BaseMapBounds bounds = plan.downloadedMapBounds();
@@ -2059,8 +2074,10 @@ public class PlaaniseppApp extends Application {
                 plan.addObject(source);
             }
             finishAutoAppliedDetailsChange(before, true);
-            showInformation("Püsivoolukilpide import",
-                    "Plaani lisati " + newCabinets.size() + " püsivoolukilpi.");
+            if (interactive) {
+                showInformation("Püsivoolukilpide import",
+                        "Plaani lisati " + newCabinets.size() + " püsivoolukilpi.");
+            }
         } catch (IOException | InterruptedException exception) {
             if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
             showError("Püsivoolukilpe ei imporditud", exception.getMessage());
@@ -2128,6 +2145,7 @@ public class PlaaniseppApp extends Application {
             }
             refreshBaseMapSwitcher();
             finishAutoAppliedDetailsChange(before, false);
+            importTartuPowerCabinets(false);
             return true;
         } catch (IOException | InterruptedException | RuntimeException exception) {
             if (exception instanceof InterruptedException) {
@@ -4705,6 +4723,7 @@ public class PlaaniseppApp extends Application {
                 plan.objectLabelFontSize(),
                 plan.cableLabelFontSize(),
                 plan.mapImagePath(),
+                plan.downloadedMapBounds(),
                 null
         );
         PlanSettingsDialog.show(

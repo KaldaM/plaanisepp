@@ -148,7 +148,30 @@ public class EventPlan {
         if (!Double.isFinite(factor) || factor <= 0) {
             throw new IllegalArgumentException("Geomeetria mõõtkava peab olema positiivne.");
         }
-        if (Math.abs(factor - 1.0) < 0.000001) {
+        transformPixelGeometry(factor, 0, 0);
+    }
+
+    public void reprojectPixelGeometry(
+            BaseMapBounds previousBounds,
+            double previousPixelsPerMetre,
+            BaseMapBounds newBounds,
+            double newPixelsPerMetre
+    ) {
+        if (previousBounds == null || newBounds == null
+                || !Double.isFinite(previousPixelsPerMetre) || previousPixelsPerMetre <= 0
+                || !Double.isFinite(newPixelsPerMetre) || newPixelsPerMetre <= 0) {
+            throw new IllegalArgumentException("Kaardigeomeetria teisendamiseks on vaja korrektseid kaardiandmeid.");
+        }
+        double factor = newPixelsPerMetre / previousPixelsPerMetre;
+        double offsetX = (previousBounds.minX() - newBounds.minX()) * newPixelsPerMetre;
+        double offsetY = (newBounds.maxY() - previousBounds.maxY()) * newPixelsPerMetre;
+        transformPixelGeometry(factor, offsetX, offsetY);
+    }
+
+    private void transformPixelGeometry(double factor, double offsetX, double offsetY) {
+        if (Math.abs(factor - 1.0) < 0.000001
+                && Math.abs(offsetX) < 0.000001
+                && Math.abs(offsetY) < 0.000001) {
             return;
         }
         for (PlannerObject object : objects) {
@@ -157,12 +180,12 @@ public class EventPlan {
                     : object instanceof LineObject lineObject ? List.copyOf(lineObject.points()) : List.of();
             boolean locked = object.locked();
             object.setLocked(false);
-            object.moveTo(scalePosition(object.position(), factor));
+            object.moveTo(transformPosition(object.position(), factor, offsetX, offsetY));
             object.setLocked(locked);
             if (object instanceof AreaObject areaObject) {
-                areaObject.setPoints(scalePositions(originalPoints, factor));
+                areaObject.setPoints(transformPositions(originalPoints, factor, offsetX, offsetY));
             } else if (object instanceof LineObject lineObject) {
-                lineObject.setPoints(scalePositions(originalPoints, factor));
+                lineObject.setPoints(transformPositions(originalPoints, factor, offsetX, offsetY));
             }
             if (object.customMapLabelPosition()) {
                 object.setMapLabelOffset(scalePosition(object.mapLabelOffset(), factor));
@@ -176,14 +199,14 @@ public class EventPlan {
             }
         }
         for (FenceJoint joint : fenceJoints) {
-            joint.moveTo(scalePosition(joint.position(), factor));
+            joint.moveTo(transformPosition(joint.position(), factor, offsetX, offsetY));
         }
         for (int index = 0; index < powerConnections.size(); index++) {
             PowerConnection connection = powerConnections.get(index);
             powerConnections.set(index, new PowerConnection(
                     connection.id(), connection.sourceId(), connection.consumerId(), connection.connectorType(),
                     connection.outletId(), connection.cableNotes(), connection.cableLengthNotes(),
-                    scalePositions(connection.routePoints(), factor), connection.customCableLabelPosition(),
+                    transformPositions(connection.routePoints(), factor, offsetX, offsetY), connection.customCableLabelPosition(),
                     scalePosition(connection.cableLabelOffset(), factor), connection.defaultForConsumer()
             ));
         }
@@ -193,8 +216,23 @@ public class EventPlan {
         return positions.stream().map(position -> scalePosition(position, factor)).toList();
     }
 
+    private static List<Position> transformPositions(
+            List<Position> positions,
+            double factor,
+            double offsetX,
+            double offsetY
+    ) {
+        return positions.stream()
+                .map(position -> transformPosition(position, factor, offsetX, offsetY))
+                .toList();
+    }
+
     private static Position scalePosition(Position position, double factor) {
         return new Position(position.x() * factor, position.y() * factor);
+    }
+
+    private static Position transformPosition(Position position, double factor, double offsetX, double offsetY) {
+        return new Position(position.x() * factor + offsetX, position.y() * factor + offsetY);
     }
 
     public void restoreDownloadedBaseMaps(

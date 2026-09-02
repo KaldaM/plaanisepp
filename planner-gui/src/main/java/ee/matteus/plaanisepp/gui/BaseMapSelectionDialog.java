@@ -70,6 +70,16 @@ final class BaseMapSelectionDialog {
         return new BaseMapSelectionDialog().showDialog(owner);
     }
 
+    static Optional<BaseMapDownload> show(Window owner, BaseMapBounds initialBounds) {
+        BaseMapSelectionDialog dialog = new BaseMapSelectionDialog();
+        if (initialBounds != null) {
+            dialog.centerX = (initialBounds.minX() + initialBounds.maxX()) / 2;
+            dialog.centerY = (initialBounds.minY() + initialBounds.maxY()) / 2;
+            dialog.widthMetres = initialBounds.widthMetres();
+        }
+        return dialog.showDialog(owner);
+    }
+
     private Optional<BaseMapDownload> showDialog(Window owner) {
         Dialog<BaseMapDownload> dialog = new Dialog<>();
         dialog.initOwner(owner);

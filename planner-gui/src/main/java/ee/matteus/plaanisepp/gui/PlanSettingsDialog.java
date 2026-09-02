@@ -1,6 +1,7 @@
 package ee.matteus.plaanisepp.gui;
 
 import ee.matteus.plaanisepp.core.map.BaseMapDownload;
+import ee.matteus.plaanisepp.core.map.BaseMapBounds;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -49,8 +50,12 @@ final class PlanSettingsDialog {
         Label mapLabel = new Label(mapLabelText(initialSettings.mapImagePath()));
         String[] selectedMapPath = {initialSettings.mapImagePath()};
         BaseMapDownload[] selectedBaseMap = {null};
-        Button realMapButton = new Button("Vali päriskaardilt…");
-        realMapButton.setOnAction(event -> BaseMapSelectionDialog.show(owner).ifPresent(download -> {
+        Button realMapButton = new Button(initialSettings.mapBounds() == null
+                ? "Vali päriskaardilt…" : "Muuda kaardiala…");
+        realMapButton.setOnAction(event -> BaseMapSelectionDialog.show(
+                owner,
+                selectedBaseMap[0] == null ? initialSettings.mapBounds() : selectedBaseMap[0].bounds()
+        ).ifPresent(download -> {
             selectedBaseMap[0] = download;
             mapLabel.setText("Päriskaardilt valitud ala (%d × %d px)".formatted(
                     download.width(), download.height()
@@ -110,6 +115,7 @@ final class PlanSettingsDialog {
                         objectLabelFontSizeSlider.getValue(),
                         cableLabelFontSizeSlider.getValue(),
                         selectedMapPath[0],
+                        initialSettings.mapBounds(),
                         selectedBaseMap[0]
                 ));
     }
@@ -186,6 +192,7 @@ final class PlanSettingsDialog {
             double objectLabelFontSize,
             double cableLabelFontSize,
             String mapImagePath,
+            BaseMapBounds mapBounds,
             BaseMapDownload selectedBaseMap
     ) {
     }
