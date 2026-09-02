@@ -1,5 +1,7 @@
 package ee.matteus.plaanisepp.core.service;
 
+import ee.matteus.plaanisepp.core.map.BaseMapBounds;
+import ee.matteus.plaanisepp.core.map.BaseMapDownload;
 import ee.matteus.plaanisepp.core.model.AreaObject;
 import ee.matteus.plaanisepp.core.model.ChecklistItem;
 import ee.matteus.plaanisepp.core.model.ChecklistSuggestionStatus;
@@ -118,7 +120,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(20, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(21, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -423,6 +425,31 @@ class PlanFileServiceTest {
         assertArrayEquals(mapImage, loadedPlan.packagedMapImage());
         try (ZipFile zipFile = new ZipFile(secondFile.toFile())) {
             assertNotNull(zipFile.getEntry("assets/map.png"));
+        }
+    }
+
+    @Test
+    void savesBothAlignedDownloadedBaseMapsAndTheirLocation() throws IOException {
+        byte[] regular = testPng();
+        byte[] orthophoto = testPng();
+        BaseMapBounds bounds = new BaseMapBounds(658_500, 6_473_500, 659_500, 6_474_250);
+        EventPlan plan = new EventPlan("Päriskaardiga plaan");
+        plan.setDownloadedBaseMaps(new BaseMapDownload(bounds, 800, 600, regular, orthophoto));
+        plan.setDownloadedBaseMapActive(true);
+        Path file = tempDirectory.resolve("downloaded-base-maps.pplan");
+
+        service.save(plan, file);
+        EventPlan loaded = service.load(file);
+
+        assertTrue(loaded.hasDownloadedBaseMaps());
+        assertTrue(loaded.downloadedOrthophotoActive());
+        assertEquals(bounds, loaded.downloadedMapBounds());
+        assertEquals(0.8, loaded.pixelsPerMeter(), 0.000001);
+        assertArrayEquals(regular, loaded.downloadedRegularMap());
+        assertArrayEquals(orthophoto, loaded.downloadedOrthophoto());
+        try (ZipFile zipFile = new ZipFile(file.toFile())) {
+            assertNotNull(zipFile.getEntry("assets/base-map.png"));
+            assertNotNull(zipFile.getEntry("assets/orthophoto.png"));
         }
     }
 
@@ -798,7 +825,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(20, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(21, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

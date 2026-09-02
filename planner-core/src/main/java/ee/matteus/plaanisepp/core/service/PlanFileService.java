@@ -10,6 +10,7 @@ import ee.matteus.plaanisepp.core.model.DistributionPanel;
 import ee.matteus.plaanisepp.core.model.Equipment;
 import ee.matteus.plaanisepp.core.model.EquipmentContainer;
 import ee.matteus.plaanisepp.core.model.EventPlan;
+import ee.matteus.plaanisepp.core.map.BaseMapBounds;
 import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.FenceJoint;
 import ee.matteus.plaanisepp.core.model.InventoryContainer;
@@ -52,7 +53,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 20;
+    public static final int CURRENT_FORMAT_VERSION = 21;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -62,6 +63,8 @@ public class PlanFileService {
     private static final String MANIFEST_ENTRY = "manifest.properties";
     private static final String PLAN_ENTRY = "plan.properties";
     private static final String MAP_ENTRY_PROPERTY = "mapEntry";
+    private static final String REGULAR_MAP_ENTRY_PROPERTY = "regularMapEntry";
+    private static final String ORTHOPHOTO_ENTRY_PROPERTY = "orthophotoEntry";
     private static final long MAX_MANIFEST_BYTES = 64 * 1024;
     private static final long MAX_PLAN_BYTES = 5 * 1024 * 1024;
     private static final long MAX_MAP_BYTES = 50 * 1024 * 1024;
@@ -70,16 +73,22 @@ public class PlanFileService {
 
     public void save(EventPlan plan, Path file) throws IOException {
         MapAsset mapAsset = mapAssetFor(plan);
-        String storedMapPath = mapAsset == null
-                ? plan.mapImagePath()
-                : "package:/" + mapAsset.entryName();
+        String storedMapPath = plan.hasDownloadedBaseMaps()
+                ? (plan.downloadedOrthophotoActive()
+                    ? "package:/assets/orthophoto.png"
+                    : "package:/assets/base-map.png")
+                : mapAsset == null ? plan.mapImagePath() : "package:/" + mapAsset.entryName();
         Properties planProperties = createPlanProperties(plan, storedMapPath);
         Properties manifest = new Properties();
         manifest.setProperty("format", PACKAGE_FORMAT);
         manifest.setProperty(FORMAT_VERSION_PROPERTY, Integer.toString(CURRENT_FORMAT_VERSION));
         manifest.setProperty("planEntry", PLAN_ENTRY);
-        if (mapAsset != null) {
+        if (mapAsset != null && !plan.hasDownloadedBaseMaps()) {
             manifest.setProperty(MAP_ENTRY_PROPERTY, mapAsset.entryName());
+        }
+        if (plan.hasDownloadedBaseMaps()) {
+            manifest.setProperty(REGULAR_MAP_ENTRY_PROPERTY, "assets/base-map.png");
+            manifest.setProperty(ORTHOPHOTO_ENTRY_PROPERTY, "assets/orthophoto.png");
         }
 
         Path target = file.toAbsolutePath();
@@ -91,7 +100,7 @@ public class PlanFileService {
         Path temporaryFile = Files.createTempFile(parent, ".pplan-", ".tmp");
         boolean saved = false;
         try {
-            writePackage(temporaryFile, manifest, planProperties, mapAsset);
+            writePackage(temporaryFile, manifest, planProperties, mapAsset, plan);
             loadPackage(temporaryFile);
             replaceFile(temporaryFile, target);
             saved = true;
@@ -101,7 +110,7 @@ public class PlanFileService {
             }
         }
 
-        if (mapAsset != null) {
+        if (mapAsset != null && !plan.hasDownloadedBaseMaps()) {
             plan.setPackagedMapImage(mapAsset.entryName(), mapAsset.data());
         }
     }
@@ -112,6 +121,15 @@ public class PlanFileService {
         properties.setProperty(FORMAT_VERSION_PROPERTY, Integer.toString(CURRENT_FORMAT_VERSION));
         properties.setProperty("plan.name", plan.name());
         properties.setProperty("plan.mapImagePath", mapImagePath);
+        if (plan.hasDownloadedBaseMaps()) {
+            BaseMapBounds bounds = plan.downloadedMapBounds();
+            properties.setProperty("plan.downloadedMap.minX", Double.toString(bounds.minX()));
+            properties.setProperty("plan.downloadedMap.minY", Double.toString(bounds.minY()));
+            properties.setProperty("plan.downloadedMap.maxX", Double.toString(bounds.maxX()));
+            properties.setProperty("plan.downloadedMap.maxY", Double.toString(bounds.maxY()));
+            properties.setProperty("plan.downloadedMap.orthophotoActive",
+                    Boolean.toString(plan.downloadedOrthophotoActive()));
+        }
         properties.setProperty("plan.pixelsPerMeter", Double.toString(plan.pixelsPerMeter()));
         properties.setProperty("plan.objectLabelFontSize", Double.toString(plan.objectLabelFontSize()));
         properties.setProperty("plan.cableLabelFontSize", Double.toString(plan.cableLabelFontSize()));
@@ -412,6 +430,23 @@ public class PlanFileService {
 
             EventPlan plan = readPlan(planProperties);
             String mapEntry = manifest.getProperty(MAP_ENTRY_PROPERTY, "").trim();
+            String regularMapEntry = manifest.getProperty(REGULAR_MAP_ENTRY_PROPERTY, "").trim();
+            String orthophotoEntry = manifest.getProperty(ORTHOPHOTO_ENTRY_PROPERTY, "").trim();
+            if (!regularMapEntry.isEmpty() || !orthophotoEntry.isEmpty()) {
+                if (!"assets/base-map.png".equals(regularMapEntry)
+                        || !"assets/orthophoto.png".equals(orthophotoEntry)) {
+                    throw new IOException("Plaanipaketi aluskaartide kirjed ei ole korrektsed.");
+                }
+                byte[] regularMap = readEntry(zipFile, regularMapEntry, MAX_MAP_BYTES);
+                byte[] orthophoto = readEntry(zipFile, orthophotoEntry, MAX_MAP_BYTES);
+                validateMapImage(regularMap);
+                validateMapImage(orthophoto);
+                BaseMapBounds bounds = downloadedMapBounds(planProperties);
+                boolean orthophotoActive = booleanValue(
+                        planProperties, "plan.downloadedMap.orthophotoActive", false);
+                plan.restoreDownloadedBaseMaps(regularMap, orthophoto, bounds, orthophotoActive);
+                mapEntry = "";
+            }
             if (!mapEntry.isEmpty()) {
                 validateMapEntryName(mapEntry);
                 if (!("package:/" + mapEntry).equals(plan.mapImagePath())) {
@@ -420,9 +455,11 @@ public class PlanFileService {
                 byte[] mapData = readEntry(zipFile, mapEntry, MAX_MAP_BYTES);
                 validateMapImage(mapData);
                 plan.setPackagedMapImage(mapEntry, mapData);
-            } else if (plan.mapImagePath().startsWith("package:/")) {
+            } else if (!plan.hasDownloadedBaseMaps() && plan.mapImagePath().startsWith("package:/")) {
                 throw new IOException("Plaanipaketis viidatud kaardipilt puudub.");
-            } else if (!plan.mapImagePath().isBlank() && !plan.mapImagePath().startsWith("classpath:")) {
+            } else if (!plan.hasDownloadedBaseMaps()
+                    && !plan.mapImagePath().isBlank()
+                    && !plan.mapImagePath().startsWith("classpath:")) {
                 throw new IOException("Plaanipakett sisaldab välist kaardipildi viidet.");
             }
             return plan;
@@ -437,17 +474,41 @@ public class PlanFileService {
             Path file,
             Properties manifest,
             Properties planProperties,
-            MapAsset mapAsset
+            MapAsset mapAsset,
+            EventPlan plan
     ) throws IOException {
         try (OutputStream output = Files.newOutputStream(file);
              ZipOutputStream zipOutput = new ZipOutputStream(output)) {
             writePropertiesEntry(zipOutput, MANIFEST_ENTRY, manifest, "Plaanisepa plaanipakett");
             writePropertiesEntry(zipOutput, PLAN_ENTRY, planProperties, "Plaanisepa plaaniandmed");
-            if (mapAsset != null) {
+            if (plan.hasDownloadedBaseMaps()) {
+                writeImageEntry(zipOutput, "assets/base-map.png", plan.downloadedRegularMap());
+                writeImageEntry(zipOutput, "assets/orthophoto.png", plan.downloadedOrthophoto());
+            } else if (mapAsset != null) {
                 zipOutput.putNextEntry(new ZipEntry(mapAsset.entryName()));
                 zipOutput.write(mapAsset.data());
                 zipOutput.closeEntry();
             }
+        }
+    }
+
+    private void writeImageEntry(ZipOutputStream output, String entryName, byte[] data) throws IOException {
+        validateMapImage(data);
+        output.putNextEntry(new ZipEntry(entryName));
+        output.write(data);
+        output.closeEntry();
+    }
+
+    private BaseMapBounds downloadedMapBounds(Properties properties) throws IOException {
+        try {
+            return new BaseMapBounds(
+                    Double.parseDouble(properties.getProperty("plan.downloadedMap.minX")),
+                    Double.parseDouble(properties.getProperty("plan.downloadedMap.minY")),
+                    Double.parseDouble(properties.getProperty("plan.downloadedMap.maxX")),
+                    Double.parseDouble(properties.getProperty("plan.downloadedMap.maxY"))
+            );
+        } catch (RuntimeException exception) {
+            throw new IOException("Plaanipaketi aluskaardi asukoht ei ole korrektne.", exception);
         }
     }
 

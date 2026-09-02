@@ -1,5 +1,8 @@
 package ee.matteus.plaanisepp.core.model;
 
+import ee.matteus.plaanisepp.core.map.BaseMapBounds;
+import ee.matteus.plaanisepp.core.map.BaseMapDownload;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -21,6 +24,10 @@ public class EventPlan {
     private String mapImagePath;
     private String packagedMapImageEntry = "";
     private byte[] packagedMapImage = new byte[0];
+    private byte[] downloadedRegularMap = new byte[0];
+    private byte[] downloadedOrthophoto = new byte[0];
+    private BaseMapBounds downloadedMapBounds;
+    private boolean downloadedOrthophotoActive;
     private double pixelsPerMeter = DEFAULT_PIXELS_PER_METER;
     private double objectLabelFontSize = DEFAULT_OBJECT_LABEL_FONT_SIZE;
     private double cableLabelFontSize = DEFAULT_CABLE_LABEL_FONT_SIZE;
@@ -70,6 +77,10 @@ public class EventPlan {
     public void setMapImagePath(String mapImagePath) {
         this.mapImagePath = mapImagePath == null ? "" : mapImagePath;
         clearPackagedMapImage();
+        downloadedRegularMap = new byte[0];
+        downloadedOrthophoto = new byte[0];
+        downloadedMapBounds = null;
+        downloadedOrthophotoActive = false;
     }
 
     public boolean hasPackagedMapImage() {
@@ -99,6 +110,113 @@ public class EventPlan {
     public void clearPackagedMapImage() {
         packagedMapImageEntry = "";
         packagedMapImage = new byte[0];
+    }
+
+    public boolean hasDownloadedBaseMaps() {
+        return downloadedRegularMap.length > 0 && downloadedOrthophoto.length > 0;
+    }
+
+    public byte[] downloadedRegularMap() {
+        return downloadedRegularMap.clone();
+    }
+
+    public byte[] downloadedOrthophoto() {
+        return downloadedOrthophoto.clone();
+    }
+
+    public BaseMapBounds downloadedMapBounds() {
+        return downloadedMapBounds;
+    }
+
+    public boolean downloadedOrthophotoActive() {
+        return downloadedOrthophotoActive;
+    }
+
+    public void setDownloadedBaseMaps(BaseMapDownload download) {
+        downloadedRegularMap = download.regularMap();
+        downloadedOrthophoto = download.orthophoto();
+        downloadedMapBounds = download.bounds();
+        downloadedOrthophotoActive = false;
+        pixelsPerMeter = download.pixelsPerMetre();
+        setDownloadedBaseMapActive(false);
+    }
+
+    public void scalePixelGeometry(double factor) {
+        if (!Double.isFinite(factor) || factor <= 0) {
+            throw new IllegalArgumentException("Geomeetria mõõtkava peab olema positiivne.");
+        }
+        if (Math.abs(factor - 1.0) < 0.000001) {
+            return;
+        }
+        for (PlannerObject object : objects) {
+            List<Position> originalPoints = object instanceof AreaObject areaObject
+                    ? List.copyOf(areaObject.points())
+                    : object instanceof LineObject lineObject ? List.copyOf(lineObject.points()) : List.of();
+            boolean locked = object.locked();
+            object.setLocked(false);
+            object.moveTo(scalePosition(object.position(), factor));
+            object.setLocked(locked);
+            if (object instanceof AreaObject areaObject) {
+                areaObject.setPoints(scalePositions(originalPoints, factor));
+            } else if (object instanceof LineObject lineObject) {
+                lineObject.setPoints(scalePositions(originalPoints, factor));
+            }
+            if (object.customMapLabelPosition()) {
+                object.setMapLabelOffset(scalePosition(object.mapLabelOffset(), factor));
+            }
+            if (object instanceof TextObject textObject) {
+                textObject.setReferenceLineSourceOffset(
+                        scalePosition(textObject.referenceLineSourceOffset(), factor));
+            }
+            if (object instanceof EquipmentContainer container) {
+                container.setPowerConnectionOffset(scalePosition(container.powerConnectionOffset(), factor));
+            }
+        }
+        for (FenceJoint joint : fenceJoints) {
+            joint.moveTo(scalePosition(joint.position(), factor));
+        }
+        for (int index = 0; index < powerConnections.size(); index++) {
+            PowerConnection connection = powerConnections.get(index);
+            powerConnections.set(index, new PowerConnection(
+                    connection.id(), connection.sourceId(), connection.consumerId(), connection.connectorType(),
+                    connection.outletId(), connection.cableNotes(), connection.cableLengthNotes(),
+                    scalePositions(connection.routePoints(), factor), connection.customCableLabelPosition(),
+                    scalePosition(connection.cableLabelOffset(), factor), connection.defaultForConsumer()
+            ));
+        }
+    }
+
+    private static List<Position> scalePositions(List<Position> positions, double factor) {
+        return positions.stream().map(position -> scalePosition(position, factor)).toList();
+    }
+
+    private static Position scalePosition(Position position, double factor) {
+        return new Position(position.x() * factor, position.y() * factor);
+    }
+
+    public void restoreDownloadedBaseMaps(
+            byte[] regularMap,
+            byte[] orthophoto,
+            BaseMapBounds bounds,
+            boolean orthophotoActive
+    ) {
+        if (regularMap == null || regularMap.length == 0 || orthophoto == null || orthophoto.length == 0) {
+            throw new IllegalArgumentException("Allalaaditud aluskaardid ei tohi olla tühjad.");
+        }
+        downloadedRegularMap = regularMap.clone();
+        downloadedOrthophoto = orthophoto.clone();
+        downloadedMapBounds = bounds;
+        setDownloadedBaseMapActive(orthophotoActive);
+    }
+
+    public void setDownloadedBaseMapActive(boolean orthophoto) {
+        if (!hasDownloadedBaseMaps()) {
+            throw new IllegalStateException("Plaanil ei ole allalaaditud aluskaarte.");
+        }
+        downloadedOrthophotoActive = orthophoto;
+        packagedMapImageEntry = orthophoto ? "assets/orthophoto.png" : "assets/base-map.png";
+        packagedMapImage = (orthophoto ? downloadedOrthophoto : downloadedRegularMap).clone();
+        mapImagePath = "package:/" + packagedMapImageEntry;
     }
 
     public double pixelsPerMeter() {

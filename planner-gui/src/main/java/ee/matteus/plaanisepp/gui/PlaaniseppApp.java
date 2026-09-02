@@ -48,6 +48,7 @@ import javafx.animation.Timeline;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.geometry.Point2D;
 import javafx.scene.Cursor;
 import javafx.scene.Group;
@@ -89,6 +90,8 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -131,6 +134,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -218,6 +222,8 @@ public class PlaaniseppApp extends Application {
     private ScrollPane mapScrollPane;
     private Scale mapScale;
     private ImageView mapImageView;
+    private ToggleButton defaultMapButton;
+    private ToggleButton orthophotoMapButton;
     private double zoomLevel = 1.0;
     private Slider zoomSlider;
     private Button zoomPercentButton;
@@ -964,6 +970,8 @@ public class PlaaniseppApp extends Application {
                 KeyCombination.SHIFT_DOWN
         ));
         planSettingsItem.setOnAction(event -> showPlanSettingsDialog());
+        MenuItem chooseBaseMapItem = new MenuItem("Määra aluskaart päriskaardilt…");
+        chooseBaseMapItem.setOnAction(event -> chooseBaseMapFromRealMap());
 
         Menu fileMenu = new Menu("Fail");
         fileMenu.getItems().addAll(
@@ -975,6 +983,7 @@ public class PlaaniseppApp extends Application {
                 new SeparatorMenuItem(),
                 exportMenu,
                 new SeparatorMenuItem(),
+                chooseBaseMapItem,
                 planSettingsItem
         );
 
@@ -1810,6 +1819,12 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
 
+        HBox baseMapSwitcher = createBaseMapSwitcher();
+        StackPane mapView = new StackPane(mapScrollPane, baseMapSwitcher);
+        StackPane.setAlignment(mapScrollPane, Pos.CENTER);
+        StackPane.setAlignment(baseMapSwitcher, Pos.TOP_RIGHT);
+        StackPane.setMargin(baseMapSwitcher, new Insets(12));
+
         sidebar = new VBox(10);
         sidebar.setPadding(new Insets(12));
         objectListSection = collapsibleSection(OBJECT_LIST_SECTION, "Objektid", createObjectListPanel(), false);
@@ -1930,9 +1945,82 @@ public class PlaaniseppApp extends Application {
         ScrollPane sidebarScrollPane = new ScrollPane(sidebar);
         sidebarScrollPane.setFitToWidth(true);
 
-        SplitPane splitPane = new SplitPane(mapScrollPane, sidebarScrollPane);
+        SplitPane splitPane = new SplitPane(mapView, sidebarScrollPane);
         splitPane.setDividerPositions(0.72);
         return splitPane;
+    }
+
+    private HBox createBaseMapSwitcher() {
+        defaultMapButton = new ToggleButton("Tavakaart");
+        orthophotoMapButton = new ToggleButton("Ortofoto");
+        defaultMapButton.setFocusTraversable(false);
+        orthophotoMapButton.setFocusTraversable(false);
+        defaultMapButton.setTooltip(new Tooltip("Kasuta kaasasolevat tavakaarti"));
+        orthophotoMapButton.setTooltip(new Tooltip("Kasuta kaasasolevat ortofotot"));
+        defaultMapButton.setOnAction(event -> switchBaseMap(false));
+        orthophotoMapButton.setOnAction(event -> switchBaseMap(true));
+        HBox switcher = new HBox(0, defaultMapButton, orthophotoMapButton);
+        switcher.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        switcher.setStyle("-fx-background-color: rgba(255,255,255,0.94);"
+                + " -fx-background-radius: 5; -fx-border-color: #9ca3af;"
+                + " -fx-border-radius: 5; -fx-padding: 2;"
+                + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 6, 0, 0, 1);");
+        refreshBaseMapSwitcher();
+        return switcher;
+    }
+
+    private void chooseBaseMapFromRealMap() {
+        BaseMapSelectionDialog.show(stage).ifPresent(download -> {
+            PlanSnapshot before = planSnapshotService.create(plan);
+            double previousPixelsPerMeter = plan.pixelsPerMeter();
+            plan.setDownloadedBaseMaps(download);
+            plan.scalePixelGeometry(plan.pixelsPerMeter() / previousPixelsPerMeter);
+            if (pixelsPerMeterField != null) {
+                pixelsPerMeterField.setText(String.format(Locale.ROOT, "%.4f", plan.pixelsPerMeter())
+                        .replaceAll("0+$", "").replaceAll("\\.$", ""));
+            }
+            refreshBaseMapSwitcher();
+            finishAutoAppliedDetailsChange(before, false);
+        });
+    }
+
+    private void switchBuiltInMap(String mapPath) {
+        if (plan.mapImagePath().equals(mapPath)) {
+            refreshBaseMapSwitcher();
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        plan.setMapImagePath(mapPath);
+        refreshBaseMapSwitcher();
+        finishAutoAppliedDetailsChange(before, false);
+    }
+
+    private void switchBaseMap(boolean orthophoto) {
+        if (!plan.hasDownloadedBaseMaps()) {
+            switchBuiltInMap(orthophoto ? ORTHOPHOTO_MAP_PATH : DEFAULT_MAP_PATH);
+            return;
+        }
+        if (plan.downloadedOrthophotoActive() == orthophoto) {
+            refreshBaseMapSwitcher();
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        plan.setDownloadedBaseMapActive(orthophoto);
+        refreshBaseMapSwitcher();
+        finishAutoAppliedDetailsChange(before, false);
+    }
+
+    private void refreshBaseMapSwitcher() {
+        if (defaultMapButton == null || orthophotoMapButton == null || plan == null) {
+            return;
+        }
+        if (plan.hasDownloadedBaseMaps()) {
+            defaultMapButton.setSelected(!plan.downloadedOrthophotoActive());
+            orthophotoMapButton.setSelected(plan.downloadedOrthophotoActive());
+        } else {
+            defaultMapButton.setSelected(DEFAULT_MAP_PATH.equals(plan.mapImagePath()));
+            orthophotoMapButton.setSelected(ORTHOPHOTO_MAP_PATH.equals(plan.mapImagePath()));
+        }
     }
 
     private Button summaryToggleButton(SummaryListItem item) {
@@ -3017,6 +3105,9 @@ public class PlaaniseppApp extends Application {
             zoomPercentButton.setText(zoomPercentText());
         }
         updateZoomContentSize();
+        if (mapPane != null && plan != null) {
+            redrawMap();
+        }
     }
 
     private String zoomPercentText() {
@@ -4460,7 +4551,8 @@ public class PlaaniseppApp extends Application {
                 plan.cableLabelFontSize(),
                 plan.mapImagePath(),
                 DEFAULT_MAP_PATH,
-                ORTHOPHOTO_MAP_PATH
+                ORTHOPHOTO_MAP_PATH,
+                false
         );
         PlanSettingsDialog.show(
                 stage,
@@ -4487,6 +4579,9 @@ public class PlaaniseppApp extends Application {
                     settings.cableLabelFontSize(),
                     settings.mapImagePath()
             );
+            if (creatingNewPlan && settings.chooseFromRealMap()) {
+                chooseBaseMapFromRealMap();
+            }
         });
     }
 
@@ -4762,6 +4857,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void redrawMap() {
+        refreshBaseMapSwitcher();
         synchronizeLinkedTextObjects();
         synchronizeSelectionState();
         plan.synchronizeFenceRows(pixelsPerMeter());
@@ -4870,11 +4966,18 @@ public class PlaaniseppApp extends Application {
                 addSelectionOutline(outline, Color.web(row.colorHex()));
             }
         } else if (selectedObject instanceof PowerSource source) {
+            double radius = adaptiveMapPixels(source.sizePixels()) / 2;
             addSelectionOutline(new Circle(
-                    source.position().x(), source.position().y(), source.sizePixels() / 2 + 4
+                    source.position().x(), source.position().y(), radius + screenPixels(4)
             ), highlightColor);
         } else if (selectedObject instanceof MarkerObject marker) {
-            addSelectionOutline(new Rectangle(marker.position().x() - 2, marker.position().y() - 2, 32, 32), highlightColor);
+            double markerSize = adaptiveMapPixels(32);
+            addSelectionOutline(new Rectangle(
+                    marker.position().x() - screenPixels(2),
+                    marker.position().y() - screenPixels(2),
+                    markerSize,
+                    markerSize
+            ), highlightColor);
         }
     }
 
@@ -4919,7 +5022,7 @@ public class PlaaniseppApp extends Application {
     private void addSelectionOutline(javafx.scene.shape.Shape outline, Color color) {
         outline.setFill(Color.TRANSPARENT);
         outline.setStroke(color);
-        outline.setStrokeWidth(Math.max(2, outline.getStrokeWidth()));
+        outline.setStrokeWidth(screenPixels(2.5));
         outline.setMouseTransparent(true);
         mapPane.getChildren().add(outline);
     }
@@ -5061,7 +5164,8 @@ public class PlaaniseppApp extends Application {
         Color cableColor = CableDisplayHelper.color(cable.connection().connectorType());
         boolean selectedCable = cable.connection().id().equals(selectedPowerConnectionId())
                 || addingCablePoint && cable.connection().id().equals(editingCableConnectionId);
-        double strokeWidth = CableDisplayHelper.width(cable.connection().connectorType()) + (selectedCable ? 2.0 : 0.0);
+        double strokeWidth = adaptiveMapPixels(CableDisplayHelper.width(cable.connection().connectorType())
+                + (selectedCable ? 2.0 : 0.0));
 
         Polyline line = CablePolylineHelper.create(path);
         line.setStroke(cableColor);
@@ -5070,21 +5174,21 @@ public class PlaaniseppApp extends Application {
         line.setOpacity(cableOpacity * (selectedCable ? 1.0 : 0.85));
         line.setMouseTransparent(true);
         if (cable.connection().connectorType() == ConnectorType.SCHUKO_230V) {
-            line.getStrokeDashArray().addAll(8.0, 6.0);
+            line.getStrokeDashArray().addAll(adaptiveMapPixels(8.0), adaptiveMapPixels(6.0));
         }
 
         Polyline highlightLine = CablePolylineHelper.create(path);
         highlightLine.setStroke(Color.web("#111827"));
-        highlightLine.setStrokeWidth(strokeWidth + 4.0);
+        highlightLine.setStrokeWidth(strokeWidth + screenPixels(4.0));
         highlightLine.setOpacity(selectedCable ? 0.28 : 0);
         highlightLine.setMouseTransparent(true);
         if (cable.connection().connectorType() == ConnectorType.SCHUKO_230V) {
-            highlightLine.getStrokeDashArray().addAll(8.0, 6.0);
+            highlightLine.getStrokeDashArray().addAll(adaptiveMapPixels(8.0), adaptiveMapPixels(6.0));
         }
 
         Polyline hitLine = CablePolylineHelper.create(path);
         hitLine.setStroke(Color.TRANSPARENT);
-        hitLine.setStrokeWidth(Math.max(12.0, strokeWidth + 8.0));
+        hitLine.setStrokeWidth(Math.max(screenPixels(12.0), strokeWidth + screenPixels(8.0)));
         makeCableSelectable(hitLine, cable);
 
         mapPane.getChildren().addAll(highlightLine, line, hitLine);
@@ -5099,7 +5203,7 @@ public class PlaaniseppApp extends Application {
                     selectedCable ? "0.96" : "0.88",
                     toHex(selectedCable ? Color.web("#111827") : cableColor),
                     selectedCable ? "bold" : "normal",
-                    Double.toString(plan.cableLabelFontSize())
+                    Double.toString(adaptiveMapPixels(plan.cableLabelFontSize()))
             ));
             distanceLabel.setLayoutX(labelPosition.x());
             distanceLabel.setLayoutY(labelPosition.y());
@@ -5110,10 +5214,10 @@ public class PlaaniseppApp extends Application {
         if (selectedCable && !mapLayoutLocked) {
             for (int index = 0; index < cable.connection().routePoints().size(); index++) {
                 Position routePoint = cable.connection().routePoints().get(index);
-                Circle marker = new Circle(routePoint.x(), routePoint.y(), 4);
+                Circle marker = new Circle(routePoint.x(), routePoint.y(), screenPixels(5));
                 marker.setFill(Color.WHITE);
                 marker.setStroke(cableColor);
-                marker.setStrokeWidth(2);
+                marker.setStrokeWidth(screenPixels(2));
                 marker.setOpacity(cableOpacity);
                 Tooltip.install(marker, new Tooltip("Lohista punkti muutmiseks, paremklõps avab valikud"));
                 makeCableSelectable(marker, cable.consumer());
@@ -5122,10 +5226,10 @@ public class PlaaniseppApp extends Application {
             }
             if (cable.consumer() instanceof PowerConnectable) {
                 Position endpoint = path.getLast();
-                Circle anchorMarker = new Circle(endpoint.x(), endpoint.y(), 6);
+                Circle anchorMarker = new Circle(endpoint.x(), endpoint.y(), screenPixels(7));
                 anchorMarker.setFill(Color.web("#fef3c7"));
                 anchorMarker.setStroke(Color.web("#111827"));
-                anchorMarker.setStrokeWidth(2);
+                anchorMarker.setStrokeWidth(screenPixels(2));
                 anchorMarker.setOpacity(cableOpacity);
                 Tooltip.install(anchorMarker, new Tooltip("Lohista voolu ühenduspunkti, paremklõps lähtestab"));
                 makePowerConnectionAnchorDraggable(
@@ -5592,13 +5696,13 @@ public class PlaaniseppApp extends Application {
         boolean djTruck = tent.preset() == TentPreset.DJ_TRUCK;
         rectangle.setFill(Color.web(djTruck ? "#1d4ed8" : tent.colorHex()));
         rectangle.setStroke(Color.web(djTruck ? "#dc2626" : "#222222"));
-        rectangle.setStrokeWidth(isSelected(tent) ? 4 : 1);
+        rectangle.setStrokeWidth(adaptiveMapPixels(isSelected(tent) ? 4 : 1));
         applyLockedStroke(rectangle, tent);
         if (djTruck) {
             Text label = new Text("DJ");
             label.setFill(Color.web("#dc2626"));
             double labelSize = Math.max(
-                    MIN_DJ_TRUCK_LABEL_SIZE_PIXELS,
+                    adaptiveMapPixels(MIN_DJ_TRUCK_LABEL_SIZE_PIXELS),
                     metersToPixels(DJ_TRUCK_LABEL_HEIGHT_METERS)
             );
             label.setFont(Font.font("System", FontWeight.BOLD, labelSize));
@@ -5619,7 +5723,7 @@ public class PlaaniseppApp extends Application {
             makeDraggable(rectangle, tent);
             mapPane.getChildren().add(rectangle);
         }
-        addMapLabel(tent, tent.position().x(), tent.position().y() - 24);
+        addMapLabel(tent, tent.position().x(), tent.position().y() - adaptiveMapPixels(24));
         addRotationHandleIfActive(
                 tent,
                 new Position(tent.position().x() + widthPixels / 2, tent.position().y() + heightPixels / 2),
@@ -5630,11 +5734,11 @@ public class PlaaniseppApp extends Application {
     }
 
     private void drawPowerSource(PowerSource source) {
-        double radius = source.sizePixels() / 2;
+        double radius = adaptiveMapPixels(source.sizePixels()) / 2;
         Circle circle = new Circle(source.position().x(), source.position().y(), radius);
         circle.setFill(Color.web(source.colorHex()));
         circle.setStroke(Color.web("#111827"));
-        circle.setStrokeWidth(isSelected(source) ? 4 : 1);
+        circle.setStrokeWidth(adaptiveMapPixels(isSelected(source) ? 4 : 1));
         circle.setOpacity(source.opacity());
         applyLockedStroke(circle, source);
         makeSelectable(circle, source);
@@ -5642,7 +5746,7 @@ public class PlaaniseppApp extends Application {
 
         mapPane.getChildren().add(circle);
         addRotationHandleIfActive(source, circle);
-        addMapLabel(source, source.position().x() + radius + 4, source.position().y() - radius);
+        addMapLabel(source, source.position().x() + radius + adaptiveMapPixels(4), source.position().y() - radius);
     }
 
     private void drawCustomObject(CustomObject object) {
@@ -5666,13 +5770,15 @@ public class PlaaniseppApp extends Application {
         shape.setFill(Color.web(object.colorHex()));
         shape.setOpacity(object.opacity());
         shape.setStroke(Color.web("#111827"));
-        shape.setStrokeWidth(isSelected(object) ? 4 : 1);
+        shape.setStrokeWidth(adaptiveMapPixels(isSelected(object) ? 4 : 1));
         applyLockedStroke(shape, object);
         makeSelectable(shape, object);
         makeDraggable(shape, object);
 
         mapPane.getChildren().add(shape);
-        addMapLabel(object, object.position().x() + 16, object.position().y() - 12);
+        addMapLabel(object,
+                object.position().x() + adaptiveMapPixels(16),
+                object.position().y() - adaptiveMapPixels(12));
         addRotationHandleIfActive(
                 object,
                 object.position(),
@@ -5693,7 +5799,7 @@ public class PlaaniseppApp extends Application {
         polygon.setFill(Color.web(object.colorHex()));
         polygon.setOpacity(object.opacity());
         polygon.setStroke(Color.web(object.colorHex()));
-        polygon.setStrokeWidth(isSelected(object) ? 4 : 1.5);
+        polygon.setStrokeWidth(adaptiveMapPixels(isSelected(object) ? 4 : 1.5));
         applyLockedStroke(polygon, object);
         makeSelectable(polygon, object);
         makeDraggable(polygon, object);
@@ -5701,7 +5807,7 @@ public class PlaaniseppApp extends Application {
         mapPane.getChildren().add(polygon);
         addRotationHandleIfActive(object, polygon);
         Position labelPosition = averagePosition(object.points());
-        addMapLabel(object, labelPosition.x() + 8, labelPosition.y() + 8);
+        addMapLabel(object, labelPosition.x() + adaptiveMapPixels(8), labelPosition.y() + adaptiveMapPixels(8));
         if (isSelected(object) && rotatingObjectId == null && !mapLayoutLocked) {
             addAreaMidpointHandles(object, polygon);
             addAreaPointHandles(object, polygon);
@@ -5715,7 +5821,8 @@ public class PlaaniseppApp extends Application {
         Polyline polyline = CablePolylineHelper.create(object.points());
         polyline.setFill(null);
         polyline.setStroke(Color.web(object.colorHex()));
-        polyline.setStrokeWidth(object.widthPixels() + (isSelected(object) ? 2.0 : 0.0));
+        polyline.setStrokeWidth(adaptiveMapPixels(
+                object.widthPixels() + (isSelected(object) ? 2.0 : 0.0)));
         polyline.setOpacity(object.opacity() * (isSelected(object) ? 1.0 : 0.9));
         applyLockedStroke(polyline, object);
         makeSelectable(polyline, object);
@@ -5724,7 +5831,7 @@ public class PlaaniseppApp extends Application {
         mapPane.getChildren().add(polyline);
         addRotationHandleIfActive(object, polyline);
         Position labelPosition = averagePosition(object.points());
-        addMapLabel(object, labelPosition.x() + 8, labelPosition.y() + 8);
+        addMapLabel(object, labelPosition.x() + adaptiveMapPixels(8), labelPosition.y() + adaptiveMapPixels(8));
         if (isSelected(object) && rotatingObjectId == null && !mapLayoutLocked) {
             addLineMidpointHandles(object, polyline);
             addLinePointHandles(object, polyline);
@@ -5736,7 +5843,8 @@ public class PlaaniseppApp extends Application {
         Position end = fenceRow.endPosition(pixelsPerMeter());
         Line fenceLine = new Line(start.x(), start.y(), end.x(), end.y());
         fenceLine.setStroke(Color.web(fenceRow.colorHex()));
-        fenceLine.setStrokeWidth(fenceRow.widthPixels() + (isSelected(fenceRow) ? 2.0 : 0.0));
+        fenceLine.setStrokeWidth(adaptiveMapPixels(
+                fenceRow.widthPixels() + (isSelected(fenceRow) ? 2.0 : 0.0)));
         fenceLine.setOpacity(fenceRow.opacity() * (isSelected(fenceRow) ? 1.0 : 0.9));
         applyLockedStroke(fenceLine, fenceRow);
         makeSelectable(fenceLine, fenceRow);
@@ -5745,8 +5853,8 @@ public class PlaaniseppApp extends Application {
         mapPane.getChildren().add(fenceLine);
 
         double angle = Math.toRadians(fenceRow.rotationDegrees());
-        double perpendicularX = -Math.sin(angle) * 6;
-        double perpendicularY = Math.cos(angle) * 6;
+        double perpendicularX = -Math.sin(angle) * adaptiveMapPixels(6);
+        double perpendicularY = Math.cos(angle) * adaptiveMapPixels(6);
         double segmentLengthPixels = fenceRow.segmentLengthMeters() * pixelsPerMeter();
         List<Line> dividers = new ArrayList<>();
         List<Circle> splitHandles = new ArrayList<>();
@@ -5760,16 +5868,16 @@ public class PlaaniseppApp extends Application {
                     y + perpendicularY
             );
             divider.setStroke(Color.web(fenceRow.colorHex()));
-            divider.setStrokeWidth(2);
+            divider.setStrokeWidth(adaptiveMapPixels(2));
             divider.setOpacity(fenceRow.opacity() * (isSelected(fenceRow) ? 1.0 : 0.9));
             divider.setMouseTransparent(true);
             mapPane.getChildren().add(divider);
             dividers.add(divider);
             if (index > 0 && index < fenceRow.segmentCount() && isSelected(fenceRow) && !mapLayoutLocked) {
                 int segmentIndex = index;
-                Circle splitHandle = new Circle(x, y, 6, Color.TRANSPARENT);
+                Circle splitHandle = new Circle(x, y, screenPixels(6), Color.TRANSPARENT);
                 splitHandle.setStroke(Color.web(fenceRow.colorHex(), 0.65));
-                splitHandle.setStrokeWidth(1.5);
+                splitHandle.setStrokeWidth(screenPixels(1.5));
                 splitHandle.setOpacity(fenceRow.opacity());
                 splitHandle.setCursor(Cursor.HAND);
                 markFenceDragNode(splitHandle);
@@ -5793,7 +5901,9 @@ public class PlaaniseppApp extends Application {
 
         Position center = new Position((start.x() + end.x()) / 2, (start.y() + end.y()) / 2);
         if (plan.isFenceNetworkRepresentative(fenceRow)) {
-            addMapLabel(fenceRow, center.x() + 8, center.y() + 8);
+            addMapLabel(fenceRow,
+                    center.x() + adaptiveMapPixels(8),
+                    center.y() + adaptiveMapPixels(8));
         }
         Label inventoryLabel = null;
         boolean selectedFenceNetwork = selectedObject instanceof FenceRow selectedFence
@@ -5810,11 +5920,16 @@ public class PlaaniseppApp extends Application {
             inventoryLabel = new Label("%d aeda · %.1f m · %d aiakivi".formatted(
                     fenceCount, totalLength, gardenStoneCount
             ));
-            double defaultLabelX = center.x() + 8;
-            double defaultLabelY = center.y() + 28;
+            double defaultLabelX = center.x() + adaptiveMapPixels(8);
+            double defaultLabelY = center.y() + adaptiveMapPixels(28);
             inventoryLabel.setLayoutX(defaultLabelX + fenceRow.inventoryLabelOffset().x());
             inventoryLabel.setLayoutY(defaultLabelY + fenceRow.inventoryLabelOffset().y());
-            inventoryLabel.setStyle("-fx-background-color: rgba(255,255,255,0.88); -fx-padding: 2 4 2 4;");
+            double labelFontSize = adaptiveMapPixels(plan.objectLabelFontSize());
+            inventoryLabel.setStyle(("-fx-background-color: rgba(255,255,255,0.88);"
+                    + " -fx-padding: %spx %spx %spx %spx; -fx-font-size: %spx;").formatted(
+                    adaptiveMapPixels(2), adaptiveMapPixels(4),
+                    adaptiveMapPixels(2), adaptiveMapPixels(4), labelFontSize
+            ));
             makeFenceInventoryLabelDraggable(inventoryLabel, fenceRow, defaultLabelX, defaultLabelY);
             mapPane.getChildren().add(inventoryLabel);
         }
@@ -6157,8 +6272,8 @@ public class PlaaniseppApp extends Application {
             visual.endHandle().setCenterY(end.y());
         }
         double angle = Math.toRadians(fenceRow.rotationDegrees());
-        double perpendicularX = -Math.sin(angle) * 6;
-        double perpendicularY = Math.cos(angle) * 6;
+        double perpendicularX = -Math.sin(angle) * adaptiveMapPixels(6);
+        double perpendicularY = Math.cos(angle) * adaptiveMapPixels(6);
         double segmentLengthPixels = fenceRow.segmentLengthMeters() * pixelsPerMeter();
         for (int index = 0; index < visual.dividers().size(); index++) {
             double x = start.x() + Math.cos(angle) * segmentLengthPixels * index;
@@ -6176,10 +6291,10 @@ public class PlaaniseppApp extends Application {
         }
         if (visual.inventoryLabel() != null) {
             visual.inventoryLabel().setLayoutX(
-                    (start.x() + end.x()) / 2 + 8 + fenceRow.inventoryLabelOffset().x()
+                    (start.x() + end.x()) / 2 + adaptiveMapPixels(8) + fenceRow.inventoryLabelOffset().x()
             );
             visual.inventoryLabel().setLayoutY(
-                    (start.y() + end.y()) / 2 + 28 + fenceRow.inventoryLabelOffset().y()
+                    (start.y() + end.y()) / 2 + adaptiveMapPixels(28) + fenceRow.inventoryLabelOffset().y()
             );
         }
     }
@@ -6233,18 +6348,18 @@ public class PlaaniseppApp extends Application {
     }
 
     private Circle shapePointHandle(Position point, Color color) {
-        Circle marker = new Circle(point.x(), point.y(), 5);
+        Circle marker = new Circle(point.x(), point.y(), screenPixels(6));
         marker.setFill(Color.WHITE);
         marker.setStroke(color);
-        marker.setStrokeWidth(2.5);
+        marker.setStrokeWidth(screenPixels(2.5));
         return marker;
     }
 
     private Circle shapeMidpointHandle(Position point, Color color) {
-        Circle marker = new Circle(point.x(), point.y(), 4);
+        Circle marker = new Circle(point.x(), point.y(), screenPixels(5));
         marker.setFill(Color.web(toHex(color), 0.45));
         marker.setStroke(color);
-        marker.setStrokeWidth(1.5);
+        marker.setStrokeWidth(screenPixels(1.5));
         marker.setCursor(Cursor.CROSSHAIR);
         return marker;
     }
@@ -6575,6 +6690,8 @@ public class PlaaniseppApp extends Application {
     }
 
     private void drawTextObject(TextObject object) {
+        double fontSize = adaptiveMapPixels(object.fontSize());
+        double boxScale = fontSize / object.fontSize();
         Line referenceLine = null;
         PlannerObject referenceSource = null;
         if (object.showReferenceLine()) {
@@ -6588,47 +6705,50 @@ public class PlaaniseppApp extends Application {
                         object.position().y()
                 );
                 referenceLine.setStroke(Color.web(object.colorHex(), 0.7));
-                referenceLine.setStrokeWidth(1.5 / Math.max(zoomLevel, 0.1));
+                referenceLine.setStrokeWidth(screenPixels(1.5));
                 referenceLine.getStrokeDashArray().addAll(
-                        6.0 / Math.max(zoomLevel, 0.1),
-                        4.0 / Math.max(zoomLevel, 0.1)
+                        screenPixels(6.0),
+                        screenPixels(4.0)
                 );
                 referenceLine.setMouseTransparent(true);
                 mapPane.getChildren().add(referenceLine);
             }
         }
-        VBox textBox = new VBox(3);
+        VBox textBox = new VBox(3 * boxScale);
         textBox.setLayoutX(object.position().x());
         textBox.setLayoutY(object.position().y());
-        textBox.setMaxWidth(260);
+        textBox.setMaxWidth(260 * boxScale);
         textBox.setStyle("""
                 -fx-background-color: rgba(255,255,255,%s);
                 -fx-border-color: %s;
                 -fx-border-width: %s;
                 -fx-background-radius: 4;
                 -fx-border-radius: 4;
-                -fx-padding: 4 7 5 7;
+                -fx-padding: %spx %spx %spx %spx;
                 """.formatted(
                 object.opacity(),
                 isSelected(object) ? object.colorHex() : cssRgba(object.colorHex(), object.opacity()),
-                isSelected(object) ? "2" : "1"
+                adaptiveMapPixels(isSelected(object) ? 2 : 1),
+                4 * boxScale, 7 * boxScale, 5 * boxScale, 7 * boxScale
         ));
 
         Label titleLabel = new Label(object.name());
         titleLabel.setWrapText(true);
-        titleLabel.setMaxWidth(246);
+        titleLabel.setMaxWidth(246 * boxScale);
         titleLabel.setTextFill(Color.web(object.colorHex()));
         titleLabel.setOpacity(object.textOpacity());
-        titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: %spx;".formatted(Double.toString(object.fontSize())));
+        titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: %spx;"
+                .formatted(Double.toString(fontSize)));
         textBox.getChildren().add(titleLabel);
 
         if (!object.notes().isBlank()) {
             Label contentLabel = new Label(object.notes());
             contentLabel.setWrapText(true);
-            contentLabel.setMaxWidth(246);
+            contentLabel.setMaxWidth(246 * boxScale);
             contentLabel.setTextFill(Color.web("#111827"));
             contentLabel.setOpacity(object.textOpacity());
-            contentLabel.setStyle("-fx-font-size: %spx;".formatted(Double.toString(object.fontSize())));
+            contentLabel.setStyle("-fx-font-size: %spx;"
+                    .formatted(Double.toString(fontSize)));
             textBox.getChildren().add(contentLabel);
         }
 
@@ -6639,7 +6759,7 @@ public class PlaaniseppApp extends Application {
             addTextReferenceLineAnchor(object, referenceSource, referenceLine);
         }
         textBox.applyCss();
-        double textBoxWidth = Math.min(260, Math.max(1, textBox.prefWidth(-1)));
+        double textBoxWidth = Math.min(260 * boxScale, Math.max(1, textBox.prefWidth(-1)));
         double textBoxHeight = Math.max(1, textBox.prefHeight(textBoxWidth));
         textBox.resize(textBoxWidth, textBoxHeight);
         textBox.setRotate(object.rotationDegrees());
@@ -6743,10 +6863,15 @@ public class PlaaniseppApp extends Application {
         makeSelectable(markerIcon, object);
         makeDraggable(markerIcon, object);
         markerIcon.setRotate(object.rotationDegrees());
+        double markerScale = adaptiveMapPixels(32) / 32;
+        markerIcon.setScaleX(markerScale);
+        markerIcon.setScaleY(markerScale);
 
         mapPane.getChildren().add(markerIcon);
         addRotationHandleIfActive(object, markerIcon);
-        addMapLabel(object, object.position().x() + 34, object.position().y() + 4);
+        addMapLabel(object,
+                object.position().x() + adaptiveMapPixels(34),
+                object.position().y() + adaptiveMapPixels(4));
     }
 
     private void addMapLabel(PlannerObject object, double x, double y) {
@@ -6755,19 +6880,25 @@ public class PlaaniseppApp extends Application {
         }
         double labelX = object.customMapLabelPosition() ? x + object.mapLabelOffset().x() : x;
         double labelY = object.customMapLabelPosition() ? y + object.mapLabelOffset().y() : y;
+        double fontSize = adaptiveMapPixels(plan.objectLabelFontSize());
+        double boxScale = fontSize / plan.objectLabelFontSize();
         Label label = new Label(mapLabel(object));
         label.setLayoutX(labelX);
         label.setLayoutY(labelY);
         label.setStyle("""
                 -fx-background-color: rgba(255,255,255,0.82);
                 -fx-border-color: rgba(17,24,39,0.35);
-                -fx-border-width: 1;
+                -fx-border-width: %spx;
                 -fx-background-radius: 3;
                 -fx-border-radius: 3;
-                -fx-padding: 2 5 2 5;
+                -fx-padding: %spx %spx %spx %spx;
                 -fx-text-fill: #111827;
                 -fx-font-size: %spx;
-                """.formatted(Double.toString(plan.objectLabelFontSize())));
+                """.formatted(
+                adaptiveMapPixels(1),
+                2 * boxScale, 5 * boxScale, 2 * boxScale, 5 * boxScale,
+                Double.toString(fontSize)
+        ));
         makeSelectable(label, object);
         makeMapLabelDraggable(label, object, x, y);
         mapPane.getChildren().add(label);
@@ -7158,11 +7289,12 @@ public class PlaaniseppApp extends Application {
             double minY = bounds.stream().mapToDouble(Bounds::getMinY).min().orElse(0);
             double maxY = bounds.stream().mapToDouble(Bounds::getMaxY).max().orElse(0);
             center = new Position((minX + maxX) / 2, (minY + maxY) / 2);
-            double naturalDistance = Math.max(32, Math.max(maxX - minX, maxY - minY) / 2 + 24);
+            double naturalDistance = Math.max(screenPixels(32),
+                    Math.max(maxX - minX, maxY - minY) / 2 + screenPixels(24));
             Position visibleHandle = constrainRotationHandleToViewport(new Position(
                     center.x(), center.y() - naturalDistance
             ));
-            handleDistance = Math.max(16, Math.hypot(
+            handleDistance = Math.max(screenPixels(16), Math.hypot(
                     visibleHandle.x() - center.x(), visibleHandle.y() - center.y()
             ));
             handleStartRotationDegrees = pointerRotationDegrees(
@@ -7175,11 +7307,11 @@ public class PlaaniseppApp extends Application {
         double handleY = center.y() + Math.sin(radians) * handleDistance;
         Line guide = new Line(center.x(), center.y(), handleX, handleY);
         guide.setStroke(Color.web("#7c3aed"));
-        guide.setStrokeWidth(2);
+        guide.setStrokeWidth(screenPixels(2));
         guide.setMouseTransparent(true);
-        Circle handle = new Circle(handleX, handleY, 8, Color.WHITE);
+        Circle handle = new Circle(handleX, handleY, screenPixels(8), Color.WHITE);
         handle.setStroke(Color.web("#7c3aed"));
-        handle.setStrokeWidth(3);
+        handle.setStrokeWidth(screenPixels(3));
         handle.setCursor(Cursor.HAND);
         handle.setOnMousePressed(event -> {
             if (event.getButton() != MouseButton.PRIMARY
@@ -7297,17 +7429,18 @@ public class PlaaniseppApp extends Application {
         if (!isObjectRotationActive(object)) {
             return;
         }
-        double handleDistance = Math.max(24, Math.max(widthPixels, heightPixels) / 2 + 24);
+        double handleDistance = Math.max(screenPixels(24),
+                Math.max(widthPixels, heightPixels) / 2 + screenPixels(24));
         double radians = Math.toRadians(rotationDegrees - 90);
         double handleX = center.x() + Math.cos(radians) * handleDistance;
         double handleY = center.y() + Math.sin(radians) * handleDistance;
         Line guide = new Line(center.x(), center.y(), handleX, handleY);
         guide.setStroke(Color.web("#7c3aed"));
-        guide.setStrokeWidth(2);
+        guide.setStrokeWidth(screenPixels(2));
         guide.setMouseTransparent(true);
-        Circle handle = new Circle(handleX, handleY, 8, Color.web("#ffffff"));
+        Circle handle = new Circle(handleX, handleY, screenPixels(8), Color.web("#ffffff"));
         handle.setStroke(Color.web("#7c3aed"));
-        handle.setStrokeWidth(3);
+        handle.setStrokeWidth(screenPixels(3));
         handle.setCursor(Cursor.HAND);
         handle.setOnMousePressed(event -> {
             if (event.getButton() != MouseButton.PRIMARY || mapLayoutLocked || object.locked()) {
@@ -10186,6 +10319,17 @@ public class PlaaniseppApp extends Application {
 
     private double pixelsPerMeter() {
         return plan == null ? EventPlan.DEFAULT_PIXELS_PER_METER : plan.pixelsPerMeter();
+    }
+
+    private double screenPixels(double pixels) {
+        return pixels / Math.max(zoomLevel, 0.1);
+    }
+
+    private double adaptiveMapPixels(double basePixels) {
+        double densityScale = Math.max(1.0, pixelsPerMeter() / EventPlan.DEFAULT_PIXELS_PER_METER);
+        double naturalScreenSize = basePixels * densityScale * Math.max(zoomLevel, 0.1);
+        double desiredScreenSize = clamp(naturalScreenSize, basePixels, basePixels * 1.6);
+        return screenPixels(desiredScreenSize);
     }
 
     private void clearMeasurements() {

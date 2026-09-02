@@ -4,6 +4,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
@@ -46,6 +47,9 @@ final class PlanSettingsDialog {
                 initialSettings.cableLabelFontSize()
         );
         Label mapLabel = new Label(mapLabelText(initialSettings.mapImagePath()));
+        CheckBox chooseFromRealMap = new CheckBox("Vali ala päriskaardilt pärast nende andmete kinnitamist");
+        chooseFromRealMap.setVisible(creatingNewPlan);
+        chooseFromRealMap.setManaged(creatingNewPlan);
 
         String[] selectedMapPath = {initialSettings.mapImagePath()};
         Button defaultMapButton = new Button("Tavakaart");
@@ -87,6 +91,9 @@ final class PlanSettingsDialog {
                 loadMapButton
         ));
         form.addRow(5, new Label("Valitud kaart"), mapLabel);
+        if (creatingNewPlan) {
+            form.addRow(6, new Label("Päriskaart"), chooseFromRealMap);
+        }
 
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
         dialog.initOwner(owner);
@@ -102,7 +109,8 @@ final class PlanSettingsDialog {
                         cableLabelFontSizeSlider.getValue(),
                         selectedMapPath[0],
                         initialSettings.defaultMapPath(),
-                        initialSettings.orthophotoMapPath()
+                        initialSettings.orthophotoMapPath(),
+                        chooseFromRealMap.isSelected()
                 ));
     }
 
@@ -179,7 +187,8 @@ final class PlanSettingsDialog {
             double cableLabelFontSize,
             String mapImagePath,
             String defaultMapPath,
-            String orthophotoMapPath
+            String orthophotoMapPath,
+            boolean chooseFromRealMap
     ) {
     }
 }

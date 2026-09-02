@@ -15,7 +15,7 @@ public final class PlanSnapshotService {
         Properties properties = planFileService.createPlanProperties(plan, plan.mapImagePath());
         Map<String, String> values = properties.stringPropertyNames().stream()
                 .collect(Collectors.toUnmodifiableMap(name -> name, properties::getProperty));
-        return new PlanSnapshot(values, mapImageAsset(plan));
+        return new PlanSnapshot(values, mapImageAsset(plan), baseMapAsset(plan));
     }
 
     public EventPlan restore(PlanSnapshot snapshot) {
@@ -25,6 +25,15 @@ public final class PlanSnapshotService {
         PlanSnapshot.MapImageAsset mapImageAsset = snapshot.mapImageAsset();
         if (mapImageAsset != null) {
             plan.setPackagedMapImage(mapImageAsset.entryName(), mapImageAsset.data());
+        }
+        PlanSnapshot.BaseMapAsset baseMapAsset = snapshot.baseMapAsset();
+        if (baseMapAsset != null) {
+            plan.restoreDownloadedBaseMaps(
+                    baseMapAsset.regularMap(),
+                    baseMapAsset.orthophoto(),
+                    baseMapAsset.bounds(),
+                    baseMapAsset.orthophotoActive()
+            );
         }
         return plan;
     }
@@ -41,5 +50,17 @@ public final class PlanSnapshotService {
         }
         cachedMapImageAsset = new PlanSnapshot.MapImageAsset(plan.packagedMapImageEntry(), imageData);
         return cachedMapImageAsset;
+    }
+
+    private PlanSnapshot.BaseMapAsset baseMapAsset(EventPlan plan) {
+        if (!plan.hasDownloadedBaseMaps()) {
+            return null;
+        }
+        return new PlanSnapshot.BaseMapAsset(
+                plan.downloadedRegularMap(),
+                plan.downloadedOrthophoto(),
+                plan.downloadedMapBounds(),
+                plan.downloadedOrthophotoActive()
+        );
     }
 }

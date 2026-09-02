@@ -1,5 +1,7 @@
 package ee.matteus.plaanisepp.core.service;
 
+import ee.matteus.plaanisepp.core.map.BaseMapBounds;
+
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -7,10 +9,12 @@ import java.util.Objects;
 public final class PlanSnapshot {
     private final Map<String, String> properties;
     private final MapImageAsset mapImageAsset;
+    private final BaseMapAsset baseMapAsset;
 
-    PlanSnapshot(Map<String, String> properties, MapImageAsset mapImageAsset) {
+    PlanSnapshot(Map<String, String> properties, MapImageAsset mapImageAsset, BaseMapAsset baseMapAsset) {
         this.properties = Map.copyOf(properties);
         this.mapImageAsset = mapImageAsset;
+        this.baseMapAsset = baseMapAsset;
     }
 
     Map<String, String> properties() {
@@ -19,6 +23,10 @@ public final class PlanSnapshot {
 
     MapImageAsset mapImageAsset() {
         return mapImageAsset;
+    }
+
+    BaseMapAsset baseMapAsset() {
+        return baseMapAsset;
     }
 
     @Override
@@ -30,12 +38,14 @@ public final class PlanSnapshot {
             return false;
         }
         return properties.equals(snapshot.properties)
-                && Objects.equals(mapImageAsset, snapshot.mapImageAsset);
+                && Objects.equals(mapImageAsset, snapshot.mapImageAsset)
+                && Objects.equals(baseMapAsset, snapshot.baseMapAsset);
     }
 
     @Override
     public int hashCode() {
-        return 31 * properties.hashCode() + Objects.hashCode(mapImageAsset);
+        return 31 * (31 * properties.hashCode() + Objects.hashCode(mapImageAsset))
+                + Objects.hashCode(baseMapAsset);
     }
 
     static final class MapImageAsset {
@@ -69,6 +79,41 @@ public final class PlanSnapshot {
         @Override
         public int hashCode() {
             return 31 * entryName.hashCode() + Arrays.hashCode(data);
+        }
+    }
+
+    static final class BaseMapAsset {
+        private final byte[] regularMap;
+        private final byte[] orthophoto;
+        private final BaseMapBounds bounds;
+        private final boolean orthophotoActive;
+
+        BaseMapAsset(byte[] regularMap, byte[] orthophoto, BaseMapBounds bounds, boolean orthophotoActive) {
+            this.regularMap = regularMap;
+            this.orthophoto = orthophoto;
+            this.bounds = bounds;
+            this.orthophotoActive = orthophotoActive;
+        }
+
+        byte[] regularMap() { return regularMap; }
+        byte[] orthophoto() { return orthophoto; }
+        BaseMapBounds bounds() { return bounds; }
+        boolean orthophotoActive() { return orthophotoActive; }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof BaseMapAsset asset
+                    && Arrays.equals(regularMap, asset.regularMap)
+                    && Arrays.equals(orthophoto, asset.orthophoto)
+                    && bounds.equals(asset.bounds)
+                    && orthophotoActive == asset.orthophotoActive;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = 31 * Arrays.hashCode(regularMap) + Arrays.hashCode(orthophoto);
+            result = 31 * result + bounds.hashCode();
+            return 31 * result + Boolean.hashCode(orthophotoActive);
         }
     }
 }
