@@ -44,6 +44,7 @@ import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
+import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.geometry.Bounds;
@@ -473,10 +474,16 @@ public class PlaaniseppApp extends Application {
     private boolean organizerView;
     private boolean objectEditDialogOpen;
     private Stage stage;
+    private EventPlan cachedMapPlan;
+    private long cachedMapRevision = Long.MIN_VALUE;
+    private String cachedMapPath = "";
+    private Image cachedMapImage;
+    private final PauseTransition zoomRedrawDebounce = new PauseTransition(Duration.millis(120));
 
     @Override
     public void start(Stage stage) {
         this.stage = stage;
+        zoomRedrawDebounce.setOnFinished(event -> redrawMap());
         organizerView = preferences.getBoolean(ORGANIZER_VIEW_PREFERENCE, true);
         String startupPlanError = initializePlan();
         objectListHeight = loadObjectListHeightPreference();
@@ -545,8 +552,7 @@ public class PlaaniseppApp extends Application {
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
             applyMultiObjectDrag(mapPoint);
             multiObjectDragChanged = true;
-            redrawMap();
-            refreshSummary();
+            updateMultiObjectDragPreview(mapPoint);
             recordPlanDragChange();
             event.consume();
         });
@@ -972,6 +978,8 @@ public class PlaaniseppApp extends Application {
         planSettingsItem.setOnAction(event -> showPlanSettingsDialog());
         MenuItem chooseBaseMapItem = new MenuItem("Määra aluskaart päriskaardilt…");
         chooseBaseMapItem.setOnAction(event -> chooseBaseMapFromRealMap());
+        MenuItem importTartuCabinetsItem = new MenuItem("Impordi Tartu püsivoolukilbid…");
+        importTartuCabinetsItem.setOnAction(event -> importTartuPowerCabinets());
 
         Menu fileMenu = new Menu("Fail");
         fileMenu.getItems().addAll(
@@ -984,6 +992,7 @@ public class PlaaniseppApp extends Application {
                 exportMenu,
                 new SeparatorMenuItem(),
                 chooseBaseMapItem,
+                importTartuCabinetsItem,
                 planSettingsItem
         );
 
@@ -1982,6 +1991,63 @@ public class PlaaniseppApp extends Application {
             refreshBaseMapSwitcher();
             finishAutoAppliedDetailsChange(before, false);
         });
+    }
+
+    private void importTartuPowerCabinets() {
+        if (!plan.hasDownloadedBaseMaps() || plan.downloadedMapBounds() == null) {
+            showError(
+                    "Püsivoolukilpe ei imporditud",
+                    "Impordiks määra esmalt aluskaart valikuga „Määra aluskaart päriskaardilt…“."
+            );
+            return;
+        }
+        try {
+            stage.getScene().setCursor(Cursor.WAIT);
+            List<TartuPowerCabinetImportService.Cabinet> cabinets =
+                    new TartuPowerCabinetImportService().load(plan.downloadedMapBounds());
+            Set<String> existingNames = plan.objects().stream()
+                    .filter(PowerSource.class::isInstance)
+                    .map(object -> object.name().trim().toLowerCase(Locale.ROOT))
+                    .collect(java.util.stream.Collectors.toSet());
+            List<TartuPowerCabinetImportService.Cabinet> newCabinets = cabinets.stream()
+                    .filter(cabinet -> !existingNames.contains(cabinet.name().toLowerCase(Locale.ROOT)))
+                    .toList();
+            if (newCabinets.isEmpty()) {
+                showInformation("Püsivoolukilpide import", cabinets.isEmpty()
+                        ? "Valitud kaardialal ei leitud püsivoolukilpe."
+                        : "Kõik valitud kaardiala püsivoolukilbid on juba plaanis.");
+                return;
+            }
+            Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+            confirmation.initOwner(stage);
+            confirmation.setTitle("Impordi Tartu püsivoolukilbid");
+            confirmation.setHeaderText("Leiti " + cabinets.size() + " püsivoolukilpi");
+            confirmation.setContentText("Plaani lisatakse " + newCabinets.size()
+                    + " uut kilpi koos nime ja saadaoleva lisainfoga. Jätkata?");
+            if (confirmation.showAndWait().filter(ButtonType.OK::equals).isEmpty()) {
+                return;
+            }
+            PlanSnapshot before = planSnapshotService.create(plan);
+            ee.matteus.plaanisepp.core.map.BaseMapBounds bounds = plan.downloadedMapBounds();
+            for (TartuPowerCabinetImportService.Cabinet cabinet : newCabinets) {
+                Position position = new Position(
+                        (cabinet.easting() - bounds.minX()) * pixelsPerMeter(),
+                        (bounds.maxY() - cabinet.northing()) * pixelsPerMeter()
+                );
+                PowerSource source = new PowerSource(planFactory.newId(), cabinet.name(), position);
+                source.setGroupName("Tartu püsivoolukilbid");
+                source.setNotes(cabinet.details());
+                plan.addObject(source);
+            }
+            finishAutoAppliedDetailsChange(before, true);
+            showInformation("Püsivoolukilpide import",
+                    "Plaani lisati " + newCabinets.size() + " püsivoolukilpi.");
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
+            showError("Püsivoolukilpe ei imporditud", exception.getMessage());
+        } finally {
+            if (stage.getScene() != null) stage.getScene().setCursor(Cursor.DEFAULT);
+        }
     }
 
     private void switchBuiltInMap(String mapPath) {
@@ -3106,7 +3172,7 @@ public class PlaaniseppApp extends Application {
         }
         updateZoomContentSize();
         if (mapPane != null && plan != null) {
-            redrawMap();
+            zoomRedrawDebounce.playFromStart();
         }
     }
 
@@ -5656,30 +5722,41 @@ public class PlaaniseppApp extends Application {
     }
 
     private Image loadImage(String imagePath) {
+        long revision = plan.mapImageRevision();
+        String normalizedPath = imagePath == null ? "" : imagePath;
+        if (cachedMapImage != null
+                && cachedMapPlan == plan
+                && cachedMapRevision == revision
+                && cachedMapPath.equals(normalizedPath)) {
+            return cachedMapImage;
+        }
+        Image loadedImage = null;
         if (plan.hasPackagedMapImage()) {
             try (InputStream input = new ByteArrayInputStream(plan.packagedMapImage())) {
-                return new Image(input);
+                loadedImage = new Image(input);
             } catch (RuntimeException | IOException exception) {
                 return null;
             }
-        }
-        if (imagePath == null || imagePath.isBlank()) {
+        } else if (imagePath == null || imagePath.isBlank()) {
             return null;
-        }
-
-        try {
+        } else try {
             if (imagePath.startsWith("classpath:")) {
                 String resourcePath = imagePath.substring("classpath:".length());
                 try (InputStream inputStream = getClass().getResourceAsStream(resourcePath)) {
-                    return inputStream == null ? null : new Image(inputStream);
+                    loadedImage = inputStream == null ? null : new Image(inputStream);
                 }
+            } else {
+                File imageFile = new File(imagePath);
+                loadedImage = imageFile.exists() ? new Image(imageFile.toURI().toString()) : null;
             }
-
-            File imageFile = new File(imagePath);
-            return imageFile.exists() ? new Image(imageFile.toURI().toString()) : null;
         } catch (RuntimeException | IOException exception) {
             return null;
         }
+        cachedMapPlan = plan;
+        cachedMapRevision = revision;
+        cachedMapPath = normalizedPath;
+        cachedMapImage = loadedImage;
+        return loadedImage;
     }
 
     private void drawTent(Tent tent) {
@@ -7070,6 +7147,7 @@ public class PlaaniseppApp extends Application {
         final Delta dragDelta = new Delta();
         final boolean[] fenceDragged = {false};
         final boolean[] dragArmed = {false};
+        final Position[] dragStartObjectPosition = {null};
         node.setOnMousePressed(event -> {
             dragArmed[0] = false;
             if (event.getButton() != MouseButton.PRIMARY || measuringActive || addingCablePoint) {
@@ -7114,6 +7192,7 @@ public class PlaaniseppApp extends Application {
                     multiObjectDragState = createMultiObjectDragState(mapPoint);
                 }
             } else {
+                dragStartObjectPosition[0] = object.position();
                 dragDelta.x = mapPoint.getX() - object.position().x();
                 dragDelta.y = mapPoint.getY() - object.position().y();
             }
@@ -7152,9 +7231,9 @@ public class PlaaniseppApp extends Application {
                         mapPoint.getX() - dragDelta.x,
                         mapPoint.getY() - dragDelta.y
                 ));
-                redrawMap();
+                node.setTranslateX(object.position().x() - dragStartObjectPosition[0].x());
+                node.setTranslateY(object.position().y() - dragStartObjectPosition[0].y());
             }
-            refreshSummary();
             recordPlanDragChange();
             event.consume();
         });
@@ -7172,6 +7251,13 @@ public class PlaaniseppApp extends Application {
                     redrawMap();
                     refreshDetails();
                 }
+                event.consume();
+            } else {
+                node.setTranslateX(0);
+                node.setTranslateY(0);
+                redrawMap();
+                refreshDetails();
+                refreshSummary();
                 event.consume();
             }
         });
@@ -7232,6 +7318,21 @@ public class PlaaniseppApp extends Application {
                 )))
         );
         plan.synchronizeFenceRows(pixelsPerMeter());
+    }
+
+    private void updateMultiObjectDragPreview(Point2D pointer) {
+        if (multiObjectDragState == null) {
+            return;
+        }
+        double deltaX = pointer.getX() - multiObjectDragState.pointerStart().x();
+        double deltaY = pointer.getY() - multiObjectDragState.pointerStart().y();
+        for (PlannerObject object : selectedObjects()) {
+            Node objectNode = mapObjectNodes.get(object.id());
+            if (objectNode != null) {
+                objectNode.setTranslateX(deltaX);
+                objectNode.setTranslateY(deltaY);
+            }
+        }
     }
 
     private void startObjectRotation(PlannerObject object) {
@@ -12795,6 +12896,15 @@ public class PlaaniseppApp extends Application {
         alert.setTitle(title);
         alert.setHeaderText(title);
         alert.setContentText(message == null || message.isBlank() ? "Tundmatu viga." : message);
+        alert.showAndWait();
+    }
+
+    private void showInformation(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.initOwner(stage);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message);
         alert.showAndWait();
     }
 

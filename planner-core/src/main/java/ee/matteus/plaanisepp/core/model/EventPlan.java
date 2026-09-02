@@ -28,6 +28,7 @@ public class EventPlan {
     private byte[] downloadedOrthophoto = new byte[0];
     private BaseMapBounds downloadedMapBounds;
     private boolean downloadedOrthophotoActive;
+    private long mapImageRevision;
     private double pixelsPerMeter = DEFAULT_PIXELS_PER_METER;
     private double objectLabelFontSize = DEFAULT_OBJECT_LABEL_FONT_SIZE;
     private double cableLabelFontSize = DEFAULT_CABLE_LABEL_FONT_SIZE;
@@ -81,6 +82,7 @@ public class EventPlan {
         downloadedOrthophoto = new byte[0];
         downloadedMapBounds = null;
         downloadedOrthophotoActive = false;
+        mapImageRevision++;
     }
 
     public boolean hasPackagedMapImage() {
@@ -105,6 +107,7 @@ public class EventPlan {
         packagedMapImageEntry = entryName;
         packagedMapImage = imageData.clone();
         mapImagePath = "package:/" + entryName;
+        mapImageRevision++;
     }
 
     public void clearPackagedMapImage() {
@@ -217,6 +220,11 @@ public class EventPlan {
         packagedMapImageEntry = orthophoto ? "assets/orthophoto.png" : "assets/base-map.png";
         packagedMapImage = (orthophoto ? downloadedOrthophoto : downloadedRegularMap).clone();
         mapImagePath = "package:/" + packagedMapImageEntry;
+        mapImageRevision++;
+    }
+
+    public long mapImageRevision() {
+        return mapImageRevision;
     }
 
     public double pixelsPerMeter() {

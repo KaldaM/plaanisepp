@@ -612,6 +612,10 @@ Kõrge eraldusvõimega raster ei muuda kaardikirju ega Plaanisepa objekte ekraan
 
 Visuaalse kordaja teine etapp arvestab ka kaardivaate zoomi. Siltidel, tekstidel, joontel ja sümbolitel on välja suumimisel loetavuse miinimum ning sisse suumimisel piiratud maksimum; valikuäärised, kujupunktid, kaabli kinnituspunktid ja pööramiskäepidemed säilitavad stabiilse ekraanisuuruse. „Automaatne optimaalne” on ümber nimetatud „Automaatne (suurim lubatud)” valikuks, sest see määrab ainult 8000 px / 40 MP piiridesse mahtuva rastereraldusvõime, mitte kujunduslikku optimumi.
 
+Kõrglahutusega kaardi jõudluse jaoks dekodeeritakse aluskaardi raster ühe korra ja seda taaskasutatakse redraw'de vahel. Zoom rakendub kohe olemasoleva kaardikihi transformatsioonina ning zoomitundlike elementide täpsem redraw tehakse lühikese viitega. Üksikute objektide ja kujualade tavalisel lohistamisel nihutatakse olemasolevat JavaFX sõlme ning kogu kaardivaade ehitatakse uuesti alles lohistamise lõpus.
+
+Georefereeritud Tartu aluskaardiga saab Fail-menüüst importida valitud alale jäävad Tartu linna avaliku tänavavalgustuse andmekihi püsivoolukilbid. EPSG:3301 koordinaadid teisendatakse aluskaardi pikslikoordinaatideks; elektrikilbi objektile tulevad teenusest nimi, lähte-ID ning olemasolu korral mark, märkus, maksimumvool ja nimivool. Tundmatuid väljundeid või võimsusi ei oletata ning kordusimport jätab sama nimega olemasolevad elektrikilbid vahele.
+
 Google Mapsi ekraanipilte ega kaardipaanide kopeerimist ei kasutata selle töövoo alusena. Kui Google'i ametlikku staatilise kaardi teenust üldse toetada, tuleb arvestada selle pildimõõdu, autentimise, arvelduse, kuvamise ja säilitamise tingimustega. Esmane prototüüp tehakse avatuma ametliku WMS/WMTS teenusega.
 
 ### Vastuvõtukriteeriumid
