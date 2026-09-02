@@ -9,6 +9,7 @@ public class TextObject extends PlannerObject {
     private String sourceObjectId;
     private boolean syncSourceNotes;
     private boolean showReferenceLine;
+    private boolean inventorySource;
 
     public TextObject(String id, String name, Position position) {
         super(id, name, position);
@@ -18,6 +19,7 @@ public class TextObject extends PlannerObject {
         this.sourceObjectId = "";
         this.syncSourceNotes = false;
         this.showReferenceLine = false;
+        this.inventorySource = false;
     }
 
     public String colorHex() {
@@ -73,5 +75,13 @@ public class TextObject extends PlannerObject {
 
     public void setShowReferenceLine(boolean showReferenceLine) {
         this.showReferenceLine = showReferenceLine && !sourceObjectId.isBlank();
+    }
+
+    public boolean inventorySource() {
+        return inventorySource;
+    }
+
+    public void setInventorySource(boolean inventorySource) {
+        this.inventorySource = inventorySource && !sourceObjectId.isBlank();
     }
 }

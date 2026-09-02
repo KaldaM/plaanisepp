@@ -51,7 +51,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 17;
+    public static final int CURRENT_FORMAT_VERSION = 18;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -761,6 +761,7 @@ public class PlanFileService {
         properties.setProperty(prefix + "sourceObjectId", object.sourceObjectId());
         properties.setProperty(prefix + "syncSourceNotes", Boolean.toString(object.syncSourceNotes()));
         properties.setProperty(prefix + "showReferenceLine", Boolean.toString(object.showReferenceLine()));
+        properties.setProperty(prefix + "inventorySource", Boolean.toString(object.inventorySource()));
     }
 
     private void writeMarkerObject(Properties properties, String prefix, MarkerObject object) {
@@ -1030,6 +1031,7 @@ public class PlanFileService {
         object.setSourceObjectId(properties.getProperty(prefix + "sourceObjectId", ""));
         object.setSyncSourceNotes(booleanValue(properties, prefix + "syncSourceNotes", false));
         object.setShowReferenceLine(booleanValue(properties, prefix + "showReferenceLine", false));
+        object.setInventorySource(booleanValue(properties, prefix + "inventorySource", false));
         return object;
     }
 

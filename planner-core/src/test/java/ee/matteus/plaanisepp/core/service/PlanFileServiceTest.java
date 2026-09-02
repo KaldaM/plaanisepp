@@ -117,7 +117,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(17, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(18, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -134,6 +134,7 @@ class PlanFileServiceTest {
         text.setSourceObjectId(tent.id());
         text.setSyncSourceNotes(true);
         text.setShowReferenceLine(true);
+        text.setInventorySource(true);
         plan.addObject(tent);
         plan.addObject(text);
         Path file = tempDirectory.resolve("linked-text.pplan");
@@ -145,6 +146,7 @@ class PlanFileServiceTest {
         assertEquals(tent.id(), loadedText.sourceObjectId());
         assertTrue(loadedText.syncSourceNotes());
         assertTrue(loadedText.showReferenceLine());
+        assertTrue(loadedText.inventorySource());
     }
 
     @Test
@@ -793,7 +795,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(17, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(18, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()
