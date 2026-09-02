@@ -52,7 +52,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 19;
+    public static final int CURRENT_FORMAT_VERSION = 20;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";

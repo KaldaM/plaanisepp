@@ -118,7 +118,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(19, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(20, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -798,7 +798,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(19, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(20, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

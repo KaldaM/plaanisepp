@@ -182,6 +182,8 @@ public class PlaaniseppApp extends Application {
     private static final long DOUBLE_SHIFT_INTERVAL_NANOS = 500_000_000L;
     private static final int MAX_PLAN_HISTORY_STEPS = 50;
     private static final List<Double> DEFAULT_CABLE_PIECE_LENGTHS = List.of(2.0, 5.0, 10.0, 20.0);
+    private static final String INVENTORY_SUMMARY_KEY_PROPERTY = "plaanisepp.inventorySummaryKey";
+    private static final String INVENTORY_SUMMARY_SOURCE_PREFIX = "inventory-summary:";
     private static final List<ChecklistSuggestion> CHECKLIST_SUGGESTIONS = List.of(
             new ChecklistSuggestion("technical_tent", "Tehnikatelk"),
             new ChecklistSuggestion("info_tent", "Infotelk"),
@@ -6691,6 +6693,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private void synchronizeLinkedTextObject(TextObject textObject) {
+        if (textObject.sourceType() == TextObjectSourceType.INVENTORY_SUMMARY) {
+            synchronizeInventorySummaryTextObject(textObject);
+            return;
+        }
         plan.findObject(textObject.sourceObjectId())
                 .filter(source -> source != textObject)
                 .ifPresent(source -> {
@@ -6700,6 +6706,9 @@ public class PlaaniseppApp extends Application {
                                 textObject.rename(source.name() + " — inventar");
                                 textObject.setNotes(objectInventoryText(container));
                             }
+                        }
+                        case INVENTORY_SUMMARY -> {
+                            // Koondinventari seost käsitletakse enne kaardiobjekti otsimist.
                         }
                         case POWER_OUTLETS -> {
                             if (source instanceof PowerSource powerSource) {
@@ -8052,6 +8061,8 @@ public class PlaaniseppApp extends Application {
         boolean inventoryContainerSelected = selectedObject instanceof InventoryContainer;
         boolean linkedTextObject = selectedObject instanceof TextObject textObject
                 && !textObject.sourceObjectId().isBlank();
+        boolean textObjectHasMapSource = linkedTextObject
+                && ((TextObject) selectedObject).sourceType() != TextObjectSourceType.INVENTORY_SUMMARY;
         nameField.setDisable(!hasSelection);
         groupField.setDisable(!hasSelection);
         notesArea.setDisable(!hasSelection
@@ -8083,7 +8094,7 @@ public class PlaaniseppApp extends Application {
         textObjectFontSizeSlider.setDisable(!textObjectSelected);
         textObjectTextOpacitySlider.setDisable(!textObjectSelected);
         textObjectSyncNotesCheckBox.setDisable(!linkedTextObject);
-        textObjectReferenceLineCheckBox.setDisable(!linkedTextObject);
+        textObjectReferenceLineCheckBox.setDisable(!textObjectHasMapSource);
         markerTypeComboBox.setDisable(!markerSelected);
         markerColorPicker.setDisable(!markerSelected);
         areaColorPicker.setDisable(!areaSelected);
@@ -8311,6 +8322,7 @@ public class PlaaniseppApp extends Application {
             setOpacitySliderValue(textObjectTextOpacitySlider, textObject.textOpacity() * 100.0);
             textObjectSyncNotesCheckBox.setText(switch (textObject.sourceType()) {
                 case INVENTORY -> "Uuenda objekti nimest ja inventarist";
+                case INVENTORY_SUMMARY -> "Uuenda inventari kokkuvõtet";
                 case POWER_OUTLETS -> "Uuenda kilbi nimest ja väljunditest";
                 default -> "Uuenda objekti nimest ja märkmetest";
             });
@@ -11333,6 +11345,9 @@ public class PlaaniseppApp extends Application {
         if (inventoryContent.getChildren().isEmpty()) {
             inventoryContent.getChildren().add(new Label("Inventariobjekte pole"));
         }
+        if (mapPane != null) {
+            redrawMap();
+        }
     }
 
     private void addFenceInventory(InventorySummaryService.Summary inventory) {
@@ -11499,6 +11514,7 @@ public class PlaaniseppApp extends Application {
                 }
             });
             pane.setAnimated(false);
+            pane.getProperties().put(INVENTORY_SUMMARY_KEY_PROPERTY, "item:" + itemName);
             configureInventoryTextAction(pane);
             inventoryContent.getChildren().add(pane);
         });
@@ -11966,9 +11982,88 @@ public class PlaaniseppApp extends Application {
     }
 
     private void createInventoryTextObject(TitledPane pane) {
+        Object summaryKey = pane.getProperties().get(INVENTORY_SUMMARY_KEY_PROPERTY);
+        if (summaryKey instanceof String key) {
+            showInventorySummaryTextObjectDialog(key);
+            return;
+        }
         List<String> detailLines = new ArrayList<>();
         collectInventoryTextLines(pane.getContent(), detailLines);
         createStaticTextObject(pane.getText(), String.join(System.lineSeparator(), detailLines));
+    }
+
+    private void showInventorySummaryTextObjectDialog(String key) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle("Loo inventarist tekstiobjekt");
+        dialog.setHeaderText(inventorySummaryTitle(key));
+        CheckBox synchronize = new CheckBox("Uuenda teksti inventari muutmisel");
+        synchronize.setSelected(true);
+        dialog.getDialogPane().setContent(synchronize);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        if (dialog.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+            return;
+        }
+        createTextObject(
+                inventorySummaryTitle(key),
+                inventorySummaryText(key),
+                "",
+                INVENTORY_SUMMARY_SOURCE_PREFIX + key,
+                synchronize.isSelected(),
+                false,
+                TextObjectSourceType.INVENTORY_SUMMARY
+        );
+    }
+
+    private void synchronizeInventorySummaryTextObject(TextObject textObject) {
+        String sourceId = textObject.sourceObjectId();
+        if (!sourceId.startsWith(INVENTORY_SUMMARY_SOURCE_PREFIX)) {
+            return;
+        }
+        String key = sourceId.substring(INVENTORY_SUMMARY_SOURCE_PREFIX.length());
+        textObject.rename(inventorySummaryTitle(key));
+        textObject.setNotes(inventorySummaryText(key));
+    }
+
+    private String inventorySummaryTitle(String key) {
+        if (!key.startsWith("item:")) {
+            return "Inventar";
+        }
+        String itemName = key.substring("item:".length());
+        InventorySummaryService.Summary summary = inventorySummaryService.summarize(plan);
+        int objectCount = summary.objectInventoryGroups().stream()
+                .filter(group -> group.name().equalsIgnoreCase(itemName))
+                .mapToInt(InventorySummaryService.ObjectInventoryGroup::totalCount)
+                .sum();
+        int standaloneCount = plan.standaloneInventoryItems().stream()
+                .filter(item -> item.name().equalsIgnoreCase(itemName))
+                .mapToInt(InventoryItem::quantity)
+                .sum();
+        return "%s: %d tk".formatted(itemName, objectCount + standaloneCount);
+    }
+
+    private String inventorySummaryText(String key) {
+        if (!key.startsWith("item:")) {
+            return "";
+        }
+        String itemName = key.substring("item:".length());
+        InventorySummaryService.Summary summary = inventorySummaryService.summarize(plan);
+        List<String> lines = new ArrayList<>();
+        summary.objectInventoryGroups().stream()
+                .filter(group -> group.name().equalsIgnoreCase(itemName))
+                .flatMap(group -> group.contributions().stream())
+                .forEach(contribution -> lines.add("%s (%s): %d tk%s".formatted(
+                        contribution.objectName(),
+                        contribution.objectType(),
+                        contribution.quantity(),
+                        inventoryNotesSuffix(contribution.notes())
+                )));
+        plan.standaloneInventoryItems().stream()
+                .filter(item -> item.name().equalsIgnoreCase(itemName))
+                .forEach(item -> lines.add("Lisainventar: %d tk%s".formatted(
+                        item.quantity(), inventoryNotesSuffix(item.notes())
+                )));
+        return String.join(System.lineSeparator(), lines);
     }
 
     private void createStaticTextObject(String title, String content) {
