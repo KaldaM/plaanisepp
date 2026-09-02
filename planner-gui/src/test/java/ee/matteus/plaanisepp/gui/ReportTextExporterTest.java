@@ -13,10 +13,12 @@ import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.model.TextObject;
+import ee.matteus.plaanisepp.core.model.TextObjectSourceType;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class ReportTextExporterTest {
     @Test
@@ -71,6 +73,29 @@ class ReportTextExporterTest {
     }
 
     @Test
+    void organizerReportExcludesPowerSourcesAndTheirGeneratedText() {
+        EventPlan plan = new EventPlan("Test");
+        PowerSource source = new PowerSource("source", "Põhikilp", new Position(0, 0));
+        TextObject powerText = new TextObject("power-text", "Põhikilbi väljundid", new Position(20, 20));
+        powerText.setSourceObjectId(source.id());
+        powerText.setSourceType(TextObjectSourceType.POWER_OUTLETS);
+        powerText.setNotes("63A väljund");
+        Tent tent = new Tent("tent", "Korraldajatelk", new Position(40, 40));
+        plan.addObject(source);
+        plan.addObject(powerText);
+        plan.addObject(tent);
+
+        String report = new ReportTextExporter().export(
+                plan, ReportExportScope.FULL, false, false, true, false
+        );
+
+        assertTrue(report.contains("Korraldajatelk"));
+        assertFalse(report.contains("Põhikilp"));
+        assertFalse(report.contains("Põhikilbi väljundid"));
+        assertFalse(report.contains("63A väljund"));
+    }
+
+    @Test
     void includesFenceInventory() {
         EventPlan plan = new EventPlan("Test");
         FenceRow first = new FenceRow("fence-1", "Peasissepääs", new Position(0, 0));
@@ -91,7 +116,7 @@ class ReportTextExporterTest {
         assertTrue(report.contains("Peasissepääs: 4 × 3.50 m = 14 m"));
         assertTrue(report.contains("Lava külg: 3 × 3.50 m = 10.50 m"));
         assertTrue(report.contains("Kokku: 7 aeda"));
-        assertTrue(report.contains("3.50 m: 7 aeda, 24.50 m"));
+        assertFalse(report.contains("Pikkuse järgi:"));
         assertTrue(report.contains("Määramata: 7 aeda, 24.50 m"));
     }
 
@@ -117,6 +142,24 @@ class ReportTextExporterTest {
         assertTrue(report.contains("Kokku: 5 aeda, 17.50 m"), report);
         assertTrue(report.contains("Aiakivid: 6 automaatne, -1 parandus, 5 kokku"), report);
         assertTrue(report.contains("Aiakive kokku: 7 tk (lisainventar 2 tk)"), report);
+    }
+
+    @Test
+    void listsConnectedFenceNetworkOnlyOnceInGroups() {
+        EventPlan plan = new EventPlan("Test");
+        FenceRow first = new FenceRow("fence-1", "Aiaring", new Position(0, 0));
+        FenceRow second = new FenceRow("fence-2", "Aiaring", first.endPosition(plan.pixelsPerMeter()));
+        first.setGroupName("Sissepääs");
+        second.setGroupName("Sissepääs");
+        plan.addObject(first);
+        plan.addObject(second);
+        plan.setFenceRowJoints(second, first.endJointId(), second.endJointId());
+
+        String report = new ReportTextExporter().export(
+                plan, ReportExportScope.COMPACT, false, false, true
+        );
+
+        assertEquals(1, occurrences(report, "- Aiaring (Aiarida)"), report);
     }
 
     @Test

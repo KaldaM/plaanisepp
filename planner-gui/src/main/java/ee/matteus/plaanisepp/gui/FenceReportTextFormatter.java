@@ -58,12 +58,6 @@ final class FenceReportTextFormatter {
             builder.append(inventory.standaloneFenceCount() > 0 ? "Kaardil: " : "Kokku: ")
                     .append(summary.totalCount()).append(" aeda, ")
                     .append(formatMeters(summary.totalLengthMeters())).append(" m").append(lineSeparator);
-            builder.append("Pikkuse järgi:").append(lineSeparator);
-            for (FenceInventoryService.LengthBreakdown length : summary.byLength()) {
-                builder.append("  - ").append(formatMeters(length.segmentLengthMeters())).append(" m: ")
-                        .append(length.count()).append(" aeda, ")
-                        .append(formatMeters(length.totalLengthMeters())).append(" m").append(lineSeparator);
-            }
             builder.append("Gruppide järgi:").append(lineSeparator);
             for (FenceInventoryService.GroupBreakdown group : summary.byGroup()) {
                 builder.append("  - ").append(group.groupName()).append(": ")

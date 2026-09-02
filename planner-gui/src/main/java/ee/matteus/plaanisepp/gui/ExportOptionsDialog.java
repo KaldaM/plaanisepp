@@ -3,6 +3,7 @@ package ee.matteus.plaanisepp.gui;
 import javafx.geometry.Insets;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -49,10 +50,13 @@ final class ExportOptionsDialog {
         ComboBox<ReportExportScope> reportScopeComboBox = new ComboBox<>();
         reportScopeComboBox.getItems().addAll(ReportExportScope.values());
         reportScopeComboBox.getSelectionModel().select(ReportExportScope.COMPACT);
+        CheckBox includeObjectLegend = new CheckBox("Näita objektide legendi");
+        includeObjectLegend.setSelected(true);
 
         GridPane form = formGrid();
         form.addRow(0, new Label("Kaardi ala"), mapScopeComboBox);
         form.addRow(1, new Label("Raport"), reportScopeComboBox);
+        form.addRow(2, new Label("Kaardil"), includeObjectLegend);
 
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
         dialog.initOwner(owner);
@@ -64,7 +68,8 @@ final class ExportOptionsDialog {
                 .filter(buttonType -> buttonType == ButtonType.OK)
                 .map(buttonType -> new PdfExportOptions(
                         mapScopeComboBox.getSelectionModel().getSelectedItem(),
-                        reportScopeComboBox.getSelectionModel().getSelectedItem()
+                        reportScopeComboBox.getSelectionModel().getSelectedItem(),
+                        includeObjectLegend.isSelected()
                 ));
     }
 

@@ -159,6 +159,7 @@ public class PlaaniseppApp extends Application {
     private static final String PLACEMENT_FENCE_SEGMENT_LENGTH_PREFERENCE =
             "placementFenceSegmentLengthMeters";
     private static final String MAP_LAYOUT_LOCKED_PREFERENCE = "mapLayoutLocked";
+    private static final String ORGANIZER_VIEW_PREFERENCE = "organizerView";
     private static final List<String> DEFAULT_SIDEBAR_SECTION_ORDER = List.of(
             OBJECT_LIST_SECTION,
             CHECKLIST_SECTION,
@@ -470,6 +471,7 @@ public class PlaaniseppApp extends Application {
     @Override
     public void start(Stage stage) {
         this.stage = stage;
+        organizerView = preferences.getBoolean(ORGANIZER_VIEW_PREFERENCE, true);
         String startupPlanError = initializePlan();
         objectListHeight = loadObjectListHeightPreference();
 
@@ -477,6 +479,7 @@ public class PlaaniseppApp extends Application {
         root.setTop(new VBox(createMenuBar(), createToolbar()));
         root.setCenter(createContent());
 
+        refreshOrganizerViewControls();
         refreshGroupFilters();
         redrawMap();
         refreshSummary();
@@ -1562,6 +1565,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
         organizerView = enabled;
+        preferences.putBoolean(ORGANIZER_VIEW_PREFERENCE, enabled);
         if (enabled) {
             if (pendingPowerSourcePlacement || pendingPowerSourceConsumer != null || addingCablePoint) {
                 cancelPlacement();
@@ -2261,7 +2265,7 @@ public class PlaaniseppApp extends Application {
     private void selectObjectGroup(String groupName) {
         String query = objectSearchField == null ? "" : objectSearchField.getText().trim().toLowerCase();
         List<PlannerObject> groupObjects = plan.objects().stream()
-                .filter(object -> !organizerView || !(object instanceof PowerSource))
+                .filter(this::isObjectAvailableInCurrentView)
                 .filter(object -> !(object instanceof FenceRow fenceRow)
                         || plan.isFenceNetworkRepresentative(fenceRow))
                 .filter(object -> groupNameForFilter(object).equals(groupName))
@@ -2687,7 +2691,7 @@ public class PlaaniseppApp extends Application {
         String query = objectSearchField == null ? "" : objectSearchField.getText().trim().toLowerCase();
         List<ObjectListItem> unfilteredItems = new ArrayList<>();
         for (PlannerObject object : plan.objects()) {
-            if (organizerView && object instanceof PowerSource) {
+            if (!isObjectAvailableInCurrentView(object)) {
                 continue;
             }
             if (object instanceof FenceRow fenceRow && !plan.isFenceNetworkRepresentative(fenceRow)) {
@@ -7960,10 +7964,28 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean isObjectVisibleOnMap(PlannerObject object) {
-        return (!organizerView || !(object instanceof PowerSource))
+        return isObjectAvailableInCurrentView(object)
                 && !object.hidden()
                 && isGroupVisible(object)
                 && isObjectTypeVisible(object);
+    }
+
+    private boolean isObjectAvailableInCurrentView(PlannerObject object) {
+        if (!organizerView) {
+            return true;
+        }
+        if (object instanceof PowerSource) {
+            return false;
+        }
+        if (object instanceof TextObject textObject) {
+            if (textObject.sourceType() == TextObjectSourceType.POWER_OUTLETS) {
+                return false;
+            }
+            return plan.findObject(textObject.sourceObjectId())
+                    .map(source -> !(source instanceof PowerSource))
+                    .orElse(true);
+        }
+        return true;
     }
 
     private String groupNameForFilter(PlannerObject object) {
@@ -12398,7 +12420,8 @@ public class PlaaniseppApp extends Application {
                     file,
                     plan.name(),
                     SwingFXUtils.fromFXImage(image, null),
-                    summaryText(options.reportScope())
+                    summaryText(options.reportScope()),
+                    options.includeObjectLegend() ? objectLegendItems() : List.of()
             );
 
             planFileSession.rememberDirectory(file);
@@ -12423,7 +12446,38 @@ public class PlaaniseppApp extends Application {
     }
 
     private String summaryText(ReportExportScope reportScope) {
-        return reportTextExporter.export(plan, reportScope, true, true, true);
+        return reportTextExporter.export(
+                plan, reportScope, !organizerView, !organizerView, true, !organizerView
+        );
+    }
+
+    private List<PdfObjectLegendItem> objectLegendItems() {
+        Map<String, List<PlannerObject>> objectsByGroup = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        plan.objects().stream()
+                .filter(this::isObjectVisibleOnMap)
+                .filter(this::isObjectAvailableInCurrentView)
+                .filter(object -> !(object instanceof FenceRow fenceRow)
+                        || plan.isFenceNetworkRepresentative(fenceRow))
+                .forEach(object -> objectsByGroup
+                        .computeIfAbsent(groupNameForFilter(object), ignored -> new ArrayList<>())
+                        .add(object));
+
+        List<PdfObjectLegendItem> items = new ArrayList<>();
+        for (Map.Entry<String, List<PlannerObject>> groupEntry : objectsByGroup.entrySet()) {
+            groupEntry.getValue().stream()
+                    .sorted(Comparator.comparing(this::objectTypeName, String.CASE_INSENSITIVE_ORDER)
+                            .thenComparing(PlannerObject::name, String.CASE_INSENSITIVE_ORDER))
+                    .forEach(object -> items.add(new PdfObjectLegendItem(
+                            groupEntry.getKey(),
+                            objectTypeName(object),
+                            object.name(),
+                            objectListColorHex(object),
+                            object instanceof FenceRow fenceRow
+                                    ? fenceNetworkMeasurementText(fenceRow)
+                                    : objectMeasurementText(object)
+                    )));
+        }
+        return items;
     }
 
 

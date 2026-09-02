@@ -72,13 +72,13 @@ final class ObjectReportTextFormatter {
         builder.append(lineSeparator);
     }
 
-    void appendGroups(StringBuilder builder, EventPlan plan, String lineSeparator) {
+    void appendGroups(StringBuilder builder, EventPlan plan, String lineSeparator, boolean includeTechnicalObjects) {
         if (plan.objects().isEmpty()) {
             return;
         }
 
         builder.append("Grupid").append(lineSeparator);
-        for (Map.Entry<String, List<PlannerObject>> entry : objectsByGroup(plan).entrySet()) {
+        for (Map.Entry<String, List<PlannerObject>> entry : objectsByGroup(plan, includeTechnicalObjects).entrySet()) {
             builder.append(entry.getKey()).append(lineSeparator);
             for (PlannerObject object : entry.getValue()) {
                 builder.append("  - ")
@@ -92,10 +92,16 @@ final class ObjectReportTextFormatter {
         builder.append(lineSeparator);
     }
 
-    void appendTextNotes(StringBuilder builder, EventPlan plan, String lineSeparator) {
+    void appendTextNotes(
+            StringBuilder builder,
+            EventPlan plan,
+            String lineSeparator,
+            boolean includeTechnicalObjects
+    ) {
         List<TextObject> textObjects = plan.objects().stream()
                 .filter(TextObject.class::isInstance)
                 .map(TextObject.class::cast)
+                .filter(textObject -> includeTechnicalObjects || !isTechnicalTextObject(plan, textObject))
                 .filter(textObject -> !textObject.notes().isBlank())
                 .toList();
         if (textObjects.isEmpty()) {
@@ -116,13 +122,33 @@ final class ObjectReportTextFormatter {
         }
     }
 
-    private Map<String, List<PlannerObject>> objectsByGroup(EventPlan plan) {
+    private Map<String, List<PlannerObject>> objectsByGroup(EventPlan plan, boolean includeTechnicalObjects) {
         Map<String, List<PlannerObject>> objectsByGroup = new TreeMap<>();
         for (PlannerObject object : plan.objects()) {
+            if (!includeTechnicalObjects && isTechnicalObject(plan, object)) {
+                continue;
+            }
+            if (object instanceof FenceRow fenceRow && !plan.isFenceNetworkRepresentative(fenceRow)) {
+                continue;
+            }
             String groupName = object.groupName().isBlank() ? "Määramata" : object.groupName();
             objectsByGroup.computeIfAbsent(groupName, ignored -> new ArrayList<>()).add(object);
         }
         return objectsByGroup;
+    }
+
+    private boolean isTechnicalObject(EventPlan plan, PlannerObject object) {
+        return object instanceof PowerSource
+                || object instanceof TextObject textObject && isTechnicalTextObject(plan, textObject);
+    }
+
+    private boolean isTechnicalTextObject(EventPlan plan, TextObject textObject) {
+        if (textObject.sourceType() == ee.matteus.plaanisepp.core.model.TextObjectSourceType.POWER_OUTLETS) {
+            return true;
+        }
+        return plan.findObject(textObject.sourceObjectId())
+                .map(PowerSource.class::isInstance)
+                .orElse(false);
     }
 
     private String objectTypeName(PlannerObject object) {

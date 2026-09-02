@@ -10,6 +10,7 @@ import java.io.File;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class PdfReportExporterTest {
     @TempDir
@@ -43,6 +44,30 @@ class PdfReportExporterTest {
             assertTrue(pdfText.contains("Aiaring: 12 × 3.50 m = 42 m"));
             assertTrue(pdfText.contains("Kokku: 12 aeda, 42 m"));
             assertTrue(pdfText.contains("Sissepääs: 12 aeda, 42 m"));
+        }
+    }
+
+    @Test
+    void includesObjectLegendOnItsOwnPdfPage() throws Exception {
+        File output = temporaryDirectory.resolve("legend.pdf").toFile();
+
+        PdfReportExporter.export(
+                output,
+                "Testplaan",
+                new BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB),
+                "Raport",
+                java.util.List.of(new PdfObjectLegendItem(
+                        "Pudruala", "Telk", "Pudrutelk", "#99cccc", "6.0 × 4.0 m"
+                ))
+        );
+
+        try (PDDocument document = PDDocument.load(output)) {
+            String pdfText = new PDFTextStripper().getText(document);
+            assertTrue(pdfText.contains("Objektide legend"));
+            assertTrue(pdfText.contains("Telk: Pudrutelk"));
+            assertTrue(pdfText.contains("Pudruala"));
+            assertFalse(pdfText.contains("#99cccc"));
+            assertTrue(pdfText.contains("6.0 × 4.0 m"));
         }
     }
 }

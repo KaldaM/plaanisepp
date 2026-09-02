@@ -18,6 +18,17 @@ final class ReportTextExporter {
     }
 
     String export(EventPlan plan, ReportExportScope reportScope, boolean includePower, boolean includeCables, boolean includeGroups) {
+        return export(plan, reportScope, includePower, includeCables, includeGroups, true);
+    }
+
+    String export(
+            EventPlan plan,
+            ReportExportScope reportScope,
+            boolean includePower,
+            boolean includeCables,
+            boolean includeGroups,
+            boolean includeTechnicalObjects
+    ) {
         String lineSeparator = System.lineSeparator();
         StringBuilder builder = new StringBuilder();
         planOverviewTextFormatter.append(builder, plan, lineSeparator);
@@ -31,11 +42,11 @@ final class ReportTextExporter {
         }
 
         if (includeGroups) {
-            objectReportTextFormatter.appendGroups(builder, plan, lineSeparator);
+            objectReportTextFormatter.appendGroups(builder, plan, lineSeparator, includeTechnicalObjects);
         }
         fenceReportTextFormatter.append(builder, plan, lineSeparator);
         objectReportTextFormatter.appendInventory(builder, plan, lineSeparator);
-        objectReportTextFormatter.appendTextNotes(builder, plan, lineSeparator);
+        objectReportTextFormatter.appendTextNotes(builder, plan, lineSeparator, includeTechnicalObjects);
         return builder.toString();
     }
 }
