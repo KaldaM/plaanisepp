@@ -28,6 +28,7 @@ class FestivalSummaryTextFormatterTest {
         );
 
         assertTrue(result.contains("Plaane kokku: 2"));
+        assertTrue(result.contains("• Avapidu"));
         assertTrue(result.contains("PVK 7 — Avapidu, Pannkoogihommik"));
         assertFalse(result.contains("PVK 9"));
     }

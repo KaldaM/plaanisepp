@@ -15,6 +15,13 @@ final class FestivalSummaryTextFormatter {
         StringBuilder text = new StringBuilder();
         text.append(festivalName).append('\n');
         text.append("Plaane kokku: ").append(plans.size()).append('\n').append('\n');
+        text.append("Plaanid").append('\n');
+        plans.stream()
+                .map(EventPlan::name)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .forEach(name -> text.append("  • ").append(name).append('\n'));
+
+        text.append('\n');
         text.append("Kasutatavad Tartu linna püsivoolukilbid").append('\n');
 
         Map<Long, CabinetUse> cabinets = new LinkedHashMap<>();
