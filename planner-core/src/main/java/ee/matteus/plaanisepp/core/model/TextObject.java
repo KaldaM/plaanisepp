@@ -9,7 +9,8 @@ public class TextObject extends PlannerObject {
     private String sourceObjectId;
     private boolean syncSourceNotes;
     private boolean showReferenceLine;
-    private boolean inventorySource;
+    private TextObjectSourceType sourceType;
+    private Position referenceLineSourceOffset;
 
     public TextObject(String id, String name, Position position) {
         super(id, name, position);
@@ -19,7 +20,8 @@ public class TextObject extends PlannerObject {
         this.sourceObjectId = "";
         this.syncSourceNotes = false;
         this.showReferenceLine = false;
-        this.inventorySource = false;
+        this.sourceType = TextObjectSourceType.NONE;
+        this.referenceLineSourceOffset = new Position(0, 0);
     }
 
     public String colorHex() {
@@ -58,6 +60,7 @@ public class TextObject extends PlannerObject {
         if (this.sourceObjectId.isBlank()) {
             syncSourceNotes = false;
             showReferenceLine = false;
+            sourceType = TextObjectSourceType.NONE;
         }
     }
 
@@ -78,10 +81,30 @@ public class TextObject extends PlannerObject {
     }
 
     public boolean inventorySource() {
-        return inventorySource;
+        return sourceType == TextObjectSourceType.INVENTORY;
     }
 
     public void setInventorySource(boolean inventorySource) {
-        this.inventorySource = inventorySource && !sourceObjectId.isBlank();
+        setSourceType(inventorySource ? TextObjectSourceType.INVENTORY : TextObjectSourceType.NOTES);
+    }
+
+    public TextObjectSourceType sourceType() {
+        return sourceType;
+    }
+
+    public void setSourceType(TextObjectSourceType sourceType) {
+        this.sourceType = sourceObjectId.isBlank() || sourceType == null
+                ? TextObjectSourceType.NONE
+                : sourceType;
+    }
+
+    public Position referenceLineSourceOffset() {
+        return referenceLineSourceOffset;
+    }
+
+    public void setReferenceLineSourceOffset(Position referenceLineSourceOffset) {
+        this.referenceLineSourceOffset = referenceLineSourceOffset == null
+                ? new Position(0, 0)
+                : referenceLineSourceOffset;
     }
 }

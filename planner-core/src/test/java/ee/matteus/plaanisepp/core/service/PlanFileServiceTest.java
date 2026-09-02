@@ -19,6 +19,7 @@ import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.model.TentPreset;
 import ee.matteus.plaanisepp.core.model.TextObject;
+import ee.matteus.plaanisepp.core.model.TextObjectSourceType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -117,7 +118,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(18, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(19, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -134,7 +135,8 @@ class PlanFileServiceTest {
         text.setSourceObjectId(tent.id());
         text.setSyncSourceNotes(true);
         text.setShowReferenceLine(true);
-        text.setInventorySource(true);
+        text.setSourceType(TextObjectSourceType.POWER_OUTLETS);
+        text.setReferenceLineSourceOffset(new Position(4, 5));
         plan.addObject(tent);
         plan.addObject(text);
         Path file = tempDirectory.resolve("linked-text.pplan");
@@ -146,7 +148,8 @@ class PlanFileServiceTest {
         assertEquals(tent.id(), loadedText.sourceObjectId());
         assertTrue(loadedText.syncSourceNotes());
         assertTrue(loadedText.showReferenceLine());
-        assertTrue(loadedText.inventorySource());
+        assertEquals(TextObjectSourceType.POWER_OUTLETS, loadedText.sourceType());
+        assertEquals(new Position(4, 5), loadedText.referenceLineSourceOffset());
     }
 
     @Test
@@ -795,7 +798,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(18, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(19, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

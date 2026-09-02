@@ -24,6 +24,7 @@ import ee.matteus.plaanisepp.core.model.PowerConnectable;
 import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.TextObject;
+import ee.matteus.plaanisepp.core.model.TextObjectSourceType;
 import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.model.TentPreset;
 
@@ -51,7 +52,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 18;
+    public static final int CURRENT_FORMAT_VERSION = 19;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -762,6 +763,9 @@ public class PlanFileService {
         properties.setProperty(prefix + "syncSourceNotes", Boolean.toString(object.syncSourceNotes()));
         properties.setProperty(prefix + "showReferenceLine", Boolean.toString(object.showReferenceLine()));
         properties.setProperty(prefix + "inventorySource", Boolean.toString(object.inventorySource()));
+        properties.setProperty(prefix + "sourceType", object.sourceType().name());
+        properties.setProperty(prefix + "referenceLineSourceOffsetX", Double.toString(object.referenceLineSourceOffset().x()));
+        properties.setProperty(prefix + "referenceLineSourceOffsetY", Double.toString(object.referenceLineSourceOffset().y()));
     }
 
     private void writeMarkerObject(Properties properties, String prefix, MarkerObject object) {
@@ -1031,7 +1035,17 @@ public class PlanFileService {
         object.setSourceObjectId(properties.getProperty(prefix + "sourceObjectId", ""));
         object.setSyncSourceNotes(booleanValue(properties, prefix + "syncSourceNotes", false));
         object.setShowReferenceLine(booleanValue(properties, prefix + "showReferenceLine", false));
-        object.setInventorySource(booleanValue(properties, prefix + "inventorySource", false));
+        String sourceTypeValue = properties.getProperty(prefix + "sourceType", "");
+        TextObjectSourceType sourceType = sourceTypeValue.isBlank()
+                ? booleanValue(properties, prefix + "inventorySource", false)
+                ? TextObjectSourceType.INVENTORY
+                : object.sourceObjectId().isBlank() ? TextObjectSourceType.NONE : TextObjectSourceType.NOTES
+                : TextObjectSourceType.valueOf(sourceTypeValue);
+        object.setSourceType(sourceType);
+        object.setReferenceLineSourceOffset(new Position(
+                doubleValue(properties, prefix + "referenceLineSourceOffsetX", 0),
+                doubleValue(properties, prefix + "referenceLineSourceOffsetY", 0)
+        ));
         return object;
     }
 

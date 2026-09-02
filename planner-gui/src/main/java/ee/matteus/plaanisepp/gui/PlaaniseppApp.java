@@ -28,6 +28,7 @@ import ee.matteus.plaanisepp.core.model.PowerConsumer;
 import ee.matteus.plaanisepp.core.model.PowerOutlet;
 import ee.matteus.plaanisepp.core.model.PowerSource;
 import ee.matteus.plaanisepp.core.model.TextObject;
+import ee.matteus.plaanisepp.core.model.TextObjectSourceType;
 import ee.matteus.plaanisepp.core.model.Tent;
 import ee.matteus.plaanisepp.core.model.TentPreset;
 import ee.matteus.plaanisepp.core.service.PlanFactory;
@@ -6565,11 +6566,15 @@ public class PlaaniseppApp extends Application {
     }
 
     private void drawTextObject(TextObject object) {
+        Line referenceLine = null;
+        PlannerObject referenceSource = null;
         if (object.showReferenceLine()) {
-            plan.findObject(object.sourceObjectId()).ifPresent(source -> {
-                Line referenceLine = new Line(
-                        source.position().x(),
-                        source.position().y(),
+            referenceSource = plan.findObject(object.sourceObjectId()).orElse(null);
+            if (referenceSource != null) {
+                Position offset = object.referenceLineSourceOffset();
+                referenceLine = new Line(
+                        referenceSource.position().x() + offset.x(),
+                        referenceSource.position().y() + offset.y(),
                         object.position().x(),
                         object.position().y()
                 );
@@ -6581,7 +6586,7 @@ public class PlaaniseppApp extends Application {
                 );
                 referenceLine.setMouseTransparent(true);
                 mapPane.getChildren().add(referenceLine);
-            });
+            }
         }
         VBox textBox = new VBox(3);
         textBox.setLayoutX(object.position().x());
@@ -6621,6 +6626,9 @@ public class PlaaniseppApp extends Application {
         makeSelectable(textBox, object);
         makeDraggable(textBox, object);
         mapPane.getChildren().add(textBox);
+        if (referenceLine != null && referenceSource != null && isSelected(object)) {
+            addTextReferenceLineAnchor(object, referenceSource, referenceLine);
+        }
         textBox.applyCss();
         double textBoxWidth = Math.min(260, Math.max(1, textBox.prefWidth(-1)));
         double textBoxHeight = Math.max(1, textBox.prefHeight(textBoxWidth));
@@ -6638,6 +6646,38 @@ public class PlaaniseppApp extends Application {
         );
     }
 
+    private void addTextReferenceLineAnchor(TextObject textObject, PlannerObject source, Line referenceLine) {
+        double scale = Math.max(zoomLevel, 0.1);
+        Circle anchor = new Circle(referenceLine.getStartX(), referenceLine.getStartY(), 6 / scale);
+        anchor.setFill(Color.WHITE);
+        anchor.setStroke(Color.web("#2563eb"));
+        anchor.setStrokeWidth(2 / scale);
+        anchor.setCursor(Cursor.HAND);
+        anchor.setOnMousePressed(event -> {
+            mapScrollPane.setPannable(false);
+            event.consume();
+        });
+        anchor.setOnMouseDragged(event -> {
+            Point2D point = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
+            textObject.setReferenceLineSourceOffset(new Position(
+                    point.getX() - source.position().x(),
+                    point.getY() - source.position().y()
+            ));
+            referenceLine.setStartX(point.getX());
+            referenceLine.setStartY(point.getY());
+            anchor.setCenterX(point.getX());
+            anchor.setCenterY(point.getY());
+            event.consume();
+        });
+        anchor.setOnMouseReleased(event -> {
+            mapScrollPane.setPannable(true);
+            markDirty();
+            event.consume();
+        });
+        mapPane.getChildren().add(anchor);
+        anchor.toFront();
+    }
+
     private void synchronizeLinkedTextObjects() {
         for (PlannerObject object : plan.objects()) {
             if (!(object instanceof TextObject textObject) || !textObject.syncSourceNotes()) {
@@ -6651,12 +6691,26 @@ public class PlaaniseppApp extends Application {
         plan.findObject(textObject.sourceObjectId())
                 .filter(source -> source != textObject)
                 .ifPresent(source -> {
-                    if (textObject.inventorySource() && source instanceof InventoryContainer container) {
-                        textObject.rename(source.name() + " — inventar");
-                        textObject.setNotes(objectInventoryText(container));
-                    } else {
-                        textObject.rename(source.name());
-                        textObject.setNotes(source.notes());
+                    switch (textObject.sourceType()) {
+                        case INVENTORY -> {
+                            if (source instanceof InventoryContainer container) {
+                                textObject.rename(source.name() + " — inventar");
+                                textObject.setNotes(objectInventoryText(container));
+                            }
+                        }
+                        case POWER_OUTLETS -> {
+                            if (source instanceof PowerSource powerSource) {
+                                textObject.rename(source.name() + " — väljundid");
+                                textObject.setNotes(powerOutletsText(powerSource));
+                            }
+                        }
+                        case NOTES -> {
+                            textObject.rename(source.name());
+                            textObject.setNotes(source.notes());
+                        }
+                        case NONE -> {
+                            // Staatilisel tekstil pole sünkroonitavat allikat.
+                        }
                     }
                 });
     }
@@ -7474,6 +7528,8 @@ public class PlaaniseppApp extends Application {
         notesAsTextItem.setOnAction(event -> showNotesTextObjectDialog(object));
         MenuItem inventoryAsTextItem = inventoryAsTextMenuItem(object);
         inventoryAsTextItem.setDisable(selectionCount > 1 || inventoryAsTextItem.isDisable());
+        MenuItem outletsAsTextItem = powerOutletsAsTextMenuItem(object);
+        outletsAsTextItem.setDisable(selectionCount > 1 || outletsAsTextItem.isDisable());
         MenuItem visibilityItem = new MenuItem(allSelectedObjectsHidden() ? "Kuva valitud" : "Peida valitud");
         visibilityItem.setOnAction(event -> toggleSelectedObjectsHidden());
         MenuItem lockItem = new MenuItem(allSelectedObjectsLocked()
@@ -7495,6 +7551,7 @@ public class PlaaniseppApp extends Application {
                         copyItem,
                         notesAsTextItem,
                         inventoryAsTextItem,
+                        outletsAsTextItem,
                         visibilityItem,
                         lockItem,
                         deleteItem
@@ -8248,9 +8305,11 @@ public class PlaaniseppApp extends Application {
             textObjectColorPicker.setValue(Color.web(textObject.colorHex()));
             textObjectFontSizeSlider.setValue(textObject.fontSize());
             setOpacitySliderValue(textObjectTextOpacitySlider, textObject.textOpacity() * 100.0);
-            textObjectSyncNotesCheckBox.setText(textObject.inventorySource()
-                    ? "Uuenda objekti nimest ja inventarist"
-                    : "Uuenda objekti nimest ja märkmetest");
+            textObjectSyncNotesCheckBox.setText(switch (textObject.sourceType()) {
+                case INVENTORY -> "Uuenda objekti nimest ja inventarist";
+                case POWER_OUTLETS -> "Uuenda kilbi nimest ja väljunditest";
+                default -> "Uuenda objekti nimest ja märkmetest";
+            });
             textObjectSyncNotesCheckBox.setSelected(textObject.syncSourceNotes());
             textObjectReferenceLineCheckBox.setSelected(textObject.showReferenceLine());
             markerTypeComboBox.getSelectionModel().select(MarkerType.WC);
@@ -9135,7 +9194,8 @@ public class PlaaniseppApp extends Application {
             textCopy.setSourceObjectId(textObject.sourceObjectId());
             textCopy.setSyncSourceNotes(textObject.syncSourceNotes());
             textCopy.setShowReferenceLine(textObject.showReferenceLine());
-            textCopy.setInventorySource(textObject.inventorySource());
+            textCopy.setSourceType(textObject.sourceType());
+            textCopy.setReferenceLineSourceOffset(textObject.referenceLineSourceOffset());
             copy = textCopy;
         } else if (original instanceof MarkerObject markerObject) {
             MarkerObject markerCopy = new MarkerObject(planFactory.newId(), copyName, copyPosition);
@@ -11391,6 +11451,33 @@ public class PlaaniseppApp extends Application {
         return item;
     }
 
+    private MenuItem powerOutletsAsTextMenuItem(PlannerObject object) {
+        MenuItem item = new MenuItem("Loo väljunditest tekstiobjekt");
+        if (!(object instanceof PowerSource source) || source.outlets().isEmpty()) {
+            item.setDisable(true);
+            return item;
+        }
+        item.setOnAction(event -> showPowerOutletsTextObjectDialog(source));
+        return item;
+    }
+
+    private String powerOutletsText(PowerSource source) {
+        Map<ConnectorType, Integer> typeIndexes = new EnumMap<>(ConnectorType.class);
+        List<String> lines = new ArrayList<>();
+        for (PowerOutlet outlet : source.outlets()) {
+            int index = typeIndexes.merge(outlet.type(), 1, Integer::sum);
+            String name = outlet.name().isBlank() ? "" : " — " + outlet.name();
+            lines.add("%s %d%s: %d / %d W".formatted(
+                    outlet.type().displayName(),
+                    index,
+                    name,
+                    plan.outletDemandWatts(outlet.id()),
+                    outlet.capacityWatts()
+            ));
+        }
+        return String.join(System.lineSeparator(), lines);
+    }
+
     private String objectInventoryText(InventoryContainer container) {
         return container.inventoryItems().stream()
                 .map(item -> "%s: %d tk%s".formatted(
@@ -11743,7 +11830,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void createStaticTextObject(String title, String content) {
-        createTextObject(title, content, "", "", false, false, false);
+        createTextObject(title, content, "", "", false, false, TextObjectSourceType.NONE);
     }
 
     private void showNotesTextObjectDialog(PlannerObject sourceObject) {
@@ -11767,7 +11854,7 @@ public class PlaaniseppApp extends Application {
                 sourceObject.id(),
                 syncNotes.isSelected(),
                 referenceLine.isSelected(),
-                false
+                TextObjectSourceType.NOTES
         );
     }
 
@@ -11791,7 +11878,31 @@ public class PlaaniseppApp extends Application {
                 sourceObject.id(),
                 synchronize.isSelected(),
                 referenceLine.isSelected(),
-                true
+                TextObjectSourceType.INVENTORY
+        );
+    }
+
+    private void showPowerOutletsTextObjectDialog(PowerSource source) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle("Loo väljunditest tekstiobjekt");
+        dialog.setHeaderText(source.name());
+        CheckBox synchronize = new CheckBox("Uuenda teksti kilbi nime, väljundite või koormuse muutmisel");
+        synchronize.setSelected(true);
+        CheckBox referenceLine = new CheckBox("Näita kaardil viitavat joont");
+        dialog.getDialogPane().setContent(new VBox(8, synchronize, referenceLine));
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        if (dialog.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+            return;
+        }
+        createTextObject(
+                source.name() + " — väljundid",
+                powerOutletsText(source),
+                source.groupName(),
+                source.id(),
+                synchronize.isSelected(),
+                referenceLine.isSelected(),
+                TextObjectSourceType.POWER_OUTLETS
         );
     }
 
@@ -11802,7 +11913,7 @@ public class PlaaniseppApp extends Application {
             String sourceObjectId,
             boolean syncSourceNotes,
             boolean showReferenceLine,
-            boolean inventorySource
+            TextObjectSourceType sourceType
     ) {
         TextObject textObject = new TextObject(
                 planFactory.newId(),
@@ -11814,7 +11925,7 @@ public class PlaaniseppApp extends Application {
         textObject.setSourceObjectId(sourceObjectId);
         textObject.setSyncSourceNotes(syncSourceNotes);
         textObject.setShowReferenceLine(showReferenceLine);
-        textObject.setInventorySource(inventorySource);
+        textObject.setSourceType(sourceType);
         plan.addObject(textObject);
         refreshGroupFilters();
         selectObject(textObject);
