@@ -286,10 +286,15 @@ public class PlaaniseppApp extends Application {
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private final Map<String, Node> mapObjectNodes = new HashMap<>();
+    private final Map<String, List<Node>> mapObjectVisualNodes = new HashMap<>();
+    private final Map<String, List<Node>> powerConnectionVisualNodes = new HashMap<>();
+    private final Map<String, PowerConnectionVisual> powerConnectionVisuals = new HashMap<>();
+    private final Map<String, TextReferenceVisual> textReferenceVisuals = new HashMap<>();
     private final Map<String, FenceRowVisual> fenceRowVisuals = new HashMap<>();
     private final Map<String, List<Circle>> shapeMidpointHandles = new HashMap<>();
     private final Map<String, Line> fenceSelectionHighlights = new HashMap<>();
     private javafx.scene.shape.Shape selectedObjectHighlight;
+    private Rectangle multiSelectionBounds;
     private final List<Node> fenceInteractionNodes = new ArrayList<>();
     private Set<String> knownGroups = new HashSet<>();
     private ListView<SummaryListItem> summaryList;
@@ -4929,10 +4934,15 @@ public class PlaaniseppApp extends Application {
         plan.synchronizeFenceRows(pixelsPerMeter());
         mapPane.getChildren().clear();
         mapObjectNodes.clear();
+        mapObjectVisualNodes.clear();
+        powerConnectionVisualNodes.clear();
+        powerConnectionVisuals.clear();
+        textReferenceVisuals.clear();
         fenceRowVisuals.clear();
         shapeMidpointHandles.clear();
         fenceSelectionHighlights.clear();
         selectedObjectHighlight = null;
+        multiSelectionBounds = null;
         fenceInteractionNodes.clear();
         powerConnectionAnchorMarkers.clear();
         addMapImage();
@@ -5037,12 +5047,16 @@ public class PlaaniseppApp extends Application {
                     source.position().x(), source.position().y(), radius + screenPixels(4)
             ), highlightColor);
         } else if (selectedObject instanceof MarkerObject marker) {
-            double markerSize = adaptiveMapPixels(32);
+            double iconSize = 28;
+            double scaledSize = iconSize * adaptiveMapPixels(32) / 32;
+            double scaledX = marker.position().x() + (iconSize - scaledSize) / 2;
+            double scaledY = marker.position().y() + (iconSize - scaledSize) / 2;
+            double padding = screenPixels(2);
             addSelectionOutline(new Rectangle(
-                    marker.position().x() - screenPixels(2),
-                    marker.position().y() - screenPixels(2),
-                    markerSize,
-                    markerSize
+                    scaledX - padding,
+                    scaledY - padding,
+                    scaledSize + padding * 2,
+                    scaledSize + padding * 2
             ), highlightColor);
         }
     }
@@ -5083,9 +5097,11 @@ public class PlaaniseppApp extends Application {
         outline.getStrokeDashArray().addAll(6.0 / scale, 5.0 / scale);
         outline.setMouseTransparent(true);
         mapPane.getChildren().add(outline);
+        multiSelectionBounds = outline;
     }
 
     private void addSelectionOutline(javafx.scene.shape.Shape outline, Color color) {
+        selectedObjectHighlight = outline;
         outline.setFill(Color.TRANSPARENT);
         outline.setStroke(color);
         outline.setStrokeWidth(screenPixels(2.5));
@@ -5258,6 +5274,7 @@ public class PlaaniseppApp extends Application {
         makeCableSelectable(hitLine, cable);
 
         mapPane.getChildren().addAll(highlightLine, line, hitLine);
+        registerPowerConnectionVisual(cable.connection().id(), highlightLine, line, hitLine);
         Label distanceLabel = null;
         if (selectedCable || showCableLabels() && plan.showCableLabel(cable.connection().id())) {
             Position labelPosition = CableDisplayHelper.labelPosition(cable.connection(), path);
@@ -5276,7 +5293,10 @@ public class PlaaniseppApp extends Application {
             makeCableSelectable(distanceLabel, cable);
             makeCableLabelDraggable(distanceLabel, cable);
             mapPane.getChildren().add(distanceLabel);
+            registerPowerConnectionVisual(cable.connection().id(), distanceLabel);
         }
+        List<Circle> routePointMarkers = new ArrayList<>();
+        Circle anchorMarker = null;
         if (selectedCable && !mapLayoutLocked) {
             for (int index = 0; index < cable.connection().routePoints().size(); index++) {
                 Position routePoint = cable.connection().routePoints().get(index);
@@ -5289,10 +5309,12 @@ public class PlaaniseppApp extends Application {
                 makeCableSelectable(marker, cable.consumer());
                 makeCableRoutePointDraggable(marker, cable, index, line, highlightLine, hitLine, distanceLabel);
                 mapPane.getChildren().add(marker);
+                registerPowerConnectionVisual(cable.connection().id(), marker);
+                routePointMarkers.add(marker);
             }
             if (cable.consumer() instanceof PowerConnectable) {
                 Position endpoint = path.getLast();
-                Circle anchorMarker = new Circle(endpoint.x(), endpoint.y(), screenPixels(7));
+                anchorMarker = new Circle(endpoint.x(), endpoint.y(), screenPixels(7));
                 anchorMarker.setFill(Color.web("#fef3c7"));
                 anchorMarker.setStroke(Color.web("#111827"));
                 anchorMarker.setStrokeWidth(screenPixels(2));
@@ -5308,8 +5330,12 @@ public class PlaaniseppApp extends Application {
                 );
                 mapPane.getChildren().add(anchorMarker);
                 powerConnectionAnchorMarkers.add(anchorMarker);
+                registerPowerConnectionVisual(cable.connection().id(), anchorMarker);
             }
         }
+        powerConnectionVisuals.put(cable.connection().id(), new PowerConnectionVisual(
+                cable, line, highlightLine, hitLine, distanceLabel, routePointMarkers, anchorMarker
+        ));
     }
 
     private List<Position> cablePath(PowerCableView cable) {
@@ -5711,6 +5737,20 @@ public class PlaaniseppApp extends Application {
     private record PowerCableView(PlannerObject consumer, PowerSource source, PowerConnection connection) {
     }
 
+    private record PowerConnectionVisual(
+            PowerCableView cable,
+            Polyline line,
+            Polyline highlightLine,
+            Polyline hitLine,
+            Label distanceLabel,
+            List<Circle> routePointMarkers,
+            Circle anchorMarker
+    ) {
+    }
+
+    private record TextReferenceVisual(TextObject textObject, PlannerObject source, Line line, Circle anchor) {
+    }
+
     private record RotationDragState(
             String objectId,
             Position center,
@@ -5949,6 +5989,7 @@ public class PlaaniseppApp extends Application {
             divider.setOpacity(fenceRow.opacity() * (isSelected(fenceRow) ? 1.0 : 0.9));
             divider.setMouseTransparent(true);
             mapPane.getChildren().add(divider);
+            registerObjectVisual(fenceRow, divider);
             dividers.add(divider);
             if (index > 0 && index < fenceRow.segmentCount() && isSelected(fenceRow) && !mapLayoutLocked) {
                 int segmentIndex = index;
@@ -5973,6 +6014,7 @@ public class PlaaniseppApp extends Application {
                 splitHandles.add(splitHandle);
                 mapPane.getChildren().add(splitHandle);
                 fenceInteractionNodes.add(splitHandle);
+                registerObjectVisual(fenceRow, splitHandle);
             }
         }
 
@@ -6020,6 +6062,11 @@ public class PlaaniseppApp extends Application {
         ));
         if (isSelected(fenceRow) && rotatingObjectId == null && !mapLayoutLocked) {
             addFenceRowEndpointHandles(fenceRow, fenceLine, dividers, inventoryLabel);
+            FenceRowVisual visual = fenceRowVisuals.get(fenceRow.id());
+            if (visual != null) {
+                registerObjectVisual(fenceRow, visual.startHandle());
+                registerObjectVisual(fenceRow, visual.endHandle());
+            }
         }
         addFenceRotationHandleIfActive(fenceRow);
     }
@@ -6385,6 +6432,7 @@ public class PlaaniseppApp extends Application {
             Tooltip.install(marker, new Tooltip("Lohista siit uue ala punkti lisamiseks"));
             makeAreaMidpointDraggable(marker, object, index + 1, polygon);
             mapPane.getChildren().add(marker);
+            registerObjectVisual(object, marker);
             handles.add(marker);
         }
         shapeMidpointHandles.put(object.id(), handles);
@@ -6399,6 +6447,7 @@ public class PlaaniseppApp extends Application {
             Tooltip.install(marker, new Tooltip("Lohista siit uue joone punkti lisamiseks"));
             makeLineMidpointDraggable(marker, object, index + 1, polyline);
             mapPane.getChildren().add(marker);
+            registerObjectVisual(object, marker);
             handles.add(marker);
         }
         shapeMidpointHandles.put(object.id(), handles);
@@ -6411,6 +6460,7 @@ public class PlaaniseppApp extends Application {
             Tooltip.install(marker, new Tooltip("Lohista ala punkti muutmiseks"));
             makeAreaPointDraggable(marker, object, index, polygon);
             mapPane.getChildren().add(marker);
+            registerObjectVisual(object, marker);
         }
     }
 
@@ -6421,6 +6471,7 @@ public class PlaaniseppApp extends Application {
             Tooltip.install(marker, new Tooltip("Lohista joone punkti muutmiseks"));
             makeLinePointDraggable(marker, object, index, polyline);
             mapPane.getChildren().add(marker);
+            registerObjectVisual(object, marker);
         }
     }
 
@@ -6789,6 +6840,7 @@ public class PlaaniseppApp extends Application {
                 );
                 referenceLine.setMouseTransparent(true);
                 mapPane.getChildren().add(referenceLine);
+                textReferenceVisuals.put(object.id(), new TextReferenceVisual(object, referenceSource, referenceLine, null));
             }
         }
         VBox textBox = new VBox(3 * boxScale);
@@ -6881,6 +6933,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         mapPane.getChildren().add(anchor);
+        textReferenceVisuals.put(textObject.id(), new TextReferenceVisual(textObject, source, referenceLine, anchor));
         anchor.toFront();
     }
 
@@ -7060,6 +7113,7 @@ public class PlaaniseppApp extends Application {
 
     private void makeSelectable(Node node, PlannerObject object) {
         mapObjectNodes.putIfAbsent(object.id(), node);
+        registerObjectVisual(object, node);
         node.setOnContextMenuRequested(event -> {
             if (!isPlacementPending() && !measuringActive && !addingCablePoint) {
                 showObjectContextMenu(object, event.getScreenX(), event.getScreenY());
@@ -7231,8 +7285,12 @@ public class PlaaniseppApp extends Application {
                         mapPoint.getX() - dragDelta.x,
                         mapPoint.getY() - dragDelta.y
                 ));
-                node.setTranslateX(object.position().x() - dragStartObjectPosition[0].x());
-                node.setTranslateY(object.position().y() - dragStartObjectPosition[0].y());
+                updateObjectDragPreview(
+                        object,
+                        object.position().x() - dragStartObjectPosition[0].x(),
+                        object.position().y() - dragStartObjectPosition[0].y()
+                );
+                updateDependentDragPreviews();
             }
             recordPlanDragChange();
             event.consume();
@@ -7253,8 +7311,7 @@ public class PlaaniseppApp extends Application {
                 }
                 event.consume();
             } else {
-                node.setTranslateX(0);
-                node.setTranslateY(0);
+                updateObjectDragPreview(object, 0, 0);
                 redrawMap();
                 refreshDetails();
                 refreshSummary();
@@ -7292,10 +7349,19 @@ public class PlaaniseppApp extends Application {
                 objectPositions.put(object.id(), object.position());
             }
         }
+        Set<String> movingObjectIds = new HashSet<>(objectPositions.keySet());
+        Map<String, List<Position>> cableRoutePositions = plan.powerConnections().stream()
+                .filter(connection -> movingObjectIds.contains(connection.sourceId())
+                        && movingObjectIds.contains(connection.consumerId()))
+                .collect(java.util.stream.Collectors.toMap(
+                        PowerConnection::id,
+                        connection -> List.copyOf(connection.routePoints())
+                ));
         return new MultiObjectDragState(
                 new Position(pointerStart.getX(), pointerStart.getY()),
                 Map.copyOf(objectPositions),
-                Map.copyOf(fenceJointPositions)
+                Map.copyOf(fenceJointPositions),
+                Map.copyOf(cableRoutePositions)
         );
     }
 
@@ -7317,7 +7383,13 @@ public class PlaaniseppApp extends Application {
                         originalPosition.y() + deltaY
                 )))
         );
+        multiObjectDragState.cableRoutePositions().forEach((connectionId, routePoints) ->
+                plan.updateCableRoutePointsForConnection(connectionId, routePoints.stream()
+                        .map(point -> new Position(point.x() + deltaX, point.y() + deltaY))
+                        .toList())
+        );
         plan.synchronizeFenceRows(pixelsPerMeter());
+        updateDependentDragPreviews();
     }
 
     private void updateMultiObjectDragPreview(Point2D pointer) {
@@ -7327,11 +7399,85 @@ public class PlaaniseppApp extends Application {
         double deltaX = pointer.getX() - multiObjectDragState.pointerStart().x();
         double deltaY = pointer.getY() - multiObjectDragState.pointerStart().y();
         for (PlannerObject object : selectedObjects()) {
-            Node objectNode = mapObjectNodes.get(object.id());
-            if (objectNode != null) {
-                objectNode.setTranslateX(deltaX);
-                objectNode.setTranslateY(deltaY);
+            updateObjectDragPreview(object, deltaX, deltaY);
+        }
+        if (multiSelectionBounds != null) {
+            multiSelectionBounds.setTranslateX(deltaX);
+            multiSelectionBounds.setTranslateY(deltaY);
+        }
+    }
+
+    private void registerPowerConnectionVisual(String connectionId, Node... nodes) {
+        List<Node> visuals = powerConnectionVisualNodes.computeIfAbsent(connectionId, ignored -> new ArrayList<>());
+        for (Node node : nodes) {
+            if (node != null && !visuals.contains(node)) {
+                visuals.add(node);
             }
+        }
+    }
+
+    private void translateNodes(List<Node> nodes, double deltaX, double deltaY) {
+        for (Node node : nodes) {
+            node.setTranslateX(deltaX);
+            node.setTranslateY(deltaY);
+        }
+    }
+
+    private void updateDependentDragPreviews() {
+        powerConnectionVisuals.values().forEach(this::updatePowerConnectionVisual);
+        textReferenceVisuals.values().forEach(this::updateTextReferenceVisual);
+    }
+
+    private void updatePowerConnectionVisual(PowerConnectionVisual visual) {
+        List<Position> path = cablePath(visual.cable());
+        replaceShapePoints(visual.line().getPoints(), path);
+        replaceShapePoints(visual.highlightLine().getPoints(), path);
+        replaceShapePoints(visual.hitLine().getPoints(), path);
+        updateCableLabel(visual.distanceLabel(), visual.cable(), visual.cable().connection().routePoints());
+        List<Position> routePoints = visual.cable().connection().routePoints();
+        for (int index = 0; index < Math.min(routePoints.size(), visual.routePointMarkers().size()); index++) {
+            Position point = routePoints.get(index);
+            Circle marker = visual.routePointMarkers().get(index);
+            marker.setCenterX(point.x());
+            marker.setCenterY(point.y());
+        }
+        if (visual.anchorMarker() != null && !path.isEmpty()) {
+            Position endpoint = path.getLast();
+            visual.anchorMarker().setCenterX(endpoint.x());
+            visual.anchorMarker().setCenterY(endpoint.y());
+        }
+    }
+
+    private void updateTextReferenceVisual(TextReferenceVisual visual) {
+        Position offset = visual.textObject().referenceLineSourceOffset();
+        visual.line().setStartX(visual.source().position().x() + offset.x());
+        visual.line().setStartY(visual.source().position().y() + offset.y());
+        visual.line().setEndX(visual.textObject().position().x());
+        visual.line().setEndY(visual.textObject().position().y());
+        if (visual.anchor() != null) {
+            visual.anchor().setCenterX(visual.line().getStartX());
+            visual.anchor().setCenterY(visual.line().getStartY());
+        }
+    }
+
+    private void registerObjectVisual(PlannerObject object, Node node) {
+        if (node == null) {
+            return;
+        }
+        List<Node> visuals = mapObjectVisualNodes.computeIfAbsent(object.id(), ignored -> new ArrayList<>());
+        if (!visuals.contains(node)) {
+            visuals.add(node);
+        }
+    }
+
+    private void updateObjectDragPreview(PlannerObject object, double deltaX, double deltaY) {
+        for (Node visual : mapObjectVisualNodes.getOrDefault(object.id(), List.of())) {
+            visual.setTranslateX(deltaX);
+            visual.setTranslateY(deltaY);
+        }
+        if (object == selectedObject && selectedObjectHighlight != null) {
+            selectedObjectHighlight.setTranslateX(deltaX);
+            selectedObjectHighlight.setTranslateY(deltaY);
         }
     }
 
@@ -12928,7 +13074,8 @@ public class PlaaniseppApp extends Application {
     private record MultiObjectDragState(
             Position pointerStart,
             Map<String, Position> objectPositions,
-            Map<String, Position> fenceJointPositions
+            Map<String, Position> fenceJointPositions,
+            Map<String, List<Position>> cableRoutePositions
     ) {
     }
 
