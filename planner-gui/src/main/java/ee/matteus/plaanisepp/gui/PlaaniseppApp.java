@@ -181,6 +181,7 @@ public class PlaaniseppApp extends Application {
     private static final String FENCE_DRAG_NODE_KEY = "plaanisepp.fenceDragNode";
     private static final long DOUBLE_SHIFT_INTERVAL_NANOS = 500_000_000L;
     private static final int MAX_PLAN_HISTORY_STEPS = 50;
+    private static final List<Double> DEFAULT_CABLE_PIECE_LENGTHS = List.of(2.0, 5.0, 10.0, 20.0);
     private static final List<ChecklistSuggestion> CHECKLIST_SUGGESTIONS = List.of(
             new ChecklistSuggestion("technical_tent", "Tehnikatelk"),
             new ChecklistSuggestion("info_tent", "Infotelk"),
@@ -364,6 +365,7 @@ public class PlaaniseppApp extends Application {
     private ComboBox<PowerSourceChoice> powerSourceComboBox;
     private ComboBox<OutletChoice> connectionOutletComboBox;
     private TextField cableLengthNotesField;
+    private VBox cablePieceEditor;
     private TextField cableNotesField;
     private Slider cableOpacitySlider;
     private CheckBox showSelectedCableLabelCheckBox;
@@ -3110,6 +3112,7 @@ public class PlaaniseppApp extends Application {
                 autoApplyCableLengthNotes();
             }
         });
+        cablePieceEditor = new VBox(4);
         cableNotesField = new TextField();
         cableNotesField.setPromptText("Kaabli märkmed");
         cableNotesField.setOnAction(event -> autoApplyCableNotes());
@@ -3303,7 +3306,7 @@ public class PlaaniseppApp extends Application {
         powerConnectionForm.addRow(1, new Label("Vooluallikas"), powerSourceSelection);
         powerConnectionForm.addRow(2, new Label("Väljund"), connectionOutletComboBox);
         GridPane cableDetailsForm = detailGrid();
-        cableDetailsForm.addRow(0, new Label("Kaabli tükid"), cableLengthNotesField);
+        cableDetailsForm.addRow(0, new Label("Kaabli tükid"), cablePieceEditor);
         cableDetailsForm.addRow(1, new Label("Kaabli märkmed"), cableNotesField);
         cableDetailsForm.addRow(2, new Label("Läbipaistvus"), opacityControl(cableOpacitySlider));
         cableDetailsForm.addRow(3, new Label("Kaablisilt"), showSelectedCableLabelCheckBox);
@@ -8111,6 +8114,7 @@ public class PlaaniseppApp extends Application {
         cableLengthNotesField.setDisable(!powerConsumerSelected);
         cableNotesField.setDisable(!powerConsumerSelected);
         PowerConnection editedPowerConnection = powerConsumerSelected ? selectedPowerConnection() : null;
+        cablePieceEditor.setDisable(editedPowerConnection == null);
         cableOpacitySlider.setDisable(editedPowerConnection == null);
         showSelectedCableLabelCheckBox.setDisable(editedPowerConnection == null);
         boolean consumerHasPowerConnection = powerConsumerSelected
@@ -8433,21 +8437,146 @@ public class PlaaniseppApp extends Application {
     private void refreshSelectedPowerConnectionFields() {
         if (!(selectedObject instanceof PowerConsumer)) {
             cableLengthNotesField.clear();
+            refreshCablePieceEditor(null);
             cableNotesField.clear();
             showSelectedCableLabelCheckBox.setSelected(true);
             return;
         }
         Optional.ofNullable(selectedPowerConnection()).ifPresentOrElse(connection -> {
             cableLengthNotesField.setText(connection.cableLengthNotes());
+            refreshCablePieceEditor(connection);
             cableNotesField.setText(connection.cableNotes());
             showSelectedCableLabelCheckBox.setSelected(plan.showCableLabel(connection.id()));
             setOpacitySliderValue(cableOpacitySlider, plan.cableOpacity(connection.id()) * 100.0);
         }, () -> {
             cableLengthNotesField.clear();
+            refreshCablePieceEditor(null);
             cableNotesField.clear();
             showSelectedCableLabelCheckBox.setSelected(true);
             setOpacitySliderValue(cableOpacitySlider, 100);
         });
+    }
+
+    private void refreshCablePieceEditor(PowerConnection connection) {
+        if (cablePieceEditor == null) {
+            return;
+        }
+        cablePieceEditor.getChildren().clear();
+        if (connection == null) {
+            cablePieceEditor.getChildren().add(new Label("Vali vooluühendus"));
+            return;
+        }
+        Map<Double, Integer> counts = cablePieceCounts(connection.cableLengthNotes());
+        populateCablePieceEditor(cablePieceEditor, counts, () -> {
+            PowerConnection current = selectedPowerConnection();
+            if (current == null || !current.id().equals(connection.id())) {
+                return;
+            }
+            updateCablePieceCounts(current, counts);
+        });
+    }
+
+    private void populateCablePieceEditor(
+            VBox editor,
+            Map<Double, Integer> counts,
+            Runnable afterChange
+    ) {
+        editor.getChildren().clear();
+        TreeSet<Double> lengths = new TreeSet<>(DEFAULT_CABLE_PIECE_LENGTHS);
+        lengths.addAll(counts.keySet());
+        for (double length : lengths) {
+            int count = counts.getOrDefault(length, 0);
+            Label countLabel = new Label("%d tk".formatted(count));
+            countLabel.setMinWidth(34);
+            Button decrease = new Button("−");
+            decrease.setDisable(count == 0);
+            Button increase = new Button("+");
+            decrease.setOnAction(event -> {
+                adjustCablePieceCount(counts, length, -1);
+                afterChange.run();
+            });
+            increase.setOnAction(event -> {
+                adjustCablePieceCount(counts, length, 1);
+                afterChange.run();
+            });
+            HBox row = new HBox(6, new Label(formatCablePieceLength(length) + " m"), countLabel, decrease, increase);
+            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            editor.getChildren().add(row);
+        }
+        TextField customLength = new TextField();
+        customLength.setPromptText("Muu pikkus m");
+        customLength.setPrefColumnCount(6);
+        Button addCustomLength = new Button("Lisa");
+        Runnable addLength = () -> {
+            try {
+                double length = Double.parseDouble(customLength.getText().trim().replace(',', '.'));
+                if (length <= 0 || !Double.isFinite(length)) {
+                    throw new NumberFormatException();
+                }
+                adjustCablePieceCount(counts, length, 1);
+                afterChange.run();
+            } catch (NumberFormatException exception) {
+                showError("Kaablitükki ei lisatud", "Sisesta positiivne pikkus meetrites.");
+            }
+        };
+        addCustomLength.setOnAction(event -> addLength.run());
+        customLength.setOnAction(event -> addLength.run());
+        HBox addRow = new HBox(6, customLength, addCustomLength);
+        addRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        editor.getChildren().add(addRow);
+    }
+
+    private void updateCablePieceCounts(PowerConnection connection, Map<Double, Integer> counts) {
+        String lengthNotes = formatCablePieceCounts(counts);
+        plan.updateCableLengthNotesForConnection(connection.id(), lengthNotes);
+        cableLengthNotesField.setText(lengthNotes);
+        refreshSelectedPowerConnectionFields();
+        redrawMap();
+        refreshSummary();
+        markDirty();
+    }
+
+    private Map<Double, Integer> cablePieceCounts(String lengthNotes) {
+        Map<Double, Integer> counts = new TreeMap<>();
+        java.util.regex.Pattern piecePattern = java.util.regex.Pattern.compile(
+                "(?:(\\d+)\\s*[x×]\\s*)?(\\d+(?:[,.]\\d+)?)\\s*m?"
+        );
+        for (String part : lengthNotes.split("\\+")) {
+            java.util.regex.Matcher matcher = piecePattern.matcher(part.trim());
+            if (!matcher.matches()) {
+                continue;
+            }
+            int count = matcher.group(1) == null ? 1 : Integer.parseInt(matcher.group(1));
+            double length = Double.parseDouble(matcher.group(2).replace(',', '.'));
+            if (length > 0 && Double.isFinite(length) && count > 0) {
+                counts.merge(length, count, Integer::sum);
+            }
+        }
+        return counts;
+    }
+
+    private void adjustCablePieceCount(Map<Double, Integer> counts, double length, int adjustment) {
+        int updated = Math.max(0, counts.getOrDefault(length, 0) + adjustment);
+        if (updated == 0) {
+            counts.remove(length);
+        } else {
+            counts.put(length, updated);
+        }
+    }
+
+    private String formatCablePieceCounts(Map<Double, Integer> counts) {
+        return counts.entrySet().stream()
+                .filter(entry -> entry.getValue() > 0)
+                .map(entry -> entry.getValue() == 1
+                        ? formatCablePieceLength(entry.getKey())
+                        : "%dx%s".formatted(entry.getValue(), formatCablePieceLength(entry.getKey())))
+                .collect(java.util.stream.Collectors.joining(" + "));
+    }
+
+    private String formatCablePieceLength(double length) {
+        return Math.abs(length - Math.rint(length)) < 0.0001
+                ? Integer.toString((int) Math.rint(length))
+                : "%.1f".formatted(length);
     }
 
     private void updateCustomObjectSizeFields() {
@@ -11591,22 +11720,30 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showCableLengthNotesDialog(PowerConnection connection, String header) {
-        TextInputDialog dialog = new TextInputDialog(connection.cableLengthNotes());
+        Dialog<ButtonType> dialog = new Dialog<>();
         dialog.initOwner(stage);
         dialog.setTitle("Kaablitükid");
         dialog.setHeaderText(header);
-        dialog.setContentText("Tükid (nt 10 + 10 + 5)");
-        dialog.showAndWait().ifPresent(lengthNotes -> {
+        Map<Double, Integer> counts = cablePieceCounts(connection.cableLengthNotes());
+        VBox editor = new VBox(6);
+        Runnable[] refreshEditor = new Runnable[1];
+        refreshEditor[0] = () -> populateCablePieceEditor(editor, counts, refreshEditor[0]);
+        refreshEditor[0].run();
+        dialog.getDialogPane().setContent(editor);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        if (dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+            String lengthNotes = formatCablePieceCounts(counts);
             plan.updateCableLengthNotesForConnection(connection.id(), lengthNotes);
             if (connection.id().equals(selectedPowerConnectionId())) {
                 cableLengthNotesField.setText(plan.findPowerConnection(connection.id())
                         .map(PowerConnection::cableLengthNotes)
                         .orElse(""));
             }
+            refreshSelectedPowerConnectionFields();
             refreshSummary();
             redrawMap();
             markDirty();
-        });
+        }
     }
 
     private String cableInventoryHeader(PowerConnection connection) {

@@ -32,7 +32,7 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 ## Järgmise töökorra märkmed — 31. august 2026
 
 - **Tehtud:** aiata aiakivid on ühtlustatud muu objektita inventariga. Need lisatakse „Lisa inventar” kaudu ja koondatakse „Aiakivid” harusse; sama lisamisvoog toetab objektita aedu, mis liidetakse „Aiad” koondkogusesse.
-- **Tehtud:** kaabliinventari rea ning kaardil oleva kaabli paremklõpsumenüüst saab muuta konkreetse kaabli märkust ja kaablitükke.
+- **Tehtud:** kaabliinventari rea ning kaardil oleva kaabli paremklõpsumenüüst saab muuta konkreetse kaabli märkust ja kaablitükke. Kaablitükid on interaktiivne `− / +` loend: 2, 5, 10 ja 20 m read on alati valitavad, muu pikkuse saab lisada käsitsi ning nullkogusega tükke ei kuvata kaardil ega koondis. Kaardisilt kasutab kompaktset vormingut, näiteks `2x5 + 10`.
 - **Tehtud:** üleliigne „Paigutus lukus” nupp on tööriistaribalt eemaldatud. Paigutuslukustus säilib menüüs ja kiirklahvina ning aktiivne olek kuvatakse tööriista olekureal.
 - **Tehtud:** mõõdulint ühendab järjest kaardil märgitud punktid üheks murdjooneks. Iga lõik näitab oma pikkust, viimase punkti juures kuvatakse kogu lindi pikkus ning hiire liikumise ajal on näha järgmise lõigu ja uue kogupikkuse eelvaade. `Enter`, viimase punkti topeltklõps või `Escape` lõpetab aktiivse lindi ja lülitab mõõtmistööriista välja. Valmis lindi paremklõpsumenüüst saab selle trajektoori punktide lohistamiseks uuesti avada või lindi eemaldada; kõik mõõdud saab endiselt korraga puhastada.
 - **Tehtud:** kaabli trajektoori muutmise nupud on tööriistaribalt eemaldatud. Trajektoori muutmine, punktide lisamine ja režiimi lõpetamine on kättesaadavad kaabli paremklõpsumenüü ning `Escape`-klahvi kaudu.

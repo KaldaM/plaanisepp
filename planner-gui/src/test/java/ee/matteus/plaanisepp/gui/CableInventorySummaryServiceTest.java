@@ -42,6 +42,19 @@ class CableInventorySummaryServiceTest {
         assertTrue(new CableInventorySummaryService().summarize(List.of()).isEmpty());
     }
 
+    @Test
+    void interpretsCountNotationAsRepeatedCablePieces() {
+        PowerConnection connection = connection("counted", true, "2x5 + 10", "");
+
+        CableInventorySummaryService.Summary summary = new CableInventorySummaryService().summarize(List.of(
+                new CableInventorySummaryService.Input("Lava", "Kapp", connection, 20)
+        ));
+
+        assertEquals(20, summary.totalNotedLengthMeters());
+        assertEquals(2, summary.byType().get(ConnectorType.SCHUKO_230V).pieceCounts().get(5.0));
+        assertEquals(1, summary.byType().get(ConnectorType.SCHUKO_230V).pieceCounts().get(10.0));
+    }
+
     private PowerConnection connection(String id, boolean primary, String lengthNotes, String cableNotes) {
         return new PowerConnection(
                 id,

@@ -18,7 +18,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class CableInventorySummaryService {
-    private static final Pattern LENGTH_PATTERN = Pattern.compile("\\d+(?:[,.]\\d+)?");
+    private static final Pattern PIECE_PATTERN = Pattern.compile(
+            "(?:(\\d+)\\s*[x×]\\s*)?(\\d+(?:[,.]\\d+)?)\\s*m?"
+    );
     private static final Comparator<Row> ROW_COMPARATOR = Comparator
             .comparing(Row::connectorType)
             .thenComparing(Row::consumerName, String.CASE_INSENSITIVE_ORDER)
@@ -96,19 +98,26 @@ final class CableInventorySummaryService {
 
     private List<Double> cableLengthPieces(String notes) {
         List<Double> pieces = new ArrayList<>();
-        Matcher matcher = LENGTH_PATTERN.matcher(notes);
-        while (matcher.find()) {
-            pieces.add(Double.parseDouble(matcher.group().replace(',', '.')));
+        for (String part : notes.split("\\+")) {
+            Matcher matcher = PIECE_PATTERN.matcher(part.trim());
+            if (!matcher.matches()) {
+                continue;
+            }
+            int count = matcher.group(1) == null ? 1 : Integer.parseInt(matcher.group(1));
+            double length = Double.parseDouble(matcher.group(2).replace(',', '.'));
+            for (int index = 0; index < count; index++) {
+                pieces.add(length);
+            }
         }
         return pieces;
     }
 
     private boolean cableNoteNeedsReview(String notes) {
-        if (notes.isBlank() || !notes.contains("+")) {
+        if (notes.isBlank()) {
             return false;
         }
         for (String part : notes.split("\\+")) {
-            if (!part.isBlank() && !LENGTH_PATTERN.matcher(part).find()) {
+            if (!part.isBlank() && !PIECE_PATTERN.matcher(part.trim()).matches()) {
                 return true;
             }
         }
