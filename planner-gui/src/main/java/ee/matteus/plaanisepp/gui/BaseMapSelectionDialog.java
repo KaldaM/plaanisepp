@@ -6,6 +6,8 @@ import ee.matteus.plaanisepp.core.map.MaaAmetWmsClient;
 import ee.matteus.plaanisepp.core.map.RegularMapStyle;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.application.Platform;
+import javafx.animation.PauseTransition;
 import javafx.scene.Cursor;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -16,6 +18,8 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
@@ -26,16 +30,19 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Window;
+import javafx.util.Duration;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 final class BaseMapSelectionDialog {
     private static final int PREVIEW_WIDTH = 900;
     private static final int PREVIEW_HEIGHT = 600;
-    private static final double INITIAL_CENTER_X = 659_000;
-    private static final double INITIAL_CENTER_Y = 6_474_000;
+    private static final double PREVIEW_BUFFER_FACTOR = 2.0;
+    private static final double INITIAL_CENTER_X = 659_266.421;
+    private static final double INITIAL_CENTER_Y = 6_474_323.917;
     private static final double INITIAL_WIDTH_METRES = 1_000;
 
     private final MaaAmetWmsClient client = new MaaAmetWmsClient();
@@ -45,6 +52,10 @@ final class BaseMapSelectionDialog {
     private final TextField pixelsPerMetreField = new TextField("6.45");
     private final CheckBox automaticResolution = new CheckBox("Automaatne (suurim lubatud)");
     private final ComboBox<RegularMapStyle> regularMapStyle = new ComboBox<>();
+    private final ToggleButton regularPreviewButton = new ToggleButton("Tavakaart");
+    private final ToggleButton orthophotoPreviewButton = new ToggleButton("Ortofoto");
+    private final AtomicLong previewRequestVersion = new AtomicLong();
+    private final PauseTransition previewLoadDebounce = new PauseTransition(Duration.millis(180));
     private double centerX = INITIAL_CENTER_X;
     private double centerY = INITIAL_CENTER_Y;
     private double widthMetres = INITIAL_WIDTH_METRES;
@@ -52,6 +63,8 @@ final class BaseMapSelectionDialog {
     private double dragStartY;
     private double dragCenterX;
     private double dragCenterY;
+    private double dragStartTranslateX;
+    private double dragStartTranslateY;
 
     static Optional<BaseMapDownload> show(Window owner) {
         return new BaseMapSelectionDialog().showDialog(owner);
@@ -65,8 +78,8 @@ final class BaseMapSelectionDialog {
         ButtonType downloadType = new ButtonType("Laadi aluskaardid", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(downloadType, ButtonType.CANCEL);
 
-        preview.setFitWidth(PREVIEW_WIDTH);
-        preview.setFitHeight(PREVIEW_HEIGHT);
+        preview.setFitWidth(PREVIEW_WIDTH * PREVIEW_BUFFER_FACTOR);
+        preview.setFitHeight(PREVIEW_HEIGHT * PREVIEW_BUFFER_FACTOR);
         preview.setPreserveRatio(false);
         preview.setCursor(Cursor.OPEN_HAND);
         Rectangle frame = new Rectangle(PREVIEW_WIDTH - 4, PREVIEW_HEIGHT - 4, Color.TRANSPARENT);
@@ -78,8 +91,11 @@ final class BaseMapSelectionDialog {
         StackPane map = new StackPane(preview, frame, hint);
         StackPane.setAlignment(hint, Pos.TOP_LEFT);
         StackPane.setMargin(hint, new Insets(8));
+        map.setMinSize(PREVIEW_WIDTH, PREVIEW_HEIGHT);
         map.setPrefSize(PREVIEW_WIDTH, PREVIEW_HEIGHT);
-        installNavigation(map);
+        map.setMaxSize(PREVIEW_WIDTH, PREVIEW_HEIGHT);
+        map.setClip(new Rectangle(PREVIEW_WIDTH, PREVIEW_HEIGHT));
+        installNavigation(map, dialog);
 
         pixelsPerMetreField.setPrefColumnCount(7);
         pixelsPerMetreField.textProperty().addListener((observable, oldValue, newValue) -> refreshLabels());
@@ -96,16 +112,27 @@ final class BaseMapSelectionDialog {
         regularMapStyle.getItems().addAll(RegularMapStyle.values());
         regularMapStyle.setValue(RegularMapStyle.GRAYSCALE);
         regularMapStyle.setOnAction(event -> loadPreview(dialog));
-        Button refreshButton = new Button("Värskenda kaarti");
-        refreshButton.setOnAction(event -> loadPreview(dialog));
+        ToggleGroup previewType = new ToggleGroup();
+        regularPreviewButton.setToggleGroup(previewType);
+        orthophotoPreviewButton.setToggleGroup(previewType);
+        regularPreviewButton.setSelected(true);
+        regularPreviewButton.setOnAction(event -> {
+            regularMapStyle.setDisable(false);
+            loadPreview(dialog);
+        });
+        orthophotoPreviewButton.setOnAction(event -> {
+            regularMapStyle.setDisable(true);
+            loadPreview(dialog);
+        });
         GridPane settings = new GridPane();
         settings.setHgap(10);
         settings.setVgap(6);
-        settings.addRow(0, new Label("Aluskaardi stiil:"), regularMapStyle, refreshButton);
-        settings.addRow(1, new Label("Eraldusvõime:"), pixelsPerMetreField,
+        settings.addRow(0, new Label("Eelvaade:"), new HBox(0, regularPreviewButton, orthophotoPreviewButton));
+        settings.addRow(1, new Label("Tavakaardi stiil:"), regularMapStyle);
+        settings.addRow(2, new Label("Eraldusvõime:"), pixelsPerMetreField,
                 new Label("pikslit meetri kohta"), automaticResolution);
-        settings.addRow(2, new Label("Valitud ala:"), areaLabel);
-        settings.addRow(3, new Label("Väljund:"), outputLabel);
+        settings.addRow(3, new Label("Valitud ala:"), areaLabel);
+        settings.addRow(4, new Label("Väljund:"), outputLabel);
         Label attribution = new Label("Kaardiandmed: Maa- ja Ruumiamet. Alla laaditakse nii põhikaart kui ortofoto.");
         attribution.setStyle("-fx-text-fill: #4b5563;");
         BorderPane content = new BorderPane(map);
@@ -138,34 +165,64 @@ final class BaseMapSelectionDialog {
         return dialog.showAndWait();
     }
 
-    private void installNavigation(StackPane map) {
+    private void installNavigation(StackPane map, Dialog<?> dialog) {
         map.setOnMousePressed(event -> {
             if (event.getButton() != MouseButton.PRIMARY) return;
+            previewLoadDebounce.stop();
+            previewRequestVersion.incrementAndGet();
             dragStartX = event.getX();
             dragStartY = event.getY();
             dragCenterX = centerX;
             dragCenterY = centerY;
+            dragStartTranslateX = preview.getTranslateX();
+            dragStartTranslateY = preview.getTranslateY();
             preview.setCursor(Cursor.CLOSED_HAND);
         });
         map.setOnMouseDragged(event -> {
+            double deltaX = event.getX() - dragStartX;
+            double deltaY = event.getY() - dragStartY;
             double metresPerPixel = widthMetres / PREVIEW_WIDTH;
-            centerX = dragCenterX - (event.getX() - dragStartX) * metresPerPixel;
-            centerY = dragCenterY + (event.getY() - dragStartY) * metresPerPixel;
+            centerX = dragCenterX - deltaX * metresPerPixel;
+            centerY = dragCenterY + deltaY * metresPerPixel;
+            preview.setTranslateX(dragStartTranslateX + deltaX);
+            preview.setTranslateY(dragStartTranslateY + deltaY);
             if (automaticResolution.isSelected()) updateOptimalResolution();
             refreshLabels();
         });
         map.setOnMouseReleased(event -> {
             preview.setCursor(Cursor.OPEN_HAND);
-            if (event.getButton() == MouseButton.PRIMARY) loadPreview(null);
+            if (event.getButton() == MouseButton.PRIMARY) {
+                loadPreview(null);
+            }
         });
         map.setOnScroll(event -> {
-            widthMetres *= event.getDeltaY() > 0 ? 0.75 : 1.3333333333;
+            double previousWidthMetres = widthMetres;
+            double pointerOffsetX = event.getX() - PREVIEW_WIDTH / 2.0;
+            double pointerOffsetY = event.getY() - PREVIEW_HEIGHT / 2.0;
+            double zoomFactor = event.getDeltaY() > 0 ? 0.75 : 1.3333333333;
+            widthMetres *= zoomFactor;
             widthMetres = Math.max(100, Math.min(50_000, widthMetres));
+            double widthChange = previousWidthMetres - widthMetres;
+            centerX += pointerOffsetX * widthChange / PREVIEW_WIDTH;
+            centerY -= pointerOffsetY * widthChange / PREVIEW_WIDTH;
+            double visualScale = previousWidthMetres / widthMetres;
+            preview.setTranslateX(pointerOffsetX
+                    - visualScale * (pointerOffsetX - preview.getTranslateX()));
+            preview.setTranslateY(pointerOffsetY
+                    - visualScale * (pointerOffsetY - preview.getTranslateY()));
+            preview.setScaleX(preview.getScaleX() * visualScale);
+            preview.setScaleY(preview.getScaleY() * visualScale);
             if (automaticResolution.isSelected()) updateOptimalResolution();
             refreshLabels();
-            loadPreview(null);
+            schedulePreviewLoad(dialog);
             event.consume();
         });
+    }
+
+    private void schedulePreviewLoad(Dialog<?> dialog) {
+        previewRequestVersion.incrementAndGet();
+        previewLoadDebounce.setOnFinished(event -> loadPreview(dialog));
+        previewLoadDebounce.playFromStart();
     }
 
     private BaseMapBounds bounds() {
@@ -175,6 +232,17 @@ final class BaseMapSelectionDialog {
                 centerY - heightMetres / 2,
                 centerX + widthMetres / 2,
                 centerY + heightMetres / 2
+        );
+    }
+
+    private BaseMapBounds previewBounds() {
+        double previewWidthMetres = widthMetres * PREVIEW_BUFFER_FACTOR;
+        double previewHeightMetres = previewWidthMetres * PREVIEW_HEIGHT / PREVIEW_WIDTH;
+        return new BaseMapBounds(
+                centerX - previewWidthMetres / 2,
+                centerY - previewHeightMetres / 2,
+                centerX + previewWidthMetres / 2,
+                centerY + previewHeightMetres / 2
         );
     }
 
@@ -220,17 +288,43 @@ final class BaseMapSelectionDialog {
     }
 
     private void loadPreview(Dialog<?> dialog) {
-        try {
-            if (dialog != null) dialog.getDialogPane().setCursor(Cursor.WAIT);
-            byte[] data = client.downloadPreview(
-                    bounds(), PREVIEW_WIDTH, PREVIEW_HEIGHT, regularMapStyle.getValue());
-            preview.setImage(new Image(new ByteArrayInputStream(data)));
-        } catch (IOException | InterruptedException exception) {
-            if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
-            showError("Kaardi laadimine ebaõnnestus", exception.getMessage());
-        } finally {
-            if (dialog != null) dialog.getDialogPane().setCursor(Cursor.DEFAULT);
-        }
+        long requestVersion = previewRequestVersion.incrementAndGet();
+        BaseMapBounds requestedBounds = previewBounds();
+        RegularMapStyle requestedStyle = regularMapStyle.getValue();
+        boolean orthophoto = orthophotoPreviewButton.isSelected();
+        if (dialog != null) dialog.getDialogPane().setCursor(Cursor.WAIT);
+        Thread.startVirtualThread(() -> {
+            try {
+                byte[] data = orthophoto
+                        ? client.downloadOrthophotoPreview(
+                                requestedBounds,
+                                (int) (PREVIEW_WIDTH * PREVIEW_BUFFER_FACTOR),
+                                (int) (PREVIEW_HEIGHT * PREVIEW_BUFFER_FACTOR)
+                        )
+                        : client.downloadPreview(
+                                requestedBounds,
+                                (int) (PREVIEW_WIDTH * PREVIEW_BUFFER_FACTOR),
+                                (int) (PREVIEW_HEIGHT * PREVIEW_BUFFER_FACTOR),
+                                requestedStyle
+                        );
+                Platform.runLater(() -> {
+                    if (previewRequestVersion.get() != requestVersion) return;
+                    preview.setImage(new Image(new ByteArrayInputStream(data)));
+                    preview.setTranslateX(0);
+                    preview.setTranslateY(0);
+                    preview.setScaleX(1);
+                    preview.setScaleY(1);
+                    if (dialog != null) dialog.getDialogPane().setCursor(Cursor.DEFAULT);
+                });
+            } catch (IOException | InterruptedException exception) {
+                if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
+                Platform.runLater(() -> {
+                    if (previewRequestVersion.get() != requestVersion) return;
+                    if (dialog != null) dialog.getDialogPane().setCursor(Cursor.DEFAULT);
+                    showError("Kaardi laadimine ebaõnnestus", exception.getMessage());
+                });
+            }
+        });
     }
 
     private static void showError(String title, String message) {

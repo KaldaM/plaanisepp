@@ -73,6 +73,12 @@ public final class MaaAmetWmsClient {
                 ? GRAYSCALE_MAP_LAYER : REGULAR_MAP_LAYER, bounds, width, height);
     }
 
+    public byte[] downloadOrthophotoPreview(BaseMapBounds bounds, int width, int height)
+            throws IOException, InterruptedException {
+        validateDimensions(width, height);
+        return downloadLayer(ORTHOPHOTO_LAYER, bounds, width, height);
+    }
+
     URI requestUri(String layer, BaseMapBounds bounds, int width, int height) {
         validateDimensions(width, height);
         Map<String, String> parameters = new LinkedHashMap<>();

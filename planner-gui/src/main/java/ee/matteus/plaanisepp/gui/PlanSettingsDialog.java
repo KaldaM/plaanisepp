@@ -1,10 +1,10 @@
 package ee.matteus.plaanisepp.gui;
 
+import ee.matteus.plaanisepp.core.map.BaseMapDownload;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
@@ -47,24 +47,30 @@ final class PlanSettingsDialog {
                 initialSettings.cableLabelFontSize()
         );
         Label mapLabel = new Label(mapLabelText(initialSettings.mapImagePath()));
-        CheckBox chooseFromRealMap = new CheckBox("Vali ala päriskaardilt pärast nende andmete kinnitamist");
-        chooseFromRealMap.setVisible(creatingNewPlan);
-        chooseFromRealMap.setManaged(creatingNewPlan);
-
         String[] selectedMapPath = {initialSettings.mapImagePath()};
-        Button defaultMapButton = new Button("Tavakaart");
-        defaultMapButton.setOnAction(event -> selectMap(initialSettings.defaultMapPath(), selectedMapPath, mapLabel));
-        Button orthophotoButton = new Button("Ortofoto");
-        orthophotoButton.setOnAction(event -> selectMap(initialSettings.orthophotoMapPath(), selectedMapPath, mapLabel));
+        BaseMapDownload[] selectedBaseMap = {null};
+        Button realMapButton = new Button("Vali päriskaardilt…");
+        realMapButton.setOnAction(event -> BaseMapSelectionDialog.show(owner).ifPresent(download -> {
+            selectedBaseMap[0] = download;
+            mapLabel.setText("Päriskaardilt valitud ala (%d × %d px)".formatted(
+                    download.width(), download.height()
+            ));
+        }));
         Button noMapButton = new Button("Kaardita");
-        noMapButton.setOnAction(event -> selectMap("", selectedMapPath, mapLabel));
-        Button loadMapButton = new Button("Laadi kaart");
+        noMapButton.setOnAction(event -> {
+            selectedBaseMap[0] = null;
+            selectMap("", selectedMapPath, mapLabel);
+        });
+        Button loadMapButton = new Button("Laadi pildifail…");
         loadMapButton.setOnAction(event -> chooseMapFile(
                 owner,
                 initialDirectory,
                 selectedMapPath,
                 mapLabel,
-                selectedMapFileHandler
+                file -> {
+                    selectedBaseMap[0] = null;
+                    selectedMapFileHandler.accept(file);
+                }
         ));
         Button setScaleFromMeasurementButton = new Button("Määra mõõdulindi järgi");
         setScaleFromMeasurementButton.setTooltip(new Tooltip(
@@ -85,15 +91,11 @@ final class PlanSettingsDialog {
         form.addRow(3, new Label("Kaablisildi suurus"), pixelControl(cableLabelFontSizeSlider));
         form.addRow(4, new Label("Kaart"), new HBox(
                 8,
-                defaultMapButton,
-                orthophotoButton,
+                realMapButton,
                 noMapButton,
                 loadMapButton
         ));
         form.addRow(5, new Label("Valitud kaart"), mapLabel);
-        if (creatingNewPlan) {
-            form.addRow(6, new Label("Päriskaart"), chooseFromRealMap);
-        }
 
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
         dialog.initOwner(owner);
@@ -108,9 +110,7 @@ final class PlanSettingsDialog {
                         objectLabelFontSizeSlider.getValue(),
                         cableLabelFontSizeSlider.getValue(),
                         selectedMapPath[0],
-                        initialSettings.defaultMapPath(),
-                        initialSettings.orthophotoMapPath(),
-                        chooseFromRealMap.isSelected()
+                        selectedBaseMap[0]
                 ));
     }
 
@@ -186,9 +186,7 @@ final class PlanSettingsDialog {
             double objectLabelFontSize,
             double cableLabelFontSize,
             String mapImagePath,
-            String defaultMapPath,
-            String orthophotoMapPath,
-            boolean chooseFromRealMap
+            BaseMapDownload selectedBaseMap
     ) {
     }
 }

@@ -1,5 +1,9 @@
 package ee.matteus.plaanisepp.gui;
 
+import ee.matteus.plaanisepp.core.map.BaseMapBounds;
+import ee.matteus.plaanisepp.core.map.BaseMapDownload;
+import ee.matteus.plaanisepp.core.map.MaaAmetWmsClient;
+import ee.matteus.plaanisepp.core.map.RegularMapStyle;
 import ee.matteus.plaanisepp.core.model.ConnectorType;
 import ee.matteus.plaanisepp.core.model.ChecklistItem;
 import ee.matteus.plaanisepp.core.model.ChecklistSuggestionStatus;
@@ -146,6 +150,11 @@ import java.util.prefs.Preferences;
 public class PlaaniseppApp extends Application {
     private static final String DEFAULT_MAP_PATH = "classpath:/maps/tavakaart.png";
     private static final String ORTHOPHOTO_MAP_PATH = "classpath:/maps/ortofoto.png";
+    private static final int DEFAULT_API_MAP_WIDTH = 4_923;
+    private static final int DEFAULT_API_MAP_HEIGHT = 2_648;
+    private static final double DEFAULT_API_MAP_CENTER_X = 659_266.421;
+    private static final double DEFAULT_API_MAP_CENTER_Y = 6_474_323.917;
+    private static final double DEFAULT_API_MAP_PIXELS_PER_METRE = 24.5;
     private static final String APPLICATION_ICON_PATH = "/icons/plaanisepp.png";
     private static final String GITHUB_RELEASES_URL = "https://github.com/KaldaM/plaanisepp/releases";
     private static final String SELECTED_OBJECT_SECTION = "selectedObject";
@@ -982,8 +991,6 @@ public class PlaaniseppApp extends Application {
                 KeyCombination.SHIFT_DOWN
         ));
         planSettingsItem.setOnAction(event -> showPlanSettingsDialog());
-        MenuItem chooseBaseMapItem = new MenuItem("Määra aluskaart päriskaardilt…");
-        chooseBaseMapItem.setOnAction(event -> chooseBaseMapFromRealMap());
         MenuItem importTartuCabinetsItem = new MenuItem("Impordi Tartu püsivoolukilbid…");
         importTartuCabinetsItem.setOnAction(event -> importTartuPowerCabinets());
 
@@ -997,7 +1004,6 @@ public class PlaaniseppApp extends Application {
                 new SeparatorMenuItem(),
                 exportMenu,
                 new SeparatorMenuItem(),
-                chooseBaseMapItem,
                 importTartuCabinetsItem,
                 planSettingsItem
         );
@@ -1975,8 +1981,8 @@ public class PlaaniseppApp extends Application {
         orthophotoMapButton = new ToggleButton("Ortofoto");
         defaultMapButton.setFocusTraversable(false);
         orthophotoMapButton.setFocusTraversable(false);
-        defaultMapButton.setTooltip(new Tooltip("Kasuta kaasasolevat tavakaarti"));
-        orthophotoMapButton.setTooltip(new Tooltip("Kasuta kaasasolevat ortofotot"));
+        defaultMapButton.setTooltip(new Tooltip("Laadi vaikimisi Tartu ala tavakaart Maa- ja Ruumiameti teenusest"));
+        orthophotoMapButton.setTooltip(new Tooltip("Laadi vaikimisi Tartu ala ortofoto Maa- ja Ruumiameti teenusest"));
         defaultMapButton.setOnAction(event -> switchBaseMap(false));
         orthophotoMapButton.setOnAction(event -> switchBaseMap(true));
         HBox switcher = new HBox(0, defaultMapButton, orthophotoMapButton);
@@ -1990,18 +1996,20 @@ public class PlaaniseppApp extends Application {
     }
 
     private void chooseBaseMapFromRealMap() {
-        BaseMapSelectionDialog.show(stage).ifPresent(download -> {
-            PlanSnapshot before = planSnapshotService.create(plan);
-            double previousPixelsPerMeter = plan.pixelsPerMeter();
-            plan.setDownloadedBaseMaps(download);
-            plan.scalePixelGeometry(plan.pixelsPerMeter() / previousPixelsPerMeter);
-            if (pixelsPerMeterField != null) {
-                pixelsPerMeterField.setText(String.format(Locale.ROOT, "%.4f", plan.pixelsPerMeter())
-                        .replaceAll("0+$", "").replaceAll("\\.$", ""));
-            }
-            refreshBaseMapSwitcher();
-            finishAutoAppliedDetailsChange(before, false);
-        });
+        BaseMapSelectionDialog.show(stage).ifPresent(this::applyDownloadedBaseMap);
+    }
+
+    private void applyDownloadedBaseMap(BaseMapDownload download) {
+        PlanSnapshot before = planSnapshotService.create(plan);
+        double previousPixelsPerMeter = plan.pixelsPerMeter();
+        plan.setDownloadedBaseMaps(download);
+        plan.scalePixelGeometry(plan.pixelsPerMeter() / previousPixelsPerMeter);
+        if (pixelsPerMeterField != null) {
+            pixelsPerMeterField.setText(String.format(Locale.ROOT, "%.4f", plan.pixelsPerMeter())
+                    .replaceAll("0+$", "").replaceAll("\\.$", ""));
+        }
+        refreshBaseMapSwitcher();
+        finishAutoAppliedDetailsChange(before, false);
     }
 
     private void importTartuPowerCabinets() {
@@ -2074,7 +2082,9 @@ public class PlaaniseppApp extends Application {
 
     private void switchBaseMap(boolean orthophoto) {
         if (!plan.hasDownloadedBaseMaps()) {
-            switchBuiltInMap(orthophoto ? ORTHOPHOTO_MAP_PATH : DEFAULT_MAP_PATH);
+            if (!installDefaultApiBaseMaps(orthophoto, true)) {
+                switchBuiltInMap(orthophoto ? ORTHOPHOTO_MAP_PATH : DEFAULT_MAP_PATH);
+            }
             return;
         }
         if (plan.downloadedOrthophotoActive() == orthophoto) {
@@ -2085,6 +2095,56 @@ public class PlaaniseppApp extends Application {
         plan.setDownloadedBaseMapActive(orthophoto);
         refreshBaseMapSwitcher();
         finishAutoAppliedDetailsChange(before, false);
+    }
+
+    private boolean installDefaultApiBaseMaps(boolean orthophoto, boolean showFailure) {
+        double widthMetres = DEFAULT_API_MAP_WIDTH / DEFAULT_API_MAP_PIXELS_PER_METRE;
+        double heightMetres = DEFAULT_API_MAP_HEIGHT / DEFAULT_API_MAP_PIXELS_PER_METRE;
+        BaseMapBounds bounds = new BaseMapBounds(
+                DEFAULT_API_MAP_CENTER_X - widthMetres / 2,
+                DEFAULT_API_MAP_CENTER_Y - heightMetres / 2,
+                DEFAULT_API_MAP_CENTER_X + widthMetres / 2,
+                DEFAULT_API_MAP_CENTER_Y + heightMetres / 2
+        );
+        try {
+            if (stage != null && stage.getScene() != null) {
+                stage.getScene().setCursor(Cursor.WAIT);
+            }
+            BaseMapDownload download = new MaaAmetWmsClient().download(
+                    bounds,
+                    DEFAULT_API_MAP_WIDTH,
+                    DEFAULT_API_MAP_HEIGHT,
+                    RegularMapStyle.GRAYSCALE
+            );
+            PlanSnapshot before = planSnapshotService.create(plan);
+            double previousPixelsPerMeter = plan.pixelsPerMeter();
+            plan.setDownloadedBaseMaps(download);
+            plan.scalePixelGeometry(plan.pixelsPerMeter() / previousPixelsPerMeter);
+            if (orthophoto) {
+                plan.setDownloadedBaseMapActive(true);
+            }
+            if (pixelsPerMeterField != null) {
+                pixelsPerMeterField.setText(formatMeters(plan.pixelsPerMeter()));
+            }
+            refreshBaseMapSwitcher();
+            finishAutoAppliedDetailsChange(before, false);
+            return true;
+        } catch (IOException | InterruptedException | RuntimeException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            if (showFailure) {
+                showError(
+                        "Vaikekaarti ei saanud alla laadida",
+                        "Kasutatakse rakendusega kaasas olevat varukaarti.\n\n" + exception.getMessage()
+                );
+            }
+            return false;
+        } finally {
+            if (stage != null && stage.getScene() != null) {
+                stage.getScene().setCursor(Cursor.DEFAULT);
+            }
+        }
     }
 
     private void refreshBaseMapSwitcher() {
@@ -4645,9 +4705,7 @@ public class PlaaniseppApp extends Application {
                 plan.objectLabelFontSize(),
                 plan.cableLabelFontSize(),
                 plan.mapImagePath(),
-                DEFAULT_MAP_PATH,
-                ORTHOPHOTO_MAP_PATH,
-                false
+                null
         );
         PlanSettingsDialog.show(
                 stage,
@@ -4674,8 +4732,11 @@ public class PlaaniseppApp extends Application {
                     settings.cableLabelFontSize(),
                     settings.mapImagePath()
             );
-            if (creatingNewPlan && settings.chooseFromRealMap()) {
-                chooseBaseMapFromRealMap();
+            if (settings.selectedBaseMap() != null) {
+                applyDownloadedBaseMap(settings.selectedBaseMap());
+            } else if (DEFAULT_MAP_PATH.equals(settings.mapImagePath())
+                    || ORTHOPHOTO_MAP_PATH.equals(settings.mapImagePath())) {
+                installDefaultApiBaseMaps(ORTHOPHOTO_MAP_PATH.equals(settings.mapImagePath()), true);
             }
         });
     }
