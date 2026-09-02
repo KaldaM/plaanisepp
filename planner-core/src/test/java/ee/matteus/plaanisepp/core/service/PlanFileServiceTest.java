@@ -196,7 +196,7 @@ class PlanFileServiceTest {
         FenceRow loadedRow = (FenceRow) loadedPlan.findObject("fence-1").orElseThrow();
         assertEquals(7, loadedRow.segmentCount());
         assertEquals(3.5, loadedRow.segmentLengthMeters());
-        assertEquals(42, loadedRow.rotationDegrees());
+        assertEquals(42, loadedRow.rotationDegrees(), 0.000001);
         assertEquals("#334155", loadedRow.colorHex());
         assertEquals(6, loadedRow.widthPixels());
         assertEquals(new Position(18, -9), loadedRow.inventoryLabelOffset());

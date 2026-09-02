@@ -13,7 +13,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class EventPlan {
-    public static final double DEFAULT_PIXELS_PER_METER = 24.0;
+    public static final double DEFAULT_PIXELS_PER_METER = 6.45;
     public static final double DEFAULT_OBJECT_LABEL_FONT_SIZE = 12.0;
     public static final double DEFAULT_CABLE_LABEL_FONT_SIZE = 12.0;
 

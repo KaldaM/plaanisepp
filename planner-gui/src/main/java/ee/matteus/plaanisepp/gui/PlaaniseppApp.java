@@ -7533,19 +7533,11 @@ public class PlaaniseppApp extends Application {
         editItem.setDisable(selectionCount > 1);
         editItem.setOnAction(event -> editObject(object));
         MenuItem rotateItem = new MenuItem("Pööra");
-        rotateItem.setDisable(!supportsInteractiveRotation(object)
-                || mapLayoutLocked
+        rotateItem.setDisable(mapLayoutLocked
                 || selectedObjects().stream().anyMatch(PlannerObject::locked));
         rotateItem.setOnAction(event -> startObjectRotation(object));
         MenuItem copyItem = new MenuItem("Kopeeri");
         copyItem.setOnAction(event -> copySelectedObject());
-        MenuItem notesAsTextItem = new MenuItem("Loo märkmetest tekstiobjekt");
-        notesAsTextItem.setDisable(selectionCount > 1 || object.notes().isBlank());
-        notesAsTextItem.setOnAction(event -> showNotesTextObjectDialog(object));
-        MenuItem inventoryAsTextItem = inventoryAsTextMenuItem(object);
-        inventoryAsTextItem.setDisable(selectionCount > 1 || inventoryAsTextItem.isDisable());
-        MenuItem outletsAsTextItem = powerOutletsAsTextMenuItem(object);
-        outletsAsTextItem.setDisable(selectionCount > 1 || outletsAsTextItem.isDisable());
         MenuItem visibilityItem = new MenuItem(allSelectedObjectsHidden() ? "Kuva valitud" : "Peida valitud");
         visibilityItem.setOnAction(event -> toggleSelectedObjectsHidden());
         MenuItem lockItem = new MenuItem(allSelectedObjectsLocked()
@@ -7560,22 +7552,62 @@ public class PlaaniseppApp extends Application {
                 : "Kustuta");
         deleteItem.setDisable(mapLayoutLocked || selectedObjects().stream().anyMatch(PlannerObject::locked));
         deleteItem.setOnAction(event -> deleteSelectedObject());
+
+        List<MenuItem> menuItems = new ArrayList<>();
+        menuItems.add(editItem);
+        if (supportsInteractiveRotation(object)) {
+            menuItems.add(rotateItem);
+        }
+        menuItems.add(copyItem);
+
+        List<MenuItem> objectSpecificItems = objectSpecificContextMenuItems(object, selectionCount);
+        if (!objectSpecificItems.isEmpty()) {
+            menuItems.add(new SeparatorMenuItem());
+            menuItems.addAll(objectSpecificItems);
+        }
+        menuItems.add(new SeparatorMenuItem());
+        menuItems.add(visibilityItem);
+        menuItems.add(lockItem);
+        menuItems.add(deleteItem);
         showContextMenu(
-                new ContextMenu(
-                        editItem,
-                        rotateItem,
-                        copyItem,
-                        notesAsTextItem,
-                        inventoryAsTextItem,
-                        outletsAsTextItem,
-                        visibilityItem,
-                        lockItem,
-                        deleteItem
-                ),
+                new ContextMenu(menuItems.toArray(MenuItem[]::new)),
                 mapPane,
                 screenX,
                 screenY
         );
+    }
+
+    private List<MenuItem> objectSpecificContextMenuItems(PlannerObject object, int selectionCount) {
+        if (selectionCount > 1) {
+            return List.of();
+        }
+        List<MenuItem> items = new ArrayList<>();
+        if (!object.notes().isBlank()) {
+            MenuItem notesAsTextItem = new MenuItem("Loo märkmetest tekstiobjekt");
+            notesAsTextItem.setOnAction(event -> showNotesTextObjectDialog(object));
+            items.add(notesAsTextItem);
+        }
+        if (object instanceof InventoryContainer container && !container.inventoryItems().isEmpty()) {
+            items.add(inventoryAsTextMenuItem(object));
+        }
+        if (object instanceof PowerSource source && !source.outlets().isEmpty()) {
+            items.add(powerOutletsAsTextMenuItem(object));
+        }
+        if (object instanceof TextObject textObject && !textObject.sourceObjectId().isBlank()) {
+            MenuItem detachTextSourceItem = new MenuItem("Muuda staatiliseks tekstiks");
+            detachTextSourceItem.setOnAction(event -> detachTextObjectSource(textObject));
+            items.add(detachTextSourceItem);
+        }
+        return items;
+    }
+
+    private void detachTextObjectSource(PlannerObject object) {
+        if (!(object instanceof TextObject textObject) || textObject.sourceObjectId().isBlank()) {
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        textObject.setSourceObjectId("");
+        finishAutoAppliedDetailsChange(before, false);
     }
 
     private void showContextMenu(
