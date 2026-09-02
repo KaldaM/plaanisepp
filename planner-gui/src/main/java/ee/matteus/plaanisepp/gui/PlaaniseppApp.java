@@ -13381,13 +13381,44 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showStartupPlanDialog() {
-        StartupPlanDialog.show(stage, recentPlansWithMetadata()).ifPresent(choice -> {
+        StartupPlanDialog.show(stage, recentPlansWithMetadata(), this::showFestivalSummary)
+                .ifPresent(choice -> {
             switch (choice.action()) {
                 case NEW_PLAN -> newPlan();
                 case OPEN_RECENT -> openRecentPlan(choice.path());
                 case OPEN_OTHER -> openPlan();
             }
         });
+    }
+
+    private void showFestivalSummary(String festivalName) {
+        List<EventPlan> festivalPlans = new ArrayList<>();
+        List<String> failedPlanNames = new ArrayList<>();
+        recentPlansWithMetadata().stream()
+                .filter(recentPlan -> recentPlan.festivalName().equalsIgnoreCase(festivalName))
+                .forEach(recentPlan -> {
+                    try {
+                        festivalPlans.add(planFileSession.loadWithoutMapAssets(recentPlan.path()));
+                    } catch (IOException | RuntimeException exception) {
+                        failedPlanNames.add(recentPlan.planName());
+                    }
+                });
+
+        TextArea summary = new TextArea(new FestivalSummaryTextFormatter().format(
+                festivalName,
+                festivalPlans,
+                failedPlanNames
+        ));
+        summary.setEditable(false);
+        summary.setWrapText(true);
+        summary.setPrefSize(620, 380);
+
+        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        dialog.initOwner(stage);
+        dialog.setTitle("Festivali kokkuvõte");
+        dialog.setHeaderText(festivalName + " · salvestatud hiljutised plaanid");
+        dialog.getDialogPane().setContent(summary);
+        dialog.showAndWait();
     }
 
     private List<StartupPlanDialog.RecentPlan> recentPlansWithMetadata() {

@@ -235,6 +235,18 @@ public class PlanFileService {
     }
 
     public PlanMetadata readMetadata(Path file) throws IOException {
+        Properties properties = readPlanPropertiesWithoutAssets(file);
+        return new PlanMetadata(
+                properties.getProperty("plan.name", "Pannkoogihommik"),
+                properties.getProperty("plan.festivalName", "")
+        );
+    }
+
+    public EventPlan loadWithoutMapAssets(Path file) throws IOException {
+        return readPlan(readPlanPropertiesWithoutAssets(file));
+    }
+
+    private Properties readPlanPropertiesWithoutAssets(Path file) throws IOException {
         Properties properties;
         if (isZipPackage(file)) {
             try (ZipFile zipFile = new ZipFile(file.toFile())) {
@@ -259,10 +271,7 @@ public class PlanFileService {
             }
             validateLegacyFormatVersion(properties);
         }
-        return new PlanMetadata(
-                properties.getProperty("plan.name", "Pannkoogihommik"),
-                properties.getProperty("plan.festivalName", "")
-        );
+        return properties;
     }
 
     public record PlanMetadata(String planName, String festivalName) {

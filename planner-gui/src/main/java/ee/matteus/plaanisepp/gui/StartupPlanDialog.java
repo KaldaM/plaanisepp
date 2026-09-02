@@ -18,12 +18,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 final class StartupPlanDialog {
     private StartupPlanDialog() {
     }
 
-    static Optional<Choice> show(Window owner, List<RecentPlan> recentPlans) {
+    static Optional<Choice> show(
+            Window owner,
+            List<RecentPlan> recentPlans,
+            Consumer<String> festivalSummaryHandler
+    ) {
         Dialog<Choice> dialog = new Dialog<>();
         dialog.initOwner(owner);
         dialog.setTitle("Plaanisepp");
@@ -36,7 +41,7 @@ final class StartupPlanDialog {
                     ? "Festivalita plaanid"
                     : recentPlan.festivalName();
             TreeItem<RecentPlan> group = festivalGroups.computeIfAbsent(groupName, name -> {
-                TreeItem<RecentPlan> item = new TreeItem<>(RecentPlan.group(name));
+                TreeItem<RecentPlan> item = new TreeItem<>(RecentPlan.group(name, recentPlan.festivalName()));
                 item.setExpanded(true);
                 root.getChildren().add(item);
                 return item;
@@ -74,9 +79,20 @@ final class StartupPlanDialog {
             }
         });
 
+        Button festivalSummaryButton = new Button("Festivali kokkuvõte…");
+        festivalSummaryButton.setDisable(true);
+        festivalSummaryButton.setOnAction(event -> selectedFestival(
+                recentFileTree.getSelectionModel().getSelectedItem()
+        ).ifPresent(festivalSummaryHandler));
+
         VBox content = recentPlans.isEmpty()
                 ? new VBox(8, new Label("Hiljutised plaanid"), new Label("Hiljutisi plaane pole"))
-                : new VBox(8, new Label("Hiljutised plaanid festivalide kaupa"), recentFileTree);
+                : new VBox(
+                        8,
+                        new Label("Hiljutised plaanid festivalide kaupa"),
+                        recentFileTree,
+                        festivalSummaryButton
+                );
         content.setPadding(new Insets(4));
         dialog.getDialogPane().setContent(content);
 
@@ -92,9 +108,10 @@ final class StartupPlanDialog {
 
         Button openRecent = (Button) dialog.getDialogPane().lookupButton(openRecentButton);
         openRecent.setDisable(true);
-        recentFileTree.getSelectionModel().selectedItemProperty().addListener(
-                (observable, oldValue, newValue) -> openRecent.setDisable(selectedPath(newValue).isEmpty())
-        );
+        recentFileTree.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+            openRecent.setDisable(selectedPath(newValue).isEmpty());
+            festivalSummaryButton.setDisable(selectedFestival(newValue).isEmpty());
+        });
         if (!root.getChildren().isEmpty() && !root.getChildren().getFirst().getChildren().isEmpty()) {
             recentFileTree.getSelectionModel().select(root.getChildren().getFirst().getChildren().getFirst());
         }
@@ -132,13 +149,23 @@ final class StartupPlanDialog {
         return Optional.ofNullable(selectedItem.getValue().path());
     }
 
+    private static Optional<String> selectedFestival(TreeItem<RecentPlan> selectedItem) {
+        if (selectedItem == null || selectedItem.getValue() == null) {
+            return Optional.empty();
+        }
+        String festivalName = selectedItem.getValue().festivalName();
+        return festivalName == null || festivalName.isBlank()
+                ? Optional.empty()
+                : Optional.of(festivalName);
+    }
+
     record RecentPlan(Path path, String planName, String festivalName, boolean group) {
         RecentPlan(Path path, String planName, String festivalName) {
             this(path, planName, festivalName, false);
         }
 
-        static RecentPlan group(String name) {
-            return new RecentPlan(null, name, "", true);
+        static RecentPlan group(String name, String festivalName) {
+            return new RecentPlan(null, name, festivalName, true);
         }
     }
 

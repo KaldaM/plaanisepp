@@ -22,6 +22,10 @@ final class PlanFileSession {
         return planFileService.readMetadata(file);
     }
 
+    EventPlan loadWithoutMapAssets(Path file) throws IOException {
+        return planFileService.loadWithoutMapAssets(file);
+    }
+
     void save(EventPlan plan, File file) throws IOException {
         planFileService.save(plan, file.toPath());
         currentFile = file;
