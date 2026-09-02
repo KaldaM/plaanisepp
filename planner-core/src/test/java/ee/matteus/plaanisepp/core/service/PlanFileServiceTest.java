@@ -120,13 +120,37 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(21, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(22, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
         assertEquals("Kontrolli elektrit", loadedPlan.checklistItems().getFirst().text());
         assertTrue(loadedPlan.checklistItems().getFirst().completed());
         assertFalse(loadedPlan.checklistItems().getLast().completed());
+    }
+
+    @Test
+    void savesGroupLockWithoutChangingIndividualObjectLocks() throws IOException {
+        EventPlan plan = new EventPlan("Grupilukk");
+        Tent individuallyLocked = new Tent("tent-1", "Esimene", new Position(10, 20));
+        individuallyLocked.setGroupName("Pudruala");
+        individuallyLocked.setLocked(true);
+        Tent individuallyUnlocked = new Tent("tent-2", "Teine", new Position(30, 40));
+        individuallyUnlocked.setGroupName("Pudruala");
+        plan.addObject(individuallyLocked);
+        plan.addObject(individuallyUnlocked);
+        plan.setGroupLocked("Pudruala", true);
+        Path file = tempDirectory.resolve("group-lock.pplan");
+
+        service.save(plan, file);
+        EventPlan loadedPlan = service.load(file);
+
+        assertTrue(loadedPlan.isGroupLocked("Pudruala"));
+        assertTrue(loadedPlan.findObject("tent-1").orElseThrow().locked());
+        assertFalse(loadedPlan.findObject("tent-2").orElseThrow().locked());
+        loadedPlan.setGroupLocked("Pudruala", false);
+        assertTrue(loadedPlan.isObjectLocked(loadedPlan.findObject("tent-1").orElseThrow()));
+        assertFalse(loadedPlan.isObjectLocked(loadedPlan.findObject("tent-2").orElseThrow()));
     }
 
     @Test
@@ -825,7 +849,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(21, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(22, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

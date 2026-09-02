@@ -114,6 +114,7 @@ import javafx.scene.shape.Line;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Polyline;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -1065,7 +1066,7 @@ public class PlaaniseppApp extends Application {
             lockObjectItem.setDisable(!objectSelected);
             visibilityItem.setDisable(!objectSelected);
             deleteObjectItem.setDisable(!objectSelected || mapLayoutLocked
-                    || selectedObjects().stream().anyMatch(PlannerObject::locked));
+                    || selectedObjects().stream().anyMatch(this::isObjectEffectivelyLocked));
             lockObjectItem.setText(objectSelected && allSelectedObjectsLocked()
                     ? "Eemalda valitud objektide lukustus (Ctrl+L)"
                     : "Lukusta valitud objektid (Ctrl+L)");
@@ -2336,6 +2337,41 @@ public class PlaaniseppApp extends Application {
         return toggleButton;
     }
 
+    private Button objectStateIconButton(
+            String svgContent,
+            boolean active,
+            String tooltipText,
+            Runnable action
+    ) {
+        return objectStateIconButton(svgContent, active, tooltipText, action, "#2563eb");
+    }
+
+    private Button objectStateIconButton(
+            String svgContent,
+            boolean active,
+            String tooltipText,
+            Runnable action,
+            String activeColor
+    ) {
+        SVGPath icon = new SVGPath();
+        icon.setContent(svgContent);
+        icon.setFill(Color.web(active ? activeColor : "#9ca3af"));
+        icon.setScaleX(0.65);
+        icon.setScaleY(0.65);
+
+        Button button = new Button();
+        button.setGraphic(icon);
+        button.setFocusTraversable(false);
+        button.setMinSize(27, 27);
+        button.setPrefSize(27, 27);
+        button.setMaxSize(27, 27);
+        button.setStyle("-fx-background-color: transparent; -fx-padding: 2;");
+        button.setTooltip(new Tooltip(tooltipText));
+        button.setAccessibleText(tooltipText);
+        button.setOnAction(event -> action.run());
+        return button;
+    }
+
     private boolean canStartSelectionBox(MouseEvent event) {
         return event.getButton() == MouseButton.PRIMARY
                 && event.isControlDown()
@@ -2466,15 +2502,23 @@ public class PlaaniseppApp extends Application {
                             ? "Otsingu ajal kuvatakse kõik sobivad objektid"
                             : entry.expanded() ? "Peida grupi objektid" : "Näita grupi objekte"));
                     toggleButton.setOnAction(event -> toggleObjectGroup(entry.groupName()));
-                    CheckBox visibilityCheckBox = new CheckBox();
-                    visibilityCheckBox.setSelected(visibleGroups.contains(entry.groupName()));
-                    visibilityCheckBox.setTooltip(new Tooltip("Kuva grupp kaardil"));
-                    visibilityCheckBox.setOnAction(event -> setGroupVisible(
-                            entry.groupName(), visibilityCheckBox.isSelected()
-                    ));
+                    boolean groupVisible = visibleGroups.contains(entry.groupName());
+                    Button visibilityButton = objectStateIconButton(
+                            "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+                            groupVisible,
+                            groupVisible ? "Peida grupp kaardilt" : "Kuva grupp kaardil",
+                            () -> setGroupVisible(entry.groupName(), !groupVisible)
+                    );
+                    boolean groupLocked = allGroupObjectsLocked(entry.groupName());
+                    Button lockButton = objectStateIconButton(
+                            "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",
+                            groupLocked,
+                            groupLocked ? "Eemalda grupi lukustus" : "Lukusta grupp",
+                            () -> setGroupLocked(entry.groupName(), !groupLocked)
+                    );
                     Label groupLabel = new Label("%s (%d)".formatted(entry.groupName(), entry.objectCount()));
                     groupLabel.setStyle("-fx-font-weight: bold;");
-                    HBox groupRow = new HBox(6, toggleButton, visibilityCheckBox, groupLabel);
+                    HBox groupRow = new HBox(6, toggleButton, visibilityButton, lockButton, groupLabel);
                     groupRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                     setText(null);
                     setGraphic(groupRow);
@@ -2488,7 +2532,9 @@ public class PlaaniseppApp extends Application {
                 nameLabel.setStyle(item.visible()
                         ? "-fx-font-weight: bold;"
                         : "-fx-font-weight: bold; -fx-text-fill: #6b7280; -fx-font-style: italic;");
-                Label detailLabel = new Label(item.detailText());
+                boolean lockedByGroup = plan.isGroupLocked(item.groupName());
+                Label detailLabel = new Label(item.detailText()
+                        + (lockedByGroup ? " · grupilukk" : ""));
                 detailLabel.setStyle(item.visible()
                         ? "-fx-text-fill: #6b7280; -fx-font-size: 11;"
                         : "-fx-text-fill: #6b7280; -fx-font-size: 11; -fx-font-style: italic;");
@@ -2499,14 +2545,27 @@ public class PlaaniseppApp extends Application {
                 colorSwatch.setStroke(Color.web("#111827"));
                 colorSwatch.setStrokeWidth(0.7);
                 colorSwatch.setOpacity(item.visible() ? 1.0 : 0.45);
-                CheckBox visibilityCheckBox = new CheckBox();
-                visibilityCheckBox.setSelected(!item.object().hidden());
-                visibilityCheckBox.setTooltip(new Tooltip("Kuva objekt kaardil"));
-                visibilityCheckBox.setOnAction(event -> setObjectHidden(
-                        item, !visibilityCheckBox.isSelected()
-                ));
+                Button visibilityButton = objectStateIconButton(
+                        "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+                        !item.object().hidden(),
+                        item.object().hidden() ? "Kuva objekt kaardil" : "Peida objekt kaardilt",
+                        () -> setObjectHidden(item, !item.object().hidden())
+                );
+                boolean individuallyLocked = item.object().locked();
+                String lockTooltip = lockedByGroup
+                        ? individuallyLocked
+                                ? "Objekt ja grupp on lukus; vajutus eemaldab objekti isikliku luku"
+                                : "Lukustatud grupi kaudu; vajutus lisab objektile isikliku luku"
+                        : individuallyLocked ? "Eemalda objekti lukustus" : "Lukusta objekt";
+                Button lockButton = objectStateIconButton(
+                        "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",
+                        individuallyLocked || lockedByGroup,
+                        lockTooltip,
+                        () -> setObjectLocked(item.object(), !item.object().locked()),
+                        lockedByGroup ? individuallyLocked ? "#7c3aed" : "#b45309" : "#2563eb"
+                );
                 VBox textBox = new VBox(2, nameLabel, detailLabel);
-                HBox row = new HBox(8, visibilityCheckBox, colorSwatch, textBox);
+                HBox row = new HBox(6, visibilityButton, lockButton, colorSwatch, textBox);
                 row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 row.setPadding(new Insets(0, 0, 0, 34));
                 setText(null);
@@ -3163,6 +3222,18 @@ public class PlaaniseppApp extends Application {
         redrawMap();
         refreshObjectList();
         refreshSummary();
+        markDirty();
+    }
+
+    private boolean allGroupObjectsLocked(String groupName) {
+        return plan.isGroupLocked(groupName);
+    }
+
+    private void setGroupLocked(String groupName, boolean locked) {
+        plan.setGroupLocked(groupName, locked);
+        redrawMap();
+        refreshObjectList();
+        refreshDetails();
         markDirty();
     }
 
@@ -6423,12 +6494,12 @@ public class PlaaniseppApp extends Application {
             double screenY
     ) {
         MenuItem continueItem = new MenuItem("Jätka aiarida siit");
-        continueItem.setDisable(mapLayoutLocked || fenceRow.locked());
+        continueItem.setDisable(mapLayoutLocked || isObjectEffectivelyLocked(fenceRow));
         continueItem.setOnAction(event -> startConnectedFenceRow(fenceRow, startEndpoint));
         String jointId = startEndpoint ? fenceRow.startJointId() : fenceRow.endJointId();
         MenuItem disconnectItem = new MenuItem("Ühenda see otspunkt lahti");
         disconnectItem.setDisable(
-                mapLayoutLocked || fenceRow.locked() || plan.fenceJointDegree(jointId) <= 1
+                mapLayoutLocked || isObjectEffectivelyLocked(fenceRow) || plan.fenceJointDegree(jointId) <= 1
         );
         disconnectItem.setOnAction(event -> {
             plan.disconnectFenceEndpoint(fenceRow, startEndpoint);
@@ -6436,7 +6507,7 @@ public class PlaaniseppApp extends Application {
         });
         MenuItem removeJointItem = new MenuItem("Eemalda ühenduspunkt");
         removeJointItem.setDisable(
-                mapLayoutLocked || fenceRow.locked() || !plan.canRemoveFenceJoint(jointId)
+                mapLayoutLocked || isObjectEffectivelyLocked(fenceRow) || !plan.canRemoveFenceJoint(jointId)
         );
         removeJointItem.setOnAction(event -> {
             FenceRow joinedRow = plan.removeFenceJoint(jointId);
@@ -6459,7 +6530,7 @@ public class PlaaniseppApp extends Application {
             double screenY
     ) {
         MenuItem addJointItem = new MenuItem("Lisa ühenduspunkt");
-        addJointItem.setDisable(mapLayoutLocked || fenceRow.locked());
+        addJointItem.setDisable(mapLayoutLocked || isObjectEffectivelyLocked(fenceRow));
         addJointItem.setOnAction(event -> {
             plan.splitFenceRow(fenceRow, segmentIndex, planFactory.newId());
             refreshEditedShapeObject();
@@ -6506,7 +6577,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         endHandle.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || mapLayoutLocked || fenceRow.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || isObjectEffectivelyLocked(fenceRow)) {
                 event.consume();
                 return;
             }
@@ -6578,7 +6649,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         startHandle.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || mapLayoutLocked || fenceRow.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || isObjectEffectivelyLocked(fenceRow)) {
                 event.consume();
                 return;
             }
@@ -6762,7 +6833,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || isObjectEffectivelyLocked(object)) {
                 event.consume();
                 return;
             }
@@ -6797,7 +6868,7 @@ public class PlaaniseppApp extends Application {
         final boolean[] inserted = {false};
         final boolean[] dragged = {false};
         marker.setOnMousePressed(event -> {
-            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || isObjectEffectivelyLocked(object)) {
                 event.consume();
                 return;
             }
@@ -6806,7 +6877,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || isObjectEffectivelyLocked(object)) {
                 event.consume();
                 return;
             }
@@ -6847,7 +6918,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || isObjectEffectivelyLocked(object)) {
                 event.consume();
                 return;
             }
@@ -6882,7 +6953,7 @@ public class PlaaniseppApp extends Application {
         final boolean[] inserted = {false};
         final boolean[] dragged = {false};
         marker.setOnMousePressed(event -> {
-            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || isObjectEffectivelyLocked(object)) {
                 event.consume();
                 return;
             }
@@ -6891,7 +6962,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         marker.setOnMouseDragged(event -> {
-            if (measuringActive || addingCablePoint || mapLayoutLocked || object.locked()) {
+            if (measuringActive || addingCablePoint || mapLayoutLocked || isObjectEffectivelyLocked(object)) {
                 event.consume();
                 return;
             }
@@ -6957,7 +7028,7 @@ public class PlaaniseppApp extends Application {
     ) {
         MenuItem removePointItem = new MenuItem("Eemalda punkt");
         removePointItem.setOnAction(event -> removeAreaPoint(object, pointIndex));
-        removePointItem.setDisable(mapLayoutLocked || object.locked() || object.points().size() <= 3);
+        removePointItem.setDisable(mapLayoutLocked || isObjectEffectivelyLocked(object) || object.points().size() <= 3);
 
         ContextMenu contextMenu = new ContextMenu(removePointItem);
         showContextMenu(contextMenu, marker, screenX, screenY);
@@ -6972,7 +7043,7 @@ public class PlaaniseppApp extends Application {
     ) {
         MenuItem removePointItem = new MenuItem("Eemalda punkt");
         removePointItem.setOnAction(event -> removeLinePoint(object, pointIndex));
-        removePointItem.setDisable(mapLayoutLocked || object.locked() || object.points().size() <= 2);
+        removePointItem.setDisable(mapLayoutLocked || isObjectEffectivelyLocked(object) || object.points().size() <= 2);
 
         ContextMenu contextMenu = new ContextMenu(removePointItem);
         showContextMenu(contextMenu, marker, screenX, screenY);
@@ -7476,7 +7547,7 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             boolean draggingMultipleObjects = isSelected(object) && selectedLogicalObjects().size() > 1;
-            if (draggingMultipleObjects && selectedObjects().stream().anyMatch(PlannerObject::locked)) {
+            if (draggingMultipleObjects && selectedObjects().stream().anyMatch(this::isObjectEffectivelyLocked)) {
                 event.consume();
                 return;
             }
@@ -7519,7 +7590,7 @@ public class PlaaniseppApp extends Application {
             if (measuringActive || addingCablePoint || mapLayoutLocked) {
                 return;
             }
-            if (object.locked()) {
+            if (isObjectEffectivelyLocked(object)) {
                 return;
             }
             if (multiObjectDragInProgress) {
@@ -7747,9 +7818,10 @@ public class PlaaniseppApp extends Application {
         }
         boolean multipleObjects = isSelected(object) && selectedLogicalObjects().size() > 1;
         boolean lockedFenceNetwork = object instanceof FenceRow fenceRow
-                && plan.fenceNetworkRows(fenceRow.id()).stream().anyMatch(PlannerObject::locked);
-        boolean lockedSelection = multipleObjects && selectedObjects().stream().anyMatch(PlannerObject::locked);
-        if (mapLayoutLocked || object.locked() || lockedFenceNetwork || lockedSelection) {
+                && plan.fenceNetworkRows(fenceRow.id()).stream().anyMatch(this::isObjectEffectivelyLocked);
+        boolean lockedSelection = multipleObjects
+                && selectedObjects().stream().anyMatch(this::isObjectEffectivelyLocked);
+        if (mapLayoutLocked || isObjectEffectivelyLocked(object) || lockedFenceNetwork || lockedSelection) {
             showMapLayoutLockedMessage();
             return;
         }
@@ -7822,7 +7894,7 @@ public class PlaaniseppApp extends Application {
         handle.setOnMousePressed(event -> {
             if (event.getButton() != MouseButton.PRIMARY
                     || mapLayoutLocked
-                    || selectedObjects().stream().anyMatch(PlannerObject::locked)) {
+                    || selectedObjects().stream().anyMatch(this::isObjectEffectivelyLocked)) {
                 return;
             }
             Point2D pointer = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
@@ -7949,7 +8021,9 @@ public class PlaaniseppApp extends Application {
         handle.setStrokeWidth(screenPixels(3));
         handle.setCursor(Cursor.HAND);
         handle.setOnMousePressed(event -> {
-            if (event.getButton() != MouseButton.PRIMARY || mapLayoutLocked || object.locked()) {
+            if (event.getButton() != MouseButton.PRIMARY
+                    || mapLayoutLocked
+                    || isObjectEffectivelyLocked(object)) {
                 return;
             }
             mapScrollPane.setPannable(false);
@@ -7966,7 +8040,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
         });
         handle.setOnMouseDragged(event -> {
-            if (mapLayoutLocked || object.locked()) {
+            if (mapLayoutLocked || isObjectEffectivelyLocked(object)) {
                 return;
             }
             Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
@@ -8173,7 +8247,7 @@ public class PlaaniseppApp extends Application {
         editItem.setOnAction(event -> editObject(object));
         MenuItem rotateItem = new MenuItem("Pööra");
         rotateItem.setDisable(mapLayoutLocked
-                || selectedObjects().stream().anyMatch(PlannerObject::locked));
+                || selectedObjects().stream().anyMatch(this::isObjectEffectivelyLocked));
         rotateItem.setOnAction(event -> startObjectRotation(object));
         MenuItem copyItem = new MenuItem("Kopeeri");
         copyItem.setOnAction(event -> copySelectedObject());
@@ -8189,7 +8263,8 @@ public class PlaaniseppApp extends Application {
         MenuItem deleteItem = new MenuItem(selectionCount > 1
                 ? "Kustuta valitud (%d)".formatted(selectionCount)
                 : "Kustuta");
-        deleteItem.setDisable(mapLayoutLocked || selectedObjects().stream().anyMatch(PlannerObject::locked));
+        deleteItem.setDisable(mapLayoutLocked
+                || selectedObjects().stream().anyMatch(this::isObjectEffectivelyLocked));
         deleteItem.setOnAction(event -> deleteSelectedObject());
 
         List<MenuItem> menuItems = new ArrayList<>();
@@ -8336,6 +8411,18 @@ public class PlaaniseppApp extends Application {
 
     private void setObjectHidden(ObjectListItem item, boolean hidden) {
         setObjectHidden(item.object(), hidden);
+    }
+
+    private void setObjectLocked(PlannerObject object, boolean locked) {
+        if (object instanceof FenceRow fenceRow) {
+            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setLocked(locked));
+        } else {
+            object.setLocked(locked);
+        }
+        redrawMap();
+        refreshObjectList();
+        refreshDetails();
+        markDirty();
     }
 
     private void selectObject(PlannerObject object) {
@@ -8668,6 +8755,10 @@ public class PlaaniseppApp extends Application {
         return object.groupName().isBlank() ? "Määramata" : object.groupName();
     }
 
+    private boolean isObjectEffectivelyLocked(PlannerObject object) {
+        return plan.isObjectLocked(object);
+    }
+
     private void refreshGroupFilters() {
         if (plan == null) {
             return;
@@ -8682,6 +8773,12 @@ public class PlaaniseppApp extends Application {
         plan.clearHiddenGroups();
         for (String hiddenGroup : hiddenGroups) {
             plan.setGroupHidden(hiddenGroup, true);
+        }
+        Set<String> lockedGroups = new HashSet<>(plan.lockedGroups());
+        lockedGroups.retainAll(currentGroups);
+        plan.clearLockedGroups();
+        for (String lockedGroup : lockedGroups) {
+            plan.setGroupLocked(lockedGroup, true);
         }
 
         visibleGroups.retainAll(currentGroups);
@@ -8698,7 +8795,7 @@ public class PlaaniseppApp extends Application {
 
     private void applyLockedStroke(javafx.scene.shape.Shape shape, PlannerObject object) {
         shape.getStrokeDashArray().clear();
-        if (object.locked()) {
+        if (isObjectEffectivelyLocked(object)) {
             shape.getStrokeDashArray().addAll(8.0, 5.0);
         }
     }
@@ -8780,7 +8877,7 @@ public class PlaaniseppApp extends Application {
         generalRotationField.setManaged(generalRotationVisible);
         generalRotationField.setDisable(!generalRotationVisible);
         resetMapLabelButton.setTooltip(new Tooltip(mapLabelResetTooltip(hasSelection, textObjectSelected, customMapLabelPosition)));
-        boolean lockedSelection = selectedObjects().stream().anyMatch(PlannerObject::locked);
+        boolean lockedSelection = selectedObjects().stream().anyMatch(this::isObjectEffectivelyLocked);
         deleteObjectButton.setDisable(!hasSelection || lockedSelection || mapLayoutLocked);
         deleteObjectButton.setTooltip(mapLayoutLocked
                 ? new Tooltip("Paigutuse muutmiseks eemalda tööriistaribal paigutuslukk")
@@ -10142,7 +10239,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
         List<PlannerObject> objectsToDelete = selectedObjects();
-        boolean lockedSelection = objectsToDelete.stream().anyMatch(PlannerObject::locked);
+        boolean lockedSelection = objectsToDelete.stream().anyMatch(this::isObjectEffectivelyLocked);
         if (lockedSelection) {
             showError("Objekti ei kustutatud", "Eemalda enne lukustus ja proovi uuesti.");
             return;

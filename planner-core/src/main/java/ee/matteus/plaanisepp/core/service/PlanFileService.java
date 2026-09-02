@@ -53,7 +53,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 21;
+    public static final int CURRENT_FORMAT_VERSION = 22;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -150,6 +150,7 @@ public class PlanFileService {
         properties.setProperty("layers.showFenceInventoryLabels", Boolean.toString(plan.showFenceInventoryLabels()));
         writeStandaloneInventoryItems(properties, plan);
         properties.setProperty("hiddenGroups.count", Integer.toString(plan.hiddenGroups().size()));
+        properties.setProperty("lockedGroups.count", Integer.toString(plan.lockedGroups().size()));
 
         properties.setProperty("checklist.count", Integer.toString(plan.checklistItems().size()));
         for (int index = 0; index < plan.checklistItems().size(); index++) {
@@ -176,6 +177,11 @@ public class PlanFileService {
         for (String hiddenGroup : plan.hiddenGroups()) {
             properties.setProperty("hiddenGroup." + hiddenGroupIndex, hiddenGroup);
             hiddenGroupIndex++;
+        }
+        int lockedGroupIndex = 0;
+        for (String lockedGroup : plan.lockedGroups()) {
+            properties.setProperty("lockedGroup." + lockedGroupIndex, lockedGroup);
+            lockedGroupIndex++;
         }
 
         properties.setProperty("objects.count", Integer.toString(plan.objects().size()));
@@ -333,6 +339,10 @@ public class PlanFileService {
         int hiddenGroupCount = intValue(properties, "hiddenGroups.count", 0);
         for (int index = 0; index < hiddenGroupCount; index++) {
             plan.setGroupHidden(properties.getProperty("hiddenGroup." + index, ""), true);
+        }
+        int lockedGroupCount = intValue(properties, "lockedGroups.count", 0);
+        for (int index = 0; index < lockedGroupCount; index++) {
+            plan.setGroupLocked(properties.getProperty("lockedGroup." + index, ""), true);
         }
 
         return plan;

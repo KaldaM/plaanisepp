@@ -39,6 +39,7 @@ public class EventPlan {
     private final List<ChecklistItem> checklistItems = new ArrayList<>();
     private final Map<String, ChecklistSuggestionStatus> checklistSuggestionStatuses = new TreeMap<>();
     private final Set<String> hiddenGroups = new HashSet<>();
+    private final Set<String> lockedGroups = new HashSet<>();
     private final Set<String> hiddenCableLabelConnectionIds = new HashSet<>();
     private final Map<String, Double> cableOpacities = new TreeMap<>();
     private boolean showCables = true;
@@ -517,7 +518,7 @@ public class EventPlan {
         boolean lockedNetwork = objects.stream()
                 .filter(FenceRow.class::isInstance)
                 .filter(object -> rowIds.contains(object.id()))
-                .anyMatch(PlannerObject::locked);
+                .anyMatch(this::isObjectLocked);
         if (lockedNetwork) {
             return false;
         }
@@ -627,7 +628,7 @@ public class EventPlan {
         boolean lockedNetwork = objects.stream()
                 .filter(FenceRow.class::isInstance)
                 .filter(object -> rowIds.contains(object.id()))
-                .anyMatch(PlannerObject::locked);
+                .anyMatch(this::isObjectLocked);
         if (lockedNetwork) {
             return false;
         }
@@ -704,7 +705,7 @@ public class EventPlan {
     }
 
     public FenceRow splitFenceRow(FenceRow row, int segmentIndex, String newRowId) {
-        if (row.locked() || segmentIndex < 1 || segmentIndex >= row.segmentCount()) {
+        if (isObjectLocked(row) || segmentIndex < 1 || segmentIndex >= row.segmentCount()) {
             throw new IllegalArgumentException("Ühenduspunkti saab lisada ainult aiaraja sisemisele piirile.");
         }
         int originalSegmentCount = row.segmentCount();
@@ -741,7 +742,7 @@ public class EventPlan {
 
     public boolean canRemoveFenceJoint(String jointId) {
         List<FenceRow> incidentRows = fenceRowsAtJoint(jointId);
-        if (incidentRows.size() != 2 || incidentRows.stream().anyMatch(PlannerObject::locked)) {
+        if (incidentRows.size() != 2 || incidentRows.stream().anyMatch(this::isObjectLocked)) {
             return false;
         }
         FenceRow first = incidentRows.get(0);
@@ -1700,5 +1701,36 @@ public class EventPlan {
 
     public void clearHiddenGroups() {
         hiddenGroups.clear();
+    }
+
+    public Set<String> lockedGroups() {
+        return Collections.unmodifiableSet(lockedGroups);
+    }
+
+    public boolean isGroupLocked(String groupName) {
+        return groupName != null && !groupName.isBlank() && lockedGroups.contains(groupName);
+    }
+
+    public boolean isObjectLocked(PlannerObject object) {
+        if (object == null) {
+            return false;
+        }
+        String groupName = object.groupName().isBlank() ? "Määramata" : object.groupName();
+        return object.locked() || lockedGroups.contains(groupName);
+    }
+
+    public void setGroupLocked(String groupName, boolean locked) {
+        if (groupName == null || groupName.isBlank()) {
+            return;
+        }
+        if (locked) {
+            lockedGroups.add(groupName);
+        } else {
+            lockedGroups.remove(groupName);
+        }
+    }
+
+    public void clearLockedGroups() {
+        lockedGroups.clear();
     }
 }
