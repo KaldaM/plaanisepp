@@ -226,6 +226,7 @@ public class PlaaniseppApp extends Application {
     private ToggleButton defaultMapButton;
     private ToggleButton orthophotoMapButton;
     private double zoomLevel = 1.0;
+    private double zoomPercentage = 1.0;
     private Slider zoomSlider;
     private Button zoomPercentButton;
     private Button undoButton;
@@ -1470,16 +1471,16 @@ public class PlaaniseppApp extends Application {
         ));
         addPlacementButton.setOnAction(event -> toggleSelectedPlacement());
 
-        zoomSlider = new Slider(25, 400, zoomLevel * 100);
+        zoomSlider = new Slider(25, 800, zoomPercentage * 100);
         zoomSlider.setPrefWidth(140);
         zoomSlider.setBlockIncrement(5);
-        zoomSlider.setTooltip(new Tooltip("Kaardi suum 25–400%"));
+        zoomSlider.setTooltip(new Tooltip("Kaardi suum 25–800% (100% mahutab kogu aluskaardi vaatesse)"));
         zoomSlider.valueProperty().addListener((observable, oldValue, newValue) ->
                 setZoom(newValue.doubleValue() / 100.0)
         );
 
         zoomPercentButton = new Button(zoomPercentText());
-        zoomPercentButton.setTooltip(new Tooltip("Taasta 100% suum"));
+        zoomPercentButton.setTooltip(new Tooltip("Mahuta kogu aluskaart vaatesse (100%)"));
         zoomPercentButton.setOnAction(event -> setZoom(1.0));
 
         showCablesButton = new ToggleButton("Kaablid");
@@ -1815,6 +1816,11 @@ public class PlaaniseppApp extends Application {
         mapScrollPane.setFitToWidth(false);
         mapScrollPane.setFitToHeight(false);
         mapScrollPane.setStyle("-fx-background: #eef1ec;");
+        mapScrollPane.viewportBoundsProperty().addListener((observable, oldBounds, newBounds) -> {
+            if (newBounds.getWidth() > 1 && newBounds.getHeight() > 1) {
+                applyZoomScale();
+            }
+        });
         mapScrollPane.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
             if (isFenceDragTarget(event.getTarget())) {
                 mapScrollPane.setPannable(false);
@@ -3131,7 +3137,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void changeZoom(double factor) {
-        setZoom(zoomLevel * factor);
+        setZoom(zoomPercentage * factor);
     }
 
     private void zoomAtPointer(double factor, double sceneX, double sceneY) {
@@ -3145,7 +3151,7 @@ public class PlaaniseppApp extends Application {
         double pointerViewportX = sceneX - viewportSceneBounds.getMinX();
         double pointerViewportY = sceneY - viewportSceneBounds.getMinY();
 
-        setZoom(zoomLevel * factor);
+        setZoom(zoomPercentage * factor);
         Platform.runLater(() -> {
             mapScrollPane.applyCss();
             mapScrollPane.layout();
@@ -3164,25 +3170,43 @@ public class PlaaniseppApp extends Application {
     }
 
     private void setZoom(double zoomLevel) {
-        this.zoomLevel = Math.max(0.25, Math.min(4.0, zoomLevel));
-        if (mapScale != null) {
-            mapScale.setX(this.zoomLevel);
-            mapScale.setY(this.zoomLevel);
-        }
-        if (zoomSlider != null && Math.abs(zoomSlider.getValue() - this.zoomLevel * 100) > 0.001) {
-            zoomSlider.setValue(this.zoomLevel * 100);
+        this.zoomPercentage = Math.max(0.25, Math.min(8.0, zoomLevel));
+        applyZoomScale();
+        if (zoomSlider != null && Math.abs(zoomSlider.getValue() - this.zoomPercentage * 100) > 0.001) {
+            zoomSlider.setValue(this.zoomPercentage * 100);
         }
         if (zoomPercentButton != null) {
             zoomPercentButton.setText(zoomPercentText());
         }
-        updateZoomContentSize();
         if (mapPane != null && plan != null) {
             zoomRedrawDebounce.playFromStart();
         }
     }
 
+    private void applyZoomScale() {
+        this.zoomLevel = fitMapZoomLevel() * zoomPercentage;
+        if (mapScale != null) {
+            mapScale.setX(this.zoomLevel);
+            mapScale.setY(this.zoomLevel);
+        }
+        updateZoomContentSize();
+    }
+
+    private double fitMapZoomLevel() {
+        if (mapScrollPane == null || mapWidth <= 0 || mapHeight <= 0) {
+            return 1.0;
+        }
+        Bounds viewport = mapScrollPane.getViewportBounds();
+        if (viewport.getWidth() <= 1 || viewport.getHeight() <= 1) {
+            return 1.0;
+        }
+        double availableWidth = Math.max(1, viewport.getWidth() - 20);
+        double availableHeight = Math.max(1, viewport.getHeight() - 20);
+        return Math.min(availableWidth / mapWidth, availableHeight / mapHeight);
+    }
+
     private String zoomPercentText() {
-        return Math.round(zoomLevel * 100) + "%";
+        return Math.round(zoomPercentage * 100) + "%";
     }
 
     private void updateZoomContentSize() {
@@ -5156,7 +5180,7 @@ public class PlaaniseppApp extends Application {
         mapImageView.setFitWidth(image.getWidth());
         mapWidth = Math.max(MIN_MAP_WIDTH, image.getWidth());
         mapHeight = Math.max(MIN_MAP_HEIGHT, image.getHeight());
-        updateZoomContentSize();
+        applyZoomScale();
         mapPane.getChildren().add(mapImageView);
     }
 
