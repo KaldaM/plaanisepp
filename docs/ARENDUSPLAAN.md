@@ -39,10 +39,13 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 
 ## Järgmise töökorra märkmed — 2. september 2026
 
-- **Plaanitud:** Tartu püsivoolukilpide import peab tooma ainult plaanis vajaliku põhiinfo. GIS-i väljad „Mark”, „Maksimumvool” ja „Nimivool” jäetakse importimisel välja, et kilbi nimetus ja kasutatav info jääksid selgeks.
-- **Plaanitud:** Tartu GIS-ist imporditud püsivoolukilbid peidetakse korraldajavaates samamoodi nagu teised tehnilised elektriobjektid, kuid need säilivad plaanis ja on tehnikavaates nähtavad.
-- **Plaanitud:** uurida Tartu GIS-i kilpidega seotud lisafaile (fotod, kilbi sisepildi materjalid ja vooluskeemi PDF-id). Neid ei salvestata `.pplan` faili sisse; kilbi juures peab saama lisafaili ajutiselt avada või alla laadida lingi kaudu ning kasutada kohalikku vahemälu, kui teenus seda nõuab.
+- **Tehtud:** Tartu püsivoolukilpide import toob ainult plaanis vajaliku põhiinfo. GIS-i väljad „Mark”, „Maksimumvool” ja „Nimivool” jäetakse importimisel välja, et kilbi nimetus ja kasutatav info jääksid selgeks.
+- **Tehtud:** „Impordi Tartu püsivoolukilbid…” tegevus on korraldajavaates peidetud samamoodi nagu teised tehnilised elektritoimingud.
+- **Tehtud:** Tartu GIS-i kilpidega seotud lisafaile (fotod, PDF-id, DWG-d ja muud manused) saab avada imporditud kilbi valitud objekti vaatest või paremklõpsumenüüst. Faililoend laaditakse taustal ning fail avatakse otse Tartu GIS-i lingilt; faile ei salvestata `.pplan` faili sisse.
 - **Release:** aluskaardi päriskaardilt valimine, ala muutmine, API-põhised vaikekaardid, automaatne kilpide import ning kõrglahutusega kaardi töövoog moodustavad versiooni `v0.6.0`.
+- **Plaanitud:** avatud plaani ajal peab saama avada hiljutiste projektide vaate sama loogikaga nagu programmi käivitamisel. Praegune plaan jääb avatuks kuni kasutaja valib teise plaani ning vahetus peab käsitlema salvestamata muudatusi ohutult.
+- **Plaanitud:** plaanile saab määrata festivali või muu sündmuse, mille osa see on. See loob aluse plaanide grupeerimiseks festivali kaupa ning võimaldab tulevikus kuvada ühe festivali kõiki plaane koos.
+- **Plaanitud:** Tudengipäevade jaoks võiks plaanid olla pilves hoiustatud ja rakendusest imporditavad. Tehnik peab saama ligi alati ajakohastele talle lubatud plaanidele ilma uusi faile käsitsi alla laadimata; lahendus vajab plaaniversioone, viimase sünkroonimisaja näitamist, konfliktide ohutut käsitlemist ja rollipõhist ligipääsu.
 
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 

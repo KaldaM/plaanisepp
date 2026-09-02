@@ -141,6 +141,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -223,6 +224,8 @@ public class PlaaniseppApp extends Application {
     private final RecentPlanFiles recentPlanFiles = new RecentPlanFiles(preferences);
     private final GitHubReleaseService gitHubReleaseService = new GitHubReleaseService();
     private final ReleaseAssetDownloadService releaseAssetDownloadService = new ReleaseAssetDownloadService();
+    private final TartuPowerCabinetImportService tartuPowerCabinetImportService =
+            new TartuPowerCabinetImportService();
 
     private EventPlan plan;
     private PlanSnapshot savedPlanSnapshot;
@@ -417,6 +420,7 @@ public class PlaaniseppApp extends Application {
     private VBox fenceRowPanel;
     private VBox tentPanel;
     private VBox powerSourcePanel;
+    private Button powerSourceAttachmentsButton;
     private VBox powerConnectionPanel;
     private VBox equipmentPanel;
     private VBox outletPanel;
@@ -429,6 +433,7 @@ public class PlaaniseppApp extends Application {
     private CheckMenuItem cablesLayerMenuItem;
     private CheckMenuItem cableLabelsLayerMenuItem;
     private CheckMenuItem powerSourcesLayerMenuItem;
+    private MenuItem importTartuCabinetsMenuItem;
     private ToggleButton showCablesButton;
     private ToggleButton showCableLabelsButton;
     private ToggleButton show230VCablesButton;
@@ -448,6 +453,7 @@ public class PlaaniseppApp extends Application {
     private Button addPlacementButton;
     private PlannerObject selectedObject;
     private PlannerObject pendingPowerSourceConsumer;
+    private boolean loadingTartuCabinetAttachments;
     private String pendingPlacementName;
     private String pendingPlacementGroupName;
     private String pendingPlacementColorHex;
@@ -990,8 +996,8 @@ public class PlaaniseppApp extends Application {
                 KeyCombination.SHIFT_DOWN
         ));
         planSettingsItem.setOnAction(event -> showPlanSettingsDialog());
-        MenuItem importTartuCabinetsItem = new MenuItem("Impordi Tartu püsivoolukilbid…");
-        importTartuCabinetsItem.setOnAction(event -> importTartuPowerCabinets());
+        importTartuCabinetsMenuItem = new MenuItem("Impordi Tartu püsivoolukilbid…");
+        importTartuCabinetsMenuItem.setOnAction(event -> importTartuPowerCabinets());
 
         Menu fileMenu = new Menu("Fail");
         fileMenu.getItems().addAll(
@@ -1003,7 +1009,7 @@ public class PlaaniseppApp extends Application {
                 new SeparatorMenuItem(),
                 exportMenu,
                 new SeparatorMenuItem(),
-                importTartuCabinetsItem,
+                importTartuCabinetsMenuItem,
                 planSettingsItem
         );
 
@@ -1659,6 +1665,9 @@ public class PlaaniseppApp extends Application {
         if (powerSourcesLayerMenuItem != null) {
             powerSourcesLayerMenuItem.setVisible(!organizerView);
         }
+        if (importTartuCabinetsMenuItem != null) {
+            importTartuCabinetsMenuItem.setVisible(!organizerView);
+        }
     }
 
     private void showMapLayoutLockedMessage() {
@@ -2043,7 +2052,7 @@ public class PlaaniseppApp extends Application {
         try {
             stage.getScene().setCursor(Cursor.WAIT);
             List<TartuPowerCabinetImportService.Cabinet> cabinets =
-                    new TartuPowerCabinetImportService().load(plan.downloadedMapBounds());
+                    tartuPowerCabinetImportService.load(plan.downloadedMapBounds());
             Set<String> existingNames = plan.objects().stream()
                     .filter(PowerSource.class::isInstance)
                     .map(object -> object.name().trim().toLowerCase(Locale.ROOT))
@@ -2080,6 +2089,7 @@ public class PlaaniseppApp extends Application {
                 PowerSource source = new PowerSource(planFactory.newId(), cabinet.name(), position);
                 source.setGroupName("Tartu püsivoolukilbid");
                 source.setNotes(cabinet.details());
+                source.setLocked(true);
                 plan.addObject(source);
             }
             finishAutoAppliedDetailsChange(before, true);
@@ -2093,6 +2103,135 @@ public class PlaaniseppApp extends Application {
         } finally {
             if (stage.getScene() != null) stage.getScene().setCursor(Cursor.DEFAULT);
         }
+    }
+
+    private OptionalLong tartuCabinetSourceId(PowerSource source) {
+        return TartuPowerCabinetImportService.sourceIdFromNotes(source.notes());
+    }
+
+    private void showTartuCabinetAttachments(PowerSource source) {
+        OptionalLong sourceId = tartuCabinetSourceId(source);
+        if (sourceId.isEmpty() || loadingTartuCabinetAttachments) {
+            return;
+        }
+        loadingTartuCabinetAttachments = true;
+        if (powerSourceAttachmentsButton != null) {
+            powerSourceAttachmentsButton.setDisable(true);
+            powerSourceAttachmentsButton.setText("Laen lisafaile…");
+        }
+        if (stage.getScene() != null) {
+            stage.getScene().setCursor(Cursor.WAIT);
+        }
+        Thread.startVirtualThread(() -> {
+            try {
+                List<TartuPowerCabinetImportService.Attachment> attachments =
+                        tartuPowerCabinetImportService.loadAttachments(sourceId.getAsLong());
+                Platform.runLater(() -> {
+                    finishLoadingTartuCabinetAttachments();
+                    if (attachments.isEmpty()) {
+                        showInformation("Tartu GIS-i lisafailid", "Kilbil „" + source.name()
+                                + "” ei ole Tartu GIS-is lisafaile.");
+                    } else {
+                        showTartuCabinetAttachmentDialog(source, attachments);
+                    }
+                });
+            } catch (IOException | InterruptedException exception) {
+                if (exception instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                Platform.runLater(() -> {
+                    finishLoadingTartuCabinetAttachments();
+                    showError("Tartu GIS-i lisafaile ei saanud laadida", exception.getMessage());
+                });
+            }
+        });
+    }
+
+    private void finishLoadingTartuCabinetAttachments() {
+        loadingTartuCabinetAttachments = false;
+        if (stage.getScene() != null) {
+            stage.getScene().setCursor(Cursor.DEFAULT);
+        }
+        if (powerSourceAttachmentsButton != null) {
+            powerSourceAttachmentsButton.setDisable(false);
+            powerSourceAttachmentsButton.setText("Vaata lisafaile…");
+        }
+    }
+
+    private void showTartuCabinetAttachmentDialog(
+            PowerSource source,
+            List<TartuPowerCabinetImportService.Attachment> attachments
+    ) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle("Tartu GIS-i lisafailid");
+        dialog.setHeaderText(source.name());
+
+        ListView<TartuPowerCabinetImportService.Attachment> attachmentList = new ListView<>();
+        attachmentList.getItems().setAll(attachments);
+        attachmentList.setPrefSize(680, 330);
+        attachmentList.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(TartuPowerCabinetImportService.Attachment attachment, boolean empty) {
+                super.updateItem(attachment, empty);
+                setText(empty || attachment == null ? null : attachmentDisplayText(attachment));
+            }
+        });
+        attachmentList.getSelectionModel().selectFirst();
+
+        Button openButton = new Button("Ava valitud fail");
+        openButton.disableProperty().bind(attachmentList.getSelectionModel().selectedItemProperty().isNull());
+        openButton.setOnAction(event -> openTartuCabinetAttachment(
+                attachmentList.getSelectionModel().getSelectedItem()
+        ));
+        attachmentList.setOnMouseClicked(event -> {
+            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+                openTartuCabinetAttachment(attachmentList.getSelectionModel().getSelectedItem());
+            }
+        });
+
+        Label explanation = new Label(
+                "Fail avatakse otse Tartu linna GIS-ist ja seda ei salvestata plaanifaili."
+        );
+        explanation.setWrapText(true);
+        VBox content = new VBox(10, explanation, attachmentList, openButton);
+        content.setPadding(new Insets(4));
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().setAll(ButtonType.CLOSE);
+        dialog.showAndWait();
+    }
+
+    private void openTartuCabinetAttachment(TartuPowerCabinetImportService.Attachment attachment) {
+        if (attachment == null) {
+            return;
+        }
+        try {
+            getHostServices().showDocument(attachment.url());
+        } catch (RuntimeException exception) {
+            showError("Lisafaili ei saanud avada", exception.getMessage());
+        }
+    }
+
+    private String attachmentDisplayText(TartuPowerCabinetImportService.Attachment attachment) {
+        String type = attachment.contentType().isBlank() || attachment.contentType().equalsIgnoreCase("Unknown")
+                ? "tundmatu failitüüp"
+                : attachment.contentType();
+        return "%s · %s · %s".formatted(
+                attachment.name(),
+                humanReadableFileSize(attachment.sizeBytes()),
+                type
+        );
+    }
+
+    private String humanReadableFileSize(long bytes) {
+        if (bytes < 1_024) {
+            return bytes + " B";
+        }
+        double kibibytes = bytes / 1_024.0;
+        if (kibibytes < 1_024) {
+            return String.format(Locale.ROOT, "%.1f KiB", kibibytes);
+        }
+        return String.format(Locale.ROOT, "%.1f MiB", kibibytes / 1_024.0);
     }
 
     private void switchBuiltInMap(String mapPath) {
@@ -3572,6 +3711,13 @@ public class PlaaniseppApp extends Application {
         GridPane powerSourceForm = detailGrid();
         powerSourceForm.addRow(0, new Label("Värv"), powerSourceColorPicker);
         powerSourceForm.addRow(1, new Label("Suurus"), pixelControl(powerSourceSizeSlider));
+        powerSourceAttachmentsButton = new Button("Vaata lisafaile…");
+        powerSourceAttachmentsButton.setOnAction(event -> {
+            if (selectedObject instanceof PowerSource source) {
+                showTartuCabinetAttachments(source);
+            }
+        });
+        powerSourceForm.add(powerSourceAttachmentsButton, 0, 2, 2, 1);
         powerSourcePanel = new VBox(8, sectionLabel("Elektrikilp"), powerSourceForm);
 
         choosePowerSourceButton = new Button("Vali kapp kaardilt");
@@ -8086,6 +8232,11 @@ public class PlaaniseppApp extends Application {
         if (object instanceof PowerSource source && !source.outlets().isEmpty()) {
             items.add(powerOutletsAsTextMenuItem(object));
         }
+        if (object instanceof PowerSource source && tartuCabinetSourceId(source).isPresent()) {
+            MenuItem attachmentsItem = new MenuItem("Tartu GIS-i lisafailid…");
+            attachmentsItem.setOnAction(event -> showTartuCabinetAttachments(source));
+            items.add(attachmentsItem);
+        }
         if (object instanceof TextObject textObject && !textObject.sourceObjectId().isBlank()) {
             MenuItem detachTextSourceItem = new MenuItem("Muuda staatiliseks tekstiks");
             detachTextSourceItem.setOnAction(event -> detachTextObjectSource(textObject));
@@ -8593,6 +8744,8 @@ public class PlaaniseppApp extends Application {
         List<PlannerObject> currentSelection = selectedObjects();
         boolean tentSelected = selectedObject instanceof Tent;
         boolean powerSourceSelected = selectedObject instanceof PowerSource;
+        boolean tartuCabinetSelected = selectedObject instanceof PowerSource source
+                && tartuCabinetSourceId(source).isPresent();
         boolean customObjectSelected = selectedObject instanceof CustomObject;
         boolean textObjectSelected = selectedObject instanceof TextObject;
         boolean markerSelected = selectedObject instanceof MarkerObject;
@@ -8733,6 +8886,7 @@ public class PlaaniseppApp extends Application {
         setSectionVisible(fenceRowPanel, fenceRowSelected);
         setSectionVisible(tentPanel, tentSelected);
         setSectionVisible(powerSourcePanel, powerSourceSelected);
+        setSectionVisible(powerSourceAttachmentsButton, tartuCabinetSelected && !organizerView);
         setSectionVisible(powerConnectionPanel, powerConsumerSelected && !organizerView);
         setSectionVisible(equipmentSection, equipmentContainerSelected && !organizerView);
         setSectionVisible(objectInventorySection, inventoryContainerSelected);
