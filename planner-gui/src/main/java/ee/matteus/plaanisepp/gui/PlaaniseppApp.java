@@ -969,6 +969,9 @@ public class PlaaniseppApp extends Application {
         openPlanItem.setAccelerator(new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN));
         openPlanItem.setOnAction(event -> openPlan());
 
+        MenuItem recentPlansItem = new MenuItem("Hiljutised plaanid…");
+        recentPlansItem.setOnAction(event -> showStartupPlanDialog());
+
         MenuItem savePlanItem = new MenuItem("Salvesta");
         savePlanItem.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN));
         savePlanItem.setOnAction(event -> savePlan());
@@ -1004,6 +1007,7 @@ public class PlaaniseppApp extends Application {
         fileMenu.getItems().addAll(
                 newPlanItem,
                 openPlanItem,
+                recentPlansItem,
                 new SeparatorMenuItem(),
                 savePlanItem,
                 savePlanAsItem,
@@ -13375,10 +13379,17 @@ public class PlaaniseppApp extends Application {
         StartupPlanDialog.show(stage, recentPlanFiles.load()).ifPresent(choice -> {
             switch (choice.action()) {
                 case NEW_PLAN -> newPlan();
-                case OPEN_RECENT -> openPlanFile(choice.path().toFile());
+                case OPEN_RECENT -> openRecentPlan(choice.path());
                 case OPEN_OTHER -> openPlan();
             }
         });
+    }
+
+    private void openRecentPlan(Path path) {
+        if (path == null || !confirmDiscardUnsavedChanges()) {
+            return;
+        }
+        openPlanFile(path.toFile());
     }
 
     private boolean openPlanFile(File file) {
