@@ -124,7 +124,6 @@ import javafx.util.StringConverter;
 import javafx.util.Duration;
 
 import javax.imageio.ImageIO;
-import java.awt.Desktop;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -1397,22 +1396,32 @@ public class PlaaniseppApp extends Application {
     private void openDownloadedRelease(Path file, boolean installer) {
         try {
             Path target = installer ? file : file.getParent();
-            if (GitHubReleaseService.Platform.current() != GitHubReleaseService.Platform.WINDOWS) {
+            GitHubReleaseService.Platform platform = GitHubReleaseService.Platform.current();
+            if (platform != GitHubReleaseService.Platform.WINDOWS) {
                 if (installer) {
                     scheduleLinuxRestartAfterInstall();
                 }
-                new ProcessBuilder("xdg-open", target.toString()).start();
-            } else if (Desktop.isDesktopSupported()) {
-                Desktop.getDesktop().open(target.toFile());
-            } else {
-                throw new IOException("Töölauarakenduste avamine ei ole selles keskkonnas toetatud.");
             }
+            new ProcessBuilder(downloadedReleaseOpenCommand(platform, target, installer)).start();
             // JavaFX GTK cleanup can abort while Discover is opening the RPM.
             // The updater process is already detached, so terminate directly.
             System.exit(0);
         } catch (IOException | UnsupportedOperationException exception) {
             showError("Allalaaditud faili ei saanud avada", exception.getMessage());
         }
+    }
+
+    static List<String> downloadedReleaseOpenCommand(
+            GitHubReleaseService.Platform platform,
+            Path target,
+            boolean installer
+    ) {
+        if (platform == GitHubReleaseService.Platform.WINDOWS) {
+            return installer
+                    ? List.of(target.toString())
+                    : List.of("explorer.exe", target.toString());
+        }
+        return List.of("xdg-open", target.toString());
     }
 
     private void scheduleLinuxRestartAfterInstall() {
