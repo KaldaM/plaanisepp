@@ -37,6 +37,13 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 - **Tehtud:** mõõdulint ühendab järjest kaardil märgitud punktid üheks murdjooneks. Iga lõik näitab oma pikkust, viimase punkti juures kuvatakse kogu lindi pikkus ning hiire liikumise ajal on näha järgmise lõigu ja uue kogupikkuse eelvaade. `Enter`, viimase punkti topeltklõps või `Escape` lõpetab aktiivse lindi ja lülitab mõõtmistööriista välja. Valmis lindi paremklõpsumenüüst saab selle trajektoori punktide lohistamiseks uuesti avada või lindi eemaldada; kõik mõõdud saab endiselt korraga puhastada.
 - **Tehtud:** kaabli trajektoori muutmise nupud on tööriistaribalt eemaldatud. Trajektoori muutmine, punktide lisamine ja režiimi lõpetamine on kättesaadavad kaabli paremklõpsumenüü ning `Escape`-klahvi kaudu.
 
+## Järgmise töökorra märkmed — 2. september 2026
+
+- **Plaanitud:** Tartu püsivoolukilpide import peab tooma ainult plaanis vajaliku põhiinfo. GIS-i väljad „Mark”, „Maksimumvool” ja „Nimivool” jäetakse importimisel välja, et kilbi nimetus ja kasutatav info jääksid selgeks.
+- **Plaanitud:** Tartu GIS-ist imporditud püsivoolukilbid peidetakse korraldajavaates samamoodi nagu teised tehnilised elektriobjektid, kuid need säilivad plaanis ja on tehnikavaates nähtavad.
+- **Plaanitud:** uurida Tartu GIS-i kilpidega seotud lisafaile (fotod, kilbi sisepildi materjalid ja vooluskeemi PDF-id). Neid ei salvestata `.pplan` faili sisse; kilbi juures peab saama lisafaili ajutiselt avada või alla laadida lingi kaudu ning kasutada kohalikku vahemälu, kui teenus seda nõuab.
+- **Release:** aluskaardi päriskaardilt valimine, ala muutmine, API-põhised vaikekaardid, automaatne kilpide import ning kõrglahutusega kaardi töövoog moodustavad versiooni `v0.6.0`.
+
 Rakenduse nimeks valiti 20. augustil 2026 **Plaanisepp**. Nimi kirjeldab plaanide meistrit ja seostub ka 1927. aastal talletatud Lõuna-Eesti nimekujuga „Plaani sepp”.
 
 ## Teostatud 25. augustil 2026
