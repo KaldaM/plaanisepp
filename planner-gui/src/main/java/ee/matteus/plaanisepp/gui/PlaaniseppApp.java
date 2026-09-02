@@ -42,6 +42,7 @@ import ee.matteus.plaanisepp.core.service.FenceRingGenerator;
 import ee.matteus.plaanisepp.core.service.GeometryCalculator;
 import ee.matteus.plaanisepp.core.service.PowerSummary;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
+import ee.matteus.plaanisepp.core.service.PlanFileService;
 import ee.matteus.plaanisepp.core.service.PowerHierarchyService;
 import ee.matteus.plaanisepp.core.service.InventorySummaryService;
 import javafx.application.Application;
@@ -13380,13 +13381,34 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showStartupPlanDialog() {
-        StartupPlanDialog.show(stage, recentPlanFiles.load()).ifPresent(choice -> {
+        StartupPlanDialog.show(stage, recentPlansWithMetadata()).ifPresent(choice -> {
             switch (choice.action()) {
                 case NEW_PLAN -> newPlan();
                 case OPEN_RECENT -> openRecentPlan(choice.path());
                 case OPEN_OTHER -> openPlan();
             }
         });
+    }
+
+    private List<StartupPlanDialog.RecentPlan> recentPlansWithMetadata() {
+        return recentPlanFiles.load().stream()
+                .map(path -> {
+                    try {
+                        PlanFileService.PlanMetadata metadata = planFileSession.readMetadata(path);
+                        return new StartupPlanDialog.RecentPlan(
+                                path,
+                                metadata.planName(),
+                                metadata.festivalName()
+                        );
+                    } catch (IOException | RuntimeException ignored) {
+                        return new StartupPlanDialog.RecentPlan(
+                                path,
+                                path.getFileName().toString(),
+                                ""
+                        );
+                    }
+                })
+                .toList();
     }
 
     private void openRecentPlan(Path path) {

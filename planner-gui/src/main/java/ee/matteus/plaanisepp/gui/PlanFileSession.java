@@ -5,6 +5,7 @@ import ee.matteus.plaanisepp.core.service.PlanFileService;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 final class PlanFileSession {
     private final PlanFileService planFileService = new PlanFileService();
     private File currentFile;
@@ -15,6 +16,10 @@ final class PlanFileSession {
         currentFile = file;
         rememberDirectory(file);
         return loadedPlan;
+    }
+
+    PlanFileService.PlanMetadata readMetadata(Path file) throws IOException {
+        return planFileService.readMetadata(file);
     }
 
     void save(EventPlan plan, File file) throws IOException {

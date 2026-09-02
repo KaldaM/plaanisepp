@@ -234,6 +234,40 @@ public class PlanFileService {
         return isZipPackage(file) ? loadPackage(file) : loadLegacyPlan(file);
     }
 
+    public PlanMetadata readMetadata(Path file) throws IOException {
+        Properties properties;
+        if (isZipPackage(file)) {
+            try (ZipFile zipFile = new ZipFile(file.toFile())) {
+                validatePackageEntries(zipFile);
+                Properties manifest = readProperties(zipFile, MANIFEST_ENTRY, MAX_MANIFEST_BYTES);
+                if (!PACKAGE_FORMAT.equals(manifest.getProperty("format"))) {
+                    throw new IOException("Plaanipaketi manifesti vorming ei ole korrektne.");
+                }
+                int formatVersion = parseFormatVersion(manifest.getProperty(FORMAT_VERSION_PROPERTY, ""));
+                if (formatVersion > CURRENT_FORMAT_VERSION) {
+                    throw newerVersionException(formatVersion);
+                }
+                if (formatVersion < 2 || !PLAN_ENTRY.equals(manifest.getProperty("planEntry"))) {
+                    throw new IOException("Plaanipaketi plaaniandmete kirje ei ole korrektne.");
+                }
+                properties = readProperties(zipFile, PLAN_ENTRY, MAX_PLAN_BYTES);
+            }
+        } else {
+            properties = new Properties();
+            try (InputStream input = Files.newInputStream(file)) {
+                properties.load(input);
+            }
+            validateLegacyFormatVersion(properties);
+        }
+        return new PlanMetadata(
+                properties.getProperty("plan.name", "Pannkoogihommik"),
+                properties.getProperty("plan.festivalName", "")
+        );
+    }
+
+    public record PlanMetadata(String planName, String festivalName) {
+    }
+
     private EventPlan loadLegacyPlan(Path file) throws IOException {
         Properties properties = new Properties();
         try (InputStream input = Files.newInputStream(file)) {

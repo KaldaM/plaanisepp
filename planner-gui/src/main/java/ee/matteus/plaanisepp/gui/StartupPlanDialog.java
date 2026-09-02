@@ -6,49 +6,77 @@ import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
+import javafx.scene.control.TreeCell;
+import javafx.scene.control.TreeItem;
+import javafx.scene.control.TreeView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 final class StartupPlanDialog {
     private StartupPlanDialog() {
     }
 
-    static Optional<Choice> show(Window owner, List<Path> recentFiles) {
+    static Optional<Choice> show(Window owner, List<RecentPlan> recentPlans) {
         Dialog<Choice> dialog = new Dialog<>();
         dialog.initOwner(owner);
         dialog.setTitle("Plaanisepp");
         dialog.setHeaderText("Vali plaan või alusta uut");
 
-        ListView<Path> recentFileList = new ListView<>();
-        recentFileList.getItems().setAll(recentFiles);
-        recentFileList.setPrefSize(560, 240);
-        recentFileList.setPlaceholder(new Label("Hiljutisi plaane pole"));
-        recentFileList.setCellFactory(ignored -> new ListCell<>() {
+        TreeItem<RecentPlan> root = new TreeItem<>();
+        Map<String, TreeItem<RecentPlan>> festivalGroups = new LinkedHashMap<>();
+        for (RecentPlan recentPlan : recentPlans) {
+            String groupName = recentPlan.festivalName().isBlank()
+                    ? "Festivalita plaanid"
+                    : recentPlan.festivalName();
+            TreeItem<RecentPlan> group = festivalGroups.computeIfAbsent(groupName, name -> {
+                TreeItem<RecentPlan> item = new TreeItem<>(RecentPlan.group(name));
+                item.setExpanded(true);
+                root.getChildren().add(item);
+                return item;
+            });
+            group.getChildren().add(new TreeItem<>(recentPlan));
+        }
+
+        TreeView<RecentPlan> recentFileTree = new TreeView<>(root);
+        recentFileTree.setShowRoot(false);
+        recentFileTree.setPrefSize(560, 280);
+        recentFileTree.setCellFactory(ignored -> new TreeCell<>() {
             @Override
-            protected void updateItem(Path path, boolean empty) {
-                super.updateItem(path, empty);
-                if (empty || path == null) {
+            protected void updateItem(RecentPlan recentPlan, boolean empty) {
+                super.updateItem(recentPlan, empty);
+                if (empty || recentPlan == null) {
                     setText(null);
                     setGraphic(null);
                     return;
                 }
-                Label fileName = new Label(path.getFileName().toString());
-                fileName.setStyle("-fx-font-weight: bold;");
-                Label directory = new Label(path.getParent() == null ? "" : path.getParent().toString());
+                if (recentPlan.group()) {
+                    setText(recentPlan.planName());
+                    setStyle("-fx-font-weight: bold;");
+                    setGraphic(null);
+                    return;
+                }
+                setStyle("");
+                Label planName = new Label(recentPlan.planName());
+                planName.setStyle("-fx-font-weight: bold;");
+                Path path = recentPlan.path();
+                Label directory = new Label(path.getFileName() + " · "
+                        + (path.getParent() == null ? "" : path.getParent()));
                 directory.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 11;");
                 setText(null);
-                setGraphic(new VBox(2, fileName, directory));
+                setGraphic(new VBox(2, planName, directory));
             }
         });
 
-        VBox content = new VBox(8, new Label("Hiljutised plaanid"), recentFileList);
+        VBox content = recentPlans.isEmpty()
+                ? new VBox(8, new Label("Hiljutised plaanid"), new Label("Hiljutisi plaane pole"))
+                : new VBox(8, new Label("Hiljutised plaanid festivalide kaupa"), recentFileTree);
         content.setPadding(new Insets(4));
         dialog.getDialogPane().setContent(content);
 
@@ -64,18 +92,19 @@ final class StartupPlanDialog {
 
         Button openRecent = (Button) dialog.getDialogPane().lookupButton(openRecentButton);
         openRecent.setDisable(true);
-        recentFileList.getSelectionModel().selectedItemProperty().addListener(
-                (observable, oldValue, newValue) -> openRecent.setDisable(newValue == null)
+        recentFileTree.getSelectionModel().selectedItemProperty().addListener(
+                (observable, oldValue, newValue) -> openRecent.setDisable(selectedPath(newValue).isEmpty())
         );
-        if (!recentFiles.isEmpty()) {
-            recentFileList.getSelectionModel().selectFirst();
+        if (!root.getChildren().isEmpty() && !root.getChildren().getFirst().getChildren().isEmpty()) {
+            recentFileTree.getSelectionModel().select(root.getChildren().getFirst().getChildren().getFirst());
         }
-        recentFileList.setOnMouseClicked(event -> {
+        recentFileTree.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY
-                    && event.getClickCount() == 2
-                    && recentFileList.getSelectionModel().getSelectedItem() != null) {
-                dialog.setResult(Choice.openRecent(recentFileList.getSelectionModel().getSelectedItem()));
-                dialog.close();
+                    && event.getClickCount() == 2) {
+                selectedPath(recentFileTree.getSelectionModel().getSelectedItem()).ifPresent(path -> {
+                    dialog.setResult(Choice.openRecent(path));
+                    dialog.close();
+                });
             }
         });
 
@@ -87,12 +116,30 @@ final class StartupPlanDialog {
                 return Choice.openOther();
             }
             if (button == openRecentButton) {
-                Path selected = recentFileList.getSelectionModel().getSelectedItem();
-                return selected == null ? null : Choice.openRecent(selected);
+                return selectedPath(recentFileTree.getSelectionModel().getSelectedItem())
+                        .map(Choice::openRecent)
+                        .orElse(null);
             }
             return null;
         });
         return dialog.showAndWait();
+    }
+
+    private static Optional<Path> selectedPath(TreeItem<RecentPlan> selectedItem) {
+        if (selectedItem == null || selectedItem.getValue() == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(selectedItem.getValue().path());
+    }
+
+    record RecentPlan(Path path, String planName, String festivalName, boolean group) {
+        RecentPlan(Path path, String planName, String festivalName) {
+            this(path, planName, festivalName, false);
+        }
+
+        static RecentPlan group(String name) {
+            return new RecentPlan(null, name, "", true);
+        }
     }
 
     enum Action {
