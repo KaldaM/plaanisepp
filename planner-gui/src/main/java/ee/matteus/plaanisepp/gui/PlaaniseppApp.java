@@ -8482,6 +8482,12 @@ public class PlaaniseppApp extends Application {
             Runnable afterChange
     ) {
         editor.getChildren().clear();
+        double totalLength = counts.entrySet().stream()
+                .mapToDouble(entry -> entry.getKey() * entry.getValue())
+                .sum();
+        Label totalLabel = new Label("Kokku: %s m".formatted(formatCablePieceLength(totalLength)));
+        totalLabel.setStyle("-fx-font-weight: bold;");
+        editor.getChildren().add(totalLabel);
         TreeSet<Double> lengths = new TreeSet<>(DEFAULT_CABLE_PIECE_LENGTHS);
         lengths.addAll(counts.keySet());
         for (double length : lengths) {
@@ -11729,7 +11735,11 @@ public class PlaaniseppApp extends Application {
         Runnable[] refreshEditor = new Runnable[1];
         refreshEditor[0] = () -> populateCablePieceEditor(editor, counts, refreshEditor[0]);
         refreshEditor[0].run();
-        dialog.getDialogPane().setContent(editor);
+        ScrollPane editorScroll = new ScrollPane(editor);
+        editorScroll.setFitToWidth(true);
+        editorScroll.setPrefViewportHeight(330);
+        editorScroll.setMinViewportHeight(180);
+        dialog.getDialogPane().setContent(editorScroll);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         if (dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
             String lengthNotes = formatCablePieceCounts(counts);
@@ -11947,11 +11957,6 @@ public class PlaaniseppApp extends Application {
 
     private void configureInventoryTextAction(TitledPane pane) {
         pane.setContextMenu(inventoryTextObjectContextMenu(pane));
-        Button createTextButton = new Button("Tekst kaardile");
-        createTextButton.setFocusTraversable(false);
-        createTextButton.setTooltip(new Tooltip("Loo selle inventariharu kokkuvõttest tekstiobjekt"));
-        createTextButton.setOnAction(event -> createInventoryTextObject(pane));
-        pane.setGraphic(createTextButton);
     }
 
     private ContextMenu inventoryTextObjectContextMenu(TitledPane pane) {
