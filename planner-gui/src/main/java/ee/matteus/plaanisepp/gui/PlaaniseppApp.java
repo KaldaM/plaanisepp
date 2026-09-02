@@ -4949,6 +4949,7 @@ public class PlaaniseppApp extends Application {
     private void showPlanSettingsDialog(boolean creatingNewPlan) {
         PlanSettingsDialog.Settings initialSettings = new PlanSettingsDialog.Settings(
                 plan.name(),
+                plan.festivalName(),
                 formatMeters(plan.pixelsPerMeter()),
                 plan.objectLabelFontSize(),
                 plan.cableLabelFontSize(),
@@ -4976,6 +4977,7 @@ public class PlaaniseppApp extends Application {
                     : settings.pixelsPerMeterText();
             applyPlanSettings(
                     planName,
+                    settings.festivalName(),
                     pixelsPerMeter,
                     settings.objectLabelFontSize(),
                     settings.cableLabelFontSize(),
@@ -4992,6 +4994,7 @@ public class PlaaniseppApp extends Application {
 
     private void applyPlanSettings(
             String planName,
+            String festivalName,
             String pixelsPerMeterText,
             double objectLabelFontSize,
             double cableLabelFontSize,
@@ -5006,6 +5009,7 @@ public class PlaaniseppApp extends Application {
         try {
             double pixelsPerMeter = Double.parseDouble(pixelsPerMeterText.trim().replace(',', '.'));
             plan.rename(trimmedPlanName);
+            plan.setFestivalName(festivalName);
             plan.setPixelsPerMeter(pixelsPerMeter);
             plan.setObjectLabelFontSize(objectLabelFontSize);
             plan.setCableLabelFontSize(cableLabelFontSize);

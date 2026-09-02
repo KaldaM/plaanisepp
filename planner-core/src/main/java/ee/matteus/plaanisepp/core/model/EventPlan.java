@@ -21,6 +21,7 @@ public class EventPlan {
     public static final double DEFAULT_CABLE_LABEL_FONT_SIZE = 12.0;
 
     private String name;
+    private String festivalName = "";
     private String mapImagePath;
     private String packagedMapImageEntry = "";
     private byte[] packagedMapImage = new byte[0];
@@ -70,6 +71,14 @@ public class EventPlan {
 
     public void rename(String name) {
         this.name = name;
+    }
+
+    public String festivalName() {
+        return festivalName;
+    }
+
+    public void setFestivalName(String festivalName) {
+        this.festivalName = festivalName == null ? "" : festivalName.trim();
     }
 
     public String mapImagePath() {

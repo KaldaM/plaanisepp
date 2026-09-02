@@ -35,6 +35,8 @@ final class PlanSettingsDialog {
             boolean creatingNewPlan
     ) {
         TextField planNameField = new TextField(initialSettings.planName());
+        TextField festivalNameField = new TextField(initialSettings.festivalName());
+        festivalNameField.setPromptText("Valikuline");
         TextField pixelsPerMeterField = new TextField(initialSettings.pixelsPerMeterText());
         pixelsPerMeterField.setPromptText("px/m");
         Slider objectLabelFontSizeSlider = createPixelSlider(
@@ -87,20 +89,21 @@ final class PlanSettingsDialog {
 
         GridPane form = createForm();
         form.addRow(0, new Label("Plaani nimi"), planNameField);
-        form.addRow(1, new Label("Piksleid meetri kohta"), new HBox(
+        form.addRow(1, new Label("Festival või sündmus"), festivalNameField);
+        form.addRow(2, new Label("Piksleid meetri kohta"), new HBox(
                 8,
                 pixelsPerMeterField,
                 setScaleFromMeasurementButton
         ));
-        form.addRow(2, new Label("Objektisildi suurus"), pixelControl(objectLabelFontSizeSlider));
-        form.addRow(3, new Label("Kaablisildi suurus"), pixelControl(cableLabelFontSizeSlider));
-        form.addRow(4, new Label("Kaart"), new HBox(
+        form.addRow(3, new Label("Objektisildi suurus"), pixelControl(objectLabelFontSizeSlider));
+        form.addRow(4, new Label("Kaablisildi suurus"), pixelControl(cableLabelFontSizeSlider));
+        form.addRow(5, new Label("Kaart"), new HBox(
                 8,
                 realMapButton,
                 noMapButton,
                 loadMapButton
         ));
-        form.addRow(5, new Label("Valitud kaart"), mapLabel);
+        form.addRow(6, new Label("Valitud kaart"), mapLabel);
 
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
         dialog.initOwner(owner);
@@ -111,6 +114,7 @@ final class PlanSettingsDialog {
                 .filter(ButtonType.OK::equals)
                 .map(buttonType -> new Settings(
                         planNameField.getText(),
+                        festivalNameField.getText(),
                         pixelsPerMeterField.getText(),
                         objectLabelFontSizeSlider.getValue(),
                         cableLabelFontSizeSlider.getValue(),
@@ -188,6 +192,7 @@ final class PlanSettingsDialog {
 
     record Settings(
             String planName,
+            String festivalName,
             String pixelsPerMeterText,
             double objectLabelFontSize,
             double cableLabelFontSize,

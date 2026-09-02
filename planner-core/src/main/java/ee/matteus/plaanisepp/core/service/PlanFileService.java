@@ -53,7 +53,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 22;
+    public static final int CURRENT_FORMAT_VERSION = 23;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -120,6 +120,7 @@ public class PlanFileService {
         properties.setProperty("format", PLAN_FORMAT_V4);
         properties.setProperty(FORMAT_VERSION_PROPERTY, Integer.toString(CURRENT_FORMAT_VERSION));
         properties.setProperty("plan.name", plan.name());
+        properties.setProperty("plan.festivalName", plan.festivalName());
         properties.setProperty("plan.mapImagePath", mapImagePath);
         if (plan.hasDownloadedBaseMaps()) {
             BaseMapBounds bounds = plan.downloadedMapBounds();
@@ -244,6 +245,7 @@ public class PlanFileService {
 
     EventPlan readPlan(Properties properties) {
         EventPlan plan = new EventPlan(properties.getProperty("plan.name", "Pannkoogihommik"));
+        plan.setFestivalName(properties.getProperty("plan.festivalName", ""));
         plan.setMapImagePath(properties.getProperty("plan.mapImagePath", ""));
         plan.setPixelsPerMeter(doubleValue(properties, "plan.pixelsPerMeter", EventPlan.DEFAULT_PIXELS_PER_METER));
         plan.setObjectLabelFontSize(doubleValue(properties, "plan.objectLabelFontSize", EventPlan.DEFAULT_OBJECT_LABEL_FONT_SIZE));

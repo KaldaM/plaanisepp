@@ -56,6 +56,7 @@ class PlanFileServiceTest {
     @Test
     void writesCurrentFormatVersionAndLoadsVersionedPlan() throws IOException {
         EventPlan plan = new EventPlan("Versiooniga plaan");
+        plan.setFestivalName("Tartu Tudengipäevad 2026");
         Path file = tempDirectory.resolve("versioned-plan.pplan");
 
         service.save(plan, file);
@@ -73,7 +74,9 @@ class PlanFileServiceTest {
                     planProperties.getProperty("formatVersion")
             );
         }
-        assertEquals("Versiooniga plaan", service.load(file).name());
+        EventPlan loadedPlan = service.load(file);
+        assertEquals("Versiooniga plaan", loadedPlan.name());
+        assertEquals("Tartu Tudengipäevad 2026", loadedPlan.festivalName());
     }
 
     @Test
@@ -120,7 +123,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(22, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(23, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -849,7 +852,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(22, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(23, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

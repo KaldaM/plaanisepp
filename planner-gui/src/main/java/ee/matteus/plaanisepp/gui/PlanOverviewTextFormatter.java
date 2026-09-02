@@ -9,6 +9,9 @@ final class PlanOverviewTextFormatter {
         builder.append(lineSeparator);
         builder.append("Plaani andmed").append(lineSeparator);
         builder.append("  Plaan: ").append(plan.name()).append(lineSeparator);
+        if (!plan.festivalName().isBlank()) {
+            builder.append("  Festival või sündmus: ").append(plan.festivalName()).append(lineSeparator);
+        }
         builder.append("  Mõõtkava: ").append(formatNumber(plan.pixelsPerMeter())).append(" px/m").append(lineSeparator);
         builder.append("  Kaart: ").append(plan.mapImagePath().isBlank() ? "määramata" : plan.mapImagePath()).append(lineSeparator);
         builder.append("  Objekte: ").append(plan.objects().size()).append(lineSeparator);
