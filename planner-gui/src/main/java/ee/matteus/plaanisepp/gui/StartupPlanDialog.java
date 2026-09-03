@@ -10,6 +10,7 @@ import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.MouseButton;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 
@@ -27,7 +28,8 @@ final class StartupPlanDialog {
     static Optional<Choice> show(
             Window owner,
             List<RecentPlan> recentPlans,
-            Consumer<String> festivalSummaryHandler
+            Consumer<String> festivalSummaryHandler,
+            Runnable gettingStartedHandler
     ) {
         Dialog<Choice> dialog = new Dialog<>();
         dialog.initOwner(owner);
@@ -84,14 +86,21 @@ final class StartupPlanDialog {
         festivalSummaryButton.setOnAction(event -> selectedFestival(
                 recentFileTree.getSelectionModel().getSelectedItem()
         ).ifPresent(festivalSummaryHandler));
+        Button gettingStartedButton = new Button("Kuidas alustada?");
+        gettingStartedButton.setOnAction(event -> gettingStartedHandler.run());
 
         VBox content = recentPlans.isEmpty()
-                ? new VBox(8, new Label("Hiljutised plaanid"), new Label("Hiljutisi plaane pole"))
+                ? new VBox(
+                        8,
+                        new Label("Hiljutised plaanid"),
+                        new Label("Hiljutisi plaane pole"),
+                        gettingStartedButton
+                )
                 : new VBox(
                         8,
                         new Label("Hiljutised plaanid festivalide kaupa"),
                         recentFileTree,
-                        festivalSummaryButton
+                        new HBox(8, festivalSummaryButton, gettingStartedButton)
                 );
         content.setPadding(new Insets(4));
         dialog.getDialogPane().setContent(content);

@@ -13415,7 +13415,12 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showStartupPlanDialog() {
-        StartupPlanDialog.show(stage, recentPlansWithMetadata(), this::showFestivalSummary)
+        StartupPlanDialog.show(
+                stage,
+                recentPlansWithMetadata(),
+                this::showFestivalSummary,
+                this::showGettingStartedGuide
+        )
                 .ifPresent(choice -> {
             switch (choice.action()) {
                 case NEW_PLAN -> newPlan();
