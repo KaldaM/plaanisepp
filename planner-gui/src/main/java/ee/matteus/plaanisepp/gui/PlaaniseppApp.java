@@ -169,6 +169,7 @@ public class PlaaniseppApp extends Application {
     private static final String OBJECT_INVENTORY_SECTION = "objectInventory";
     private static final String OUTLET_SECTION = "outlet";
     private static final String SIDEBAR_SECTION_ORDER_PREFERENCE = "sidebarSectionOrder";
+    private static final String HIDDEN_SIDEBAR_SECTIONS_PREFERENCE = "hiddenSidebarSections";
     private static final String PLACEMENT_SHOW_MAP_LABEL_PREFERENCE = "placementShowMapLabel";
     private static final String PLACEMENT_SHOW_FENCE_INVENTORY_LABEL_PREFERENCE =
             "placementShowFenceInventoryLabel";
@@ -178,11 +179,11 @@ public class PlaaniseppApp extends Application {
     private static final String ORGANIZER_VIEW_PREFERENCE = "organizerView";
     private static final List<String> DEFAULT_SIDEBAR_SECTION_ORDER = List.of(
             OBJECT_LIST_SECTION,
-            CHECKLIST_SECTION,
             SELECTED_OBJECT_SECTION,
-            MAP_LAYERS_SECTION,
+            SUMMARY_SECTION,
             INVENTORY_SECTION,
-            SUMMARY_SECTION
+            MAP_LAYERS_SECTION,
+            CHECKLIST_SECTION
     );
     private static final double MIN_MAP_WIDTH = 760.0;
     private static final double MIN_MAP_HEIGHT = 560.0;
@@ -299,6 +300,7 @@ public class PlaaniseppApp extends Application {
     private String selectionRangeAnchorObjectId;
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
+    private final Set<String> hiddenSidebarSections = new HashSet<>();
     private final Map<String, Node> mapObjectNodes = new HashMap<>();
     private final Map<String, List<Node>> mapObjectVisualNodes = new HashMap<>();
     private final Map<String, List<Node>> powerConnectionVisualNodes = new HashMap<>();
@@ -1110,12 +1112,14 @@ public class PlaaniseppApp extends Application {
         );
         CheckMenuItem organizerViewItem = new CheckMenuItem("Korraldajavaade");
         organizerViewItem.setOnAction(event -> setOrganizerView(organizerViewItem.isSelected()));
+        Menu sidebarSectionsMenu = createSidebarSectionsMenu();
         Menu viewMenu = new Menu("Vaade");
         viewMenu.getItems().addAll(
                 resetZoomItem,
                 layoutLockItem,
                 organizerViewItem,
                 new SeparatorMenuItem(),
+                sidebarSectionsMenu,
                 layersMenu
         );
         viewMenu.setOnShowing(event -> {
@@ -1199,6 +1203,23 @@ public class PlaaniseppApp extends Application {
             updateMapLayerVisibility();
         });
         return item;
+    }
+
+    private Menu createSidebarSectionsMenu() {
+        Menu menu = new Menu("Külgpaneeli jaotised");
+        for (String stateKey : DEFAULT_SIDEBAR_SECTION_ORDER) {
+            CheckMenuItem item = new CheckMenuItem(sidebarSectionTitle(stateKey));
+            item.setOnAction(event -> setSidebarSectionVisible(stateKey, item.isSelected()));
+            menu.getItems().add(item);
+        }
+        menu.setOnShowing(event -> {
+            for (int index = 0; index < DEFAULT_SIDEBAR_SECTION_ORDER.size(); index++) {
+                String stateKey = DEFAULT_SIDEBAR_SECTION_ORDER.get(index);
+                ((CheckMenuItem) menu.getItems().get(index))
+                        .setSelected(!hiddenSidebarSections.contains(stateKey));
+            }
+        });
+        return menu;
     }
 
     private void showKeyboardShortcuts() {
@@ -1693,7 +1714,7 @@ public class PlaaniseppApp extends Application {
                 placementTypeComboBox.getSelectionModel().select(PlacementType.TENT);
             }
         }
-        setSectionVisible(powerSummarySection, !organizerView);
+        applySidebarSectionVisibility(SUMMARY_SECTION);
         setSectionVisible(cableLayersPanel, !organizerView);
         setSectionVisible(showPowerSourcesButton, !organizerView);
         if (cablesLayerMenuItem != null) {
@@ -1911,12 +1932,12 @@ public class PlaaniseppApp extends Application {
 
         sidebar = new VBox(10);
         sidebar.setPadding(new Insets(12));
-        objectListSection = collapsibleSection(OBJECT_LIST_SECTION, "Objektid", createObjectListPanel(), false);
+        objectListSection = collapsibleSection(OBJECT_LIST_SECTION, "Objektid", createObjectListPanel(), true);
         TitledPane checklistSection = collapsibleSection(
                 CHECKLIST_SECTION, "Checklist", createChecklistPanel(), false
         );
         selectedObjectSection = collapsibleSection(
-                SELECTED_OBJECT_SECTION, "Valitud objekt", createDetailPanel(), true
+                SELECTED_OBJECT_SECTION, "Valitud objekt", createDetailPanel(), false
         );
         TitledPane mapLayersSection = collapsibleSection(
                 MAP_LAYERS_SECTION, "Kaardi kihid", createMapLayersPanel(), false
@@ -2010,14 +2031,14 @@ public class PlaaniseppApp extends Application {
                 SUMMARY_SECTION,
                 "Voolu kokkuvõte",
                 summaryList,
-                true
+                false
         );
         inventoryContent = new VBox(6);
         inventorySection = collapsibleSection(
                 INVENTORY_SECTION,
                 "Inventar",
                 inventoryContent,
-                true
+                false
         );
         registerSidebarSection(OBJECT_LIST_SECTION, objectListSection);
         registerSidebarSection(CHECKLIST_SECTION, checklistSection);
@@ -2025,6 +2046,8 @@ public class PlaaniseppApp extends Application {
         registerSidebarSection(MAP_LAYERS_SECTION, mapLayersSection);
         registerSidebarSection(INVENTORY_SECTION, inventorySection);
         registerSidebarSection(SUMMARY_SECTION, powerSummarySection);
+        loadHiddenSidebarSections();
+        DEFAULT_SIDEBAR_SECTION_ORDER.forEach(this::applySidebarSectionVisibility);
         applySidebarSectionOrder(loadSidebarSectionOrder());
         ScrollPane sidebarScrollPane = new ScrollPane(sidebar);
         sidebarScrollPane.setFitToWidth(true);
@@ -2130,6 +2153,7 @@ public class PlaaniseppApp extends Application {
                 source.setGroupName("Tartu püsivoolukilbid");
                 source.setNotes(cabinet.details());
                 source.setLocked(true);
+                source.setShowMapLabel(false);
                 plan.addObject(source);
             }
             finishAutoAppliedDetailsChange(before, true);
@@ -4170,7 +4194,15 @@ public class PlaaniseppApp extends Application {
         moveDownItem.setOnAction(event -> moveSidebarSection(stateKey, 1));
         MenuItem resetOrderItem = new MenuItem("Taasta vaikejärjestus");
         resetOrderItem.setOnAction(event -> resetSidebarSectionOrder());
-        ContextMenu contextMenu = new ContextMenu(moveUpItem, moveDownItem, resetOrderItem);
+        MenuItem hideSectionItem = new MenuItem("Peida jaotis");
+        hideSectionItem.setOnAction(event -> setSidebarSectionVisible(stateKey, false));
+        ContextMenu contextMenu = new ContextMenu(
+                moveUpItem,
+                moveDownItem,
+                resetOrderItem,
+                new SeparatorMenuItem(),
+                hideSectionItem
+        );
         contextMenu.setOnShowing(event -> {
             List<String> order = currentSidebarSectionOrder();
             int index = order.indexOf(stateKey);
@@ -4197,6 +4229,53 @@ public class PlaaniseppApp extends Application {
             }
         }
         return order;
+    }
+
+    private void loadHiddenSidebarSections() {
+        hiddenSidebarSections.clear();
+        String storedSections = preferences.get(HIDDEN_SIDEBAR_SECTIONS_PREFERENCE, "");
+        for (String stateKey : storedSections.split(",")) {
+            if (DEFAULT_SIDEBAR_SECTION_ORDER.contains(stateKey)) {
+                hiddenSidebarSections.add(stateKey);
+            }
+        }
+    }
+
+    private void setSidebarSectionVisible(String stateKey, boolean visible) {
+        if (visible) {
+            hiddenSidebarSections.remove(stateKey);
+        } else {
+            hiddenSidebarSections.add(stateKey);
+        }
+        preferences.put(
+                HIDDEN_SIDEBAR_SECTIONS_PREFERENCE,
+                DEFAULT_SIDEBAR_SECTION_ORDER.stream()
+                        .filter(hiddenSidebarSections::contains)
+                        .collect(java.util.stream.Collectors.joining(","))
+        );
+        applySidebarSectionVisibility(stateKey);
+    }
+
+    private void applySidebarSectionVisibility(String stateKey) {
+        TitledPane pane = sidebarSections.get(stateKey);
+        if (pane == null) {
+            return;
+        }
+        boolean visible = !hiddenSidebarSections.contains(stateKey)
+                && !(SUMMARY_SECTION.equals(stateKey) && organizerView);
+        setSectionVisible(pane, visible);
+    }
+
+    private String sidebarSectionTitle(String stateKey) {
+        return switch (stateKey) {
+            case OBJECT_LIST_SECTION -> "Objektid";
+            case SELECTED_OBJECT_SECTION -> "Valitud objekt";
+            case SUMMARY_SECTION -> "Voolu kokkuvõte";
+            case INVENTORY_SECTION -> "Inventar";
+            case MAP_LAYERS_SECTION -> "Kaardi kihid";
+            case CHECKLIST_SECTION -> "Checklist";
+            default -> stateKey;
+        };
     }
 
     private List<String> currentSidebarSectionOrder() {
@@ -4226,6 +4305,9 @@ public class PlaaniseppApp extends Application {
     private void resetSidebarSectionOrder() {
         applySidebarSectionOrder(DEFAULT_SIDEBAR_SECTION_ORDER);
         preferences.remove(SIDEBAR_SECTION_ORDER_PREFERENCE);
+        hiddenSidebarSections.clear();
+        preferences.remove(HIDDEN_SIDEBAR_SECTIONS_PREFERENCE);
+        DEFAULT_SIDEBAR_SECTION_ORDER.forEach(this::applySidebarSectionVisibility);
     }
 
     private void applySidebarSectionOrder(List<String> order) {
@@ -4360,7 +4442,7 @@ public class PlaaniseppApp extends Application {
                 stage,
                 placementType,
                 existingGroupNames(),
-                preferences.getBoolean(PLACEMENT_SHOW_MAP_LABEL_PREFERENCE, true),
+                preferences.getBoolean(PLACEMENT_SHOW_MAP_LABEL_PREFERENCE, false),
                 preferences.getBoolean(PLACEMENT_SHOW_FENCE_INVENTORY_LABEL_PREFERENCE, true),
                 preferences.getDouble(
                         PLACEMENT_FENCE_SEGMENT_LENGTH_PREFERENCE,
@@ -4908,7 +4990,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean pendingPlacementShowMapLabelOrDefault() {
-        return pendingPlacementShowMapLabel == null || pendingPlacementShowMapLabel;
+        return pendingPlacementShowMapLabel != null && pendingPlacementShowMapLabel;
     }
 
     private boolean pendingPlacementShowFenceInventoryLabelOrDefault() {
