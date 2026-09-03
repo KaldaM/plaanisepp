@@ -23,11 +23,25 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 12. **Pooleli:** sirged ja murtud ühendatud aiavõrgud, aiaringi generaator, Inventari jaotise esimene etapp, automaatselt arvutatavad aiakivid koos aiakogumiku `− / +` paranduste ja aiata lisakogusega ning telkide, alade ja kujuobjektide vabalt määratav inventar on tehtud. Lisatud on ka objektita lisainventar koos `− / +` juhtimise, märkmete, salvestamise ja raportiga. Lisamata on inventariliikide üldised automaatse ja käsitsi koguseparanduse koondread. Üksiklõikude täielik identiteet on samuti lisamata. Eraldi kaaregeneraator on madala prioriteediga, sest olemasolevat aiarida saab ühenduspunkte liigutades hõlpsalt kaareks vormida.
 13. **Tehtud:** rippvalikud, kaardilt vooluallika valimine, automaatne rakendamine ja objektide kiirklahvid.
 14. **Tehtud:** kogu kaardi geomeetriat kaitsev paigutuslukustus.
-15. **Tegemata:** kõrglahutusega ja täpselt joondatud aluskaartide hankimise töövoog.
+15. **Tehtud:** kõrglahutusega ja georefereeritud aluskaartide hankimise töövoog, tavakaardi/ortofoto vahetamine, kaardiala hilisem muutmine ning Tartu püsivoolukilpide automaatne import.
 16. **Pooleli:** tehnikakihita korraldajavaate esimene etapp on tehtud. Rakendus käivitub esmakordsel kasutamisel korraldajavaates ning jätab lokaalselt meelde viimati kasutatud korraldaja-/tehnikuvaate. PDF-eksport kasutab aktiivset kaardivaadet; korraldajavaates jäetakse välja voolu- ja kaabliinfo ning kilpidest loodud tekstobjektid. Valitav objektide legend sisaldab kõiki kaardil nähtavaid objekte samas grupijaotuses nagu külgpaneel, koos joondatud värvinäidise, tüübi, nime ja mõõdu-/koguseinfoga. Aiavõrgud kuvatakse raporti grupiloendis ühe tervikobjektina ning voolu kokkuvõttes on kilbi plokid ja koormustaseme värvilised ribad. Kuvaprofiilid ja kommentaarid on lisamata.
 17. **Tegemata:** terviklik visuaalse keele uuendus.
 18. **Peaaegu tehtud:** interaktiivne pööramine, mitmikvalik, valikukast ja põhilised ühistoimingud töötavad; ühise grupi ja nimesildi nähtavuse hulgi muutmine on teostatud ning viimased mitmikvaliku mugavused ootavad käsitsi kontrolli.
 19. **Jätkuv töö:** `PlaaniseppApp` refaktoreerimine väikeste funktsioonipõhiste sammudena.
+
+### Praegune põhifookus: korraldajate kasutuselevõtt
+
+Enne festivaliülest optimeerimist ja muid keerukaid koondfunktsioone peab Plaanisepp olema piisavalt lihtne, töökindel ja arusaadav, et korraldajad kasutaksid seda oma päris plaanide koostamiseks. Lähiaja muudatusi hinnatakse eelkõige järgmise põhiteekonna järgi:
+
+1. korraldaja saab ilma tehnilise juhendamiseta luua või avada plaani;
+2. vajalikud objektid, grupid ja inventar on lihtsasti lisatavad ning muudetavad;
+3. kaardil ja külgpaneelil on alati arusaadav, mis on valitud, peidetud või lukustatud;
+4. salvestamine, uuesti avamine ja PDF-i jagamine toimivad usaldusväärselt;
+5. tehnikafunktsioonid ei koorma korraldajavaadet.
+
+Uue plaani ja „Plaani andmed” dialoogi põhivaates kuvatakse ainult plaani nimi, festival/sündmus ja kaardi valik. Mõõtkava ning objekti- ja kaablisiltide suurused asuvad vaikimisi suletud „Täpsemad seaded” jaotises, et korraldaja ei peaks plaani alustamisel tegema tarbetuid tehnilisi valikuid.
+
+Festivali inventari tippvajaduse ja esemete ürituste vahel ümberpaigutamise arvutus on **väga madala prioriteediga**. Seda ei teostata enne, kui korraldajate põhiteekond on päriskasutuses kinnitatud ja ürituste ajastamise tegelikud reeglid on selged.
 
 ## Järgmise töökorra märkmed — 31. august 2026
 

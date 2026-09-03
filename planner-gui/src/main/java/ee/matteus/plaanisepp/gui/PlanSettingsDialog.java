@@ -2,6 +2,7 @@ package ee.matteus.plaanisepp.gui;
 
 import ee.matteus.plaanisepp.core.map.BaseMapDownload;
 import ee.matteus.plaanisepp.core.map.BaseMapBounds;
+import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -9,9 +10,11 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -59,6 +62,7 @@ final class PlanSettingsDialog {
                 selectedBaseMap[0] == null ? initialSettings.mapBounds() : selectedBaseMap[0].bounds()
         ).ifPresent(download -> {
             selectedBaseMap[0] = download;
+            pixelsPerMeterField.setText(formatPixelsPerMeter(download.pixelsPerMetre()));
             mapLabel.setText("Päriskaardilt valitud ala (%d × %d px)".formatted(
                     download.width(), download.height()
             ));
@@ -87,29 +91,47 @@ final class PlanSettingsDialog {
                 scaleFromMeasurement.get().ifPresent(pixelsPerMeterField::setText)
         );
 
-        GridPane form = createForm();
-        form.addRow(0, new Label("Plaani nimi"), planNameField);
-        form.addRow(1, new Label("Festival või sündmus"), festivalNameField);
-        form.addRow(2, new Label("Piksleid meetri kohta"), new HBox(
-                8,
-                pixelsPerMeterField,
-                setScaleFromMeasurementButton
-        ));
-        form.addRow(3, new Label("Objektisildi suurus"), pixelControl(objectLabelFontSizeSlider));
-        form.addRow(4, new Label("Kaablisildi suurus"), pixelControl(cableLabelFontSizeSlider));
-        form.addRow(5, new Label("Kaart"), new HBox(
+        GridPane basicForm = createForm();
+        basicForm.addRow(0, new Label("Plaani nimi"), planNameField);
+        basicForm.addRow(1, new Label("Festival või sündmus"), festivalNameField);
+        basicForm.addRow(2, new Label("Kaart"), new HBox(
                 8,
                 realMapButton,
                 noMapButton,
                 loadMapButton
         ));
-        form.addRow(6, new Label("Valitud kaart"), mapLabel);
+        basicForm.addRow(3, new Label("Valitud kaart"), mapLabel);
+
+        GridPane advancedForm = createForm();
+        advancedForm.addRow(0, new Label("Piksleid meetri kohta"), new HBox(
+                8,
+                pixelsPerMeterField,
+                setScaleFromMeasurementButton
+        ));
+        advancedForm.addRow(1, new Label("Objektisildi suurus"), pixelControl(objectLabelFontSizeSlider));
+        advancedForm.addRow(2, new Label("Kaablisildi suurus"), pixelControl(cableLabelFontSizeSlider));
+        TitledPane advancedSettings = new TitledPane("Täpsemad seaded", advancedForm);
+        advancedSettings.setExpanded(false);
+        advancedSettings.setMaxWidth(Double.MAX_VALUE);
+
+        VBox content = new VBox(12, basicForm, advancedSettings);
 
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
         dialog.initOwner(owner);
         dialog.setTitle(creatingNewPlan ? "Uus plaan" : "Plaani andmed");
         dialog.setHeaderText(creatingNewPlan ? "Sisesta uue plaani andmed" : "Muuda plaani andmeid");
-        dialog.getDialogPane().setContent(form);
+        dialog.setResizable(true);
+        dialog.getDialogPane().setMinWidth(720);
+        dialog.getDialogPane().setContent(content);
+        advancedSettings.expandedProperty().addListener((observable, oldValue, expanded) ->
+                Platform.runLater(() -> {
+                    dialog.getDialogPane().setPrefHeight(expanded ? 500 : -1);
+                    if (dialog.getDialogPane().getScene() != null
+                            && dialog.getDialogPane().getScene().getWindow() instanceof Stage dialogStage) {
+                        dialogStage.sizeToScene();
+                    }
+                })
+        );
         return dialog.showAndWait()
                 .filter(ButtonType.OK::equals)
                 .map(buttonType -> new Settings(
@@ -188,6 +210,12 @@ final class PlanSettingsDialog {
 
     private static String pixelValueText(double value) {
         return "%.0f px".formatted(value);
+    }
+
+    private static String formatPixelsPerMeter(double value) {
+        return String.format(java.util.Locale.ROOT, "%.4f", value)
+                .replaceAll("0+$", "")
+                .replaceAll("\\.$", "");
     }
 
     record Settings(
