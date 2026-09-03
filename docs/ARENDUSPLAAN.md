@@ -45,6 +45,8 @@ Külgpaneeli jaotise saab selle paremklõpsumenüüst peita ning menüüst „Va
 
 Mitmikvaliku korral rakenduvad „Valitud objekt” jaotise läbipaistvus ja värv kõigile valitud objektidele. Kui valitud on ainult elektrikilbid, saab ka nende suurust korraga muuta. Ainult ühele objektile rakenduvad väljad, näiteks nimi, märkmed, mõõdud, pööre, inventar ja vooluühenduse seaded, on mitmikvaliku ajal lukustatud; grupp, lukustus ja nimesildi nähtavus jäävad ühismuudatustena kasutatavaks.
 
+**Release:** külgpaneeli kohandamise, imporditud kilpide nimesiltide ja mitmikvaliku omaduste parandused moodustavad parandusversiooni `v0.7.1`.
+
 Uue plaani ja „Plaani andmed” dialoogi põhivaates kuvatakse ainult plaani nimi, festival/sündmus ja kaardi valik. Mõõtkava ning objekti- ja kaablisiltide suurused asuvad vaikimisi suletud „Täpsemad seaded” jaotises, et korraldaja ei peaks plaani alustamisel tegema tarbetuid tehnilisi valikuid.
 
 „Abi → Alustamise juhend” kirjeldab korraldajale viie lühikese sammuna plaani loomist, objektide lisamist ja muutmist, gruppide ning nähtavuse kasutamist, salvestamist ja PDF-i jagamist. Sama juhend avaneb „Kuidas alustada?” nupust juba plaanide avavaates, ka siis, kui kasutajal pole veel ühtegi hiljutist plaani. Juhend viitab tehnikuvaatele alles siis, kui kasutaja vajab elektriplaneerimist.
