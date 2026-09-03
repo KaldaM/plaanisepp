@@ -43,6 +43,8 @@ Külgpaneeli vaikejärjestus on „Objektid”, „Valitud objekt”, „Voolu k
 
 Külgpaneeli jaotise saab selle paremklõpsumenüüst peita ning menüüst „Vaade → Külgpaneeli jaotised” uuesti kuvada. Nähtavuse valikud säilivad lokaalselt, mistõttu korraldaja saab eemaldada näiteks Checklisti, Kaardi kihid või Valitud objekti jaotise. „Taasta vaikejärjestus” taastab korraga nii järjestuse kui ka kõik peidetud jaotised; aktiivse korraldajavaate tehnilised piirangud jäävad kehtima. Tartu püsivoolukilbid imporditakse ilma kaardil kuvatava nimesildita.
 
+Mitmikvaliku korral rakenduvad „Valitud objekt” jaotise läbipaistvus ja värv kõigile valitud objektidele. Kui valitud on ainult elektrikilbid, saab ka nende suurust korraga muuta. Ainult ühele objektile rakenduvad väljad, näiteks nimi, märkmed, mõõdud, pööre, inventar ja vooluühenduse seaded, on mitmikvaliku ajal lukustatud; grupp, lukustus ja nimesildi nähtavus jäävad ühismuudatustena kasutatavaks.
+
 Uue plaani ja „Plaani andmed” dialoogi põhivaates kuvatakse ainult plaani nimi, festival/sündmus ja kaardi valik. Mõõtkava ning objekti- ja kaablisiltide suurused asuvad vaikimisi suletud „Täpsemad seaded” jaotises, et korraldaja ei peaks plaani alustamisel tegema tarbetuid tehnilisi valikuid.
 
 „Abi → Alustamise juhend” kirjeldab korraldajale viie lühikese sammuna plaani loomist, objektide lisamist ja muutmist, gruppide ning nähtavuse kasutamist, salvestamist ja PDF-i jagamist. Sama juhend avaneb „Kuidas alustada?” nupust juba plaanide avavaates, ka siis, kui kasutajal pole veel ühtegi hiljutist plaani. Juhend viitab tehnikuvaatele alles siis, kui kasutaja vajab elektriplaneerimist.

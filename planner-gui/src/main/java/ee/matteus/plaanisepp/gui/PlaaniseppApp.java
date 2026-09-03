@@ -4005,11 +4005,7 @@ public class PlaaniseppApp extends Application {
     private boolean previewSelectedObjectOpacity(Slider slider, double percentage) {
         double opacity = percentage / 100.0;
         if (slider == selectedObjectOpacitySlider && selectedObject != null) {
-            if (selectedObject instanceof FenceRow fenceRow) {
-                plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setOpacity(opacity));
-            } else {
-                selectedObject.setOpacity(opacity);
-            }
+            selectedObjects().forEach(object -> object.setOpacity(opacity));
             return true;
         }
         if (slider == textObjectTextOpacitySlider && selectedObject instanceof TextObject textObject) {
@@ -4140,8 +4136,11 @@ public class PlaaniseppApp extends Application {
             plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setWidthPixels(value));
             return true;
         }
-        if (slider == powerSourceSizeSlider && selectedObject instanceof PowerSource powerSource) {
-            powerSource.setSizePixels(value);
+        if (slider == powerSourceSizeSlider && selectedObject instanceof PowerSource) {
+            selectedObjects().stream()
+                    .filter(PowerSource.class::isInstance)
+                    .map(PowerSource.class::cast)
+                    .forEach(powerSource -> powerSource.setSizePixels(value));
             return true;
         }
         return false;
@@ -8970,8 +8969,11 @@ public class PlaaniseppApp extends Application {
     private void refreshDetailControls() {
         boolean hasSelection = selectedObject != null;
         List<PlannerObject> currentSelection = selectedObjects();
+        boolean multipleSelection = selectedLogicalObjects().size() > 1;
         boolean tentSelected = selectedObject instanceof Tent;
         boolean powerSourceSelected = selectedObject instanceof PowerSource;
+        boolean onlyPowerSourcesSelected = hasSelection
+                && currentSelection.stream().allMatch(PowerSource.class::isInstance);
         boolean tartuCabinetSelected = selectedObject instanceof PowerSource source
                 && tartuCabinetSourceId(source).isPresent();
         boolean customObjectSelected = selectedObject instanceof CustomObject;
@@ -8991,22 +8993,22 @@ public class PlaaniseppApp extends Application {
                 && !textObject.sourceObjectId().isBlank();
         boolean textObjectHasMapSource = linkedTextObject
                 && ((TextObject) selectedObject).sourceType() != TextObjectSourceType.INVENTORY_SUMMARY;
-        nameField.setDisable(!hasSelection);
+        nameField.setDisable(!hasSelection || multipleSelection);
         groupField.setDisable(!hasSelection);
-        notesArea.setDisable(!hasSelection
+        notesArea.setDisable(!hasSelection || multipleSelection
                 || selectedObject instanceof TextObject textObject && textObject.syncSourceNotes());
         lockedCheckBox.setDisable(!hasSelection);
         boolean selectionHasMapLabels = currentSelection.stream()
                 .anyMatch(object -> !(object instanceof TextObject));
         showMapLabelCheckBox.setDisable(!selectionHasMapLabels);
         boolean customMapLabelPosition = hasSelection && !textObjectSelected && selectedObject.customMapLabelPosition();
-        resetMapLabelButton.setDisable(!customMapLabelPosition || mapLayoutLocked);
+        resetMapLabelButton.setDisable(multipleSelection || !customMapLabelPosition || mapLayoutLocked);
         selectedObjectOpacitySlider.setDisable(!hasSelection);
         generalRotationLabel.setVisible(generalRotationVisible);
         generalRotationLabel.setManaged(generalRotationVisible);
         generalRotationField.setVisible(generalRotationVisible);
         generalRotationField.setManaged(generalRotationVisible);
-        generalRotationField.setDisable(!generalRotationVisible);
+        generalRotationField.setDisable(!generalRotationVisible || multipleSelection);
         resetMapLabelButton.setTooltip(new Tooltip(mapLabelResetTooltip(hasSelection, textObjectSelected, customMapLabelPosition)));
         boolean lockedSelection = selectedObjects().stream().anyMatch(this::isObjectEffectivelyLocked);
         deleteObjectButton.setDisable(!hasSelection || lockedSelection || mapLayoutLocked);
@@ -9015,44 +9017,47 @@ public class PlaaniseppApp extends Application {
                 : lockedSelection
                 ? new Tooltip("Lukustatud objekti kustutamiseks eemalda enne lukustus")
                 : new Tooltip("Kustuta valitud objekt (Delete)"));
-        customObjectShapeComboBox.setDisable(!customObjectSelected);
+        customObjectShapeComboBox.setDisable(!customObjectSelected || multipleSelection);
         customObjectColorPicker.setDisable(!customObjectSelected);
-        customObjectOpacitySlider.setDisable(!customObjectSelected);
+        customObjectOpacitySlider.setDisable(!customObjectSelected || multipleSelection);
         textObjectColorPicker.setDisable(!textObjectSelected);
-        textObjectFontSizeSlider.setDisable(!textObjectSelected);
-        textObjectTextOpacitySlider.setDisable(!textObjectSelected);
-        textObjectSyncNotesCheckBox.setDisable(!linkedTextObject);
-        textObjectReferenceLineCheckBox.setDisable(!textObjectHasMapSource);
-        markerTypeComboBox.setDisable(!markerSelected);
+        textObjectFontSizeSlider.setDisable(!textObjectSelected || multipleSelection);
+        textObjectTextOpacitySlider.setDisable(!textObjectSelected || multipleSelection);
+        textObjectSyncNotesCheckBox.setDisable(!linkedTextObject || multipleSelection);
+        textObjectReferenceLineCheckBox.setDisable(!textObjectHasMapSource || multipleSelection);
+        markerTypeComboBox.setDisable(!markerSelected || multipleSelection);
         markerColorPicker.setDisable(!markerSelected);
         areaColorPicker.setDisable(!areaSelected);
-        areaOpacitySlider.setDisable(!areaSelected);
+        areaOpacitySlider.setDisable(!areaSelected || multipleSelection);
         lineColorPicker.setDisable(!lineSelected);
         fenceColorPicker.setDisable(!fenceRowSelected);
-        fenceWidthSlider.setDisable(!fenceRowSelected);
-        decreaseFenceNetworkStonesButton.setDisable(!fenceRowSelected);
-        increaseFenceNetworkStonesButton.setDisable(!fenceRowSelected);
-        showFenceInventoryLabelCheckBox.setDisable(!fenceRowSelected);
+        fenceWidthSlider.setDisable(!fenceRowSelected || multipleSelection);
+        decreaseFenceNetworkStonesButton.setDisable(!fenceRowSelected || multipleSelection);
+        increaseFenceNetworkStonesButton.setDisable(!fenceRowSelected || multipleSelection);
+        showFenceInventoryLabelCheckBox.setDisable(!fenceRowSelected || multipleSelection);
         resetFenceInventoryLabelButton.setDisable(
-                !fenceRowSelected || !((FenceRow) selectedObject).customInventoryLabelPosition()
+                !fenceRowSelected || multipleSelection
+                        || !((FenceRow) selectedObject).customInventoryLabelPosition()
         );
-        lineWidthSlider.setDisable(!lineSelected);
-        fenceSegmentCountField.setDisable(!fenceGeometryEditable);
-        fenceSegmentLengthField.setDisable(!fenceGeometryEditable);
-        fenceRotationField.setDisable(!fenceGeometryEditable);
-        tentWidthField.setDisable(!tentSelected);
-        tentHeightField.setDisable(!tentSelected);
-        tentRotationField.setDisable(!tentSelected);
+        lineWidthSlider.setDisable(!lineSelected || multipleSelection);
+        fenceSegmentCountField.setDisable(!fenceGeometryEditable || multipleSelection);
+        fenceSegmentLengthField.setDisable(!fenceGeometryEditable || multipleSelection);
+        fenceRotationField.setDisable(!fenceGeometryEditable || multipleSelection);
+        tentWidthField.setDisable(!tentSelected || multipleSelection);
+        tentHeightField.setDisable(!tentSelected || multipleSelection);
+        tentRotationField.setDisable(!tentSelected || multipleSelection);
         tentColorPicker.setDisable(!tentSelected);
-        tentOpacitySlider.setDisable(!tentSelected);
+        tentOpacitySlider.setDisable(!tentSelected || multipleSelection);
         powerSourceColorPicker.setDisable(!powerSourceSelected);
-        powerSourceSizeSlider.setDisable(!powerSourceSelected);
-        powerConnectionComboBox.setDisable(!powerConsumerSelected);
-        powerSourceComboBox.setDisable(!powerConsumerSelected);
-        connectionOutletComboBox.setDisable(!powerConsumerSelected);
-        cableLengthNotesField.setDisable(!powerConsumerSelected);
-        cableNotesField.setDisable(!powerConsumerSelected);
-        PowerConnection editedPowerConnection = powerConsumerSelected ? selectedPowerConnection() : null;
+        powerSourceSizeSlider.setDisable(!onlyPowerSourcesSelected);
+        powerConnectionComboBox.setDisable(!powerConsumerSelected || multipleSelection);
+        powerSourceComboBox.setDisable(!powerConsumerSelected || multipleSelection);
+        connectionOutletComboBox.setDisable(!powerConsumerSelected || multipleSelection);
+        cableLengthNotesField.setDisable(!powerConsumerSelected || multipleSelection);
+        cableNotesField.setDisable(!powerConsumerSelected || multipleSelection);
+        PowerConnection editedPowerConnection = powerConsumerSelected && !multipleSelection
+                ? selectedPowerConnection()
+                : null;
         cablePieceEditor.setDisable(editedPowerConnection == null);
         cableOpacitySlider.setDisable(editedPowerConnection == null);
         showSelectedCableLabelCheckBox.setDisable(editedPowerConnection == null);
@@ -9067,21 +9072,24 @@ public class PlaaniseppApp extends Application {
                 consumerHasPowerConnection,
                 customCableLabelPosition
         )));
-        equipmentList.setDisable(!equipmentContainerSelected);
-        addEquipmentButton.setDisable(!equipmentContainerSelected);
-        objectInventoryList.setDisable(!inventoryContainerSelected);
-        addObjectInventoryButton.setDisable(!inventoryContainerSelected);
-        addAlternativePowerConnectionButton.setDisable(!equipmentContainerSelected || !consumerHasPowerConnection);
+        equipmentList.setDisable(!equipmentContainerSelected || multipleSelection);
+        addEquipmentButton.setDisable(!equipmentContainerSelected || multipleSelection);
+        objectInventoryList.setDisable(!inventoryContainerSelected || multipleSelection);
+        addObjectInventoryButton.setDisable(!inventoryContainerSelected || multipleSelection);
+        addAlternativePowerConnectionButton.setDisable(
+                !equipmentContainerSelected || multipleSelection || !consumerHasPowerConnection
+        );
         removePowerConnectionButton.setDisable(editedPowerConnection == null);
         makeDefaultPowerConnectionButton.setDisable(
                 editedPowerConnection == null || editedPowerConnection.defaultForConsumer()
         );
-        outletList.setDisable(!powerSourceSelected);
-        outletNameField.setDisable(!powerSourceSelected);
-        outletTypeComboBox.setDisable(!powerSourceSelected);
-        outletCapacityWattsField.setDisable(!powerSourceSelected);
-        addOutletButton.setDisable(!powerSourceSelected);
-        boolean outletSelected = powerSourceSelected && outletList.getSelectionModel().getSelectedIndex() >= 0;
+        outletList.setDisable(!powerSourceSelected || multipleSelection);
+        outletNameField.setDisable(!powerSourceSelected || multipleSelection);
+        outletTypeComboBox.setDisable(!powerSourceSelected || multipleSelection);
+        outletCapacityWattsField.setDisable(!powerSourceSelected || multipleSelection);
+        addOutletButton.setDisable(!powerSourceSelected || multipleSelection);
+        boolean outletSelected = powerSourceSelected && !multipleSelection
+                && outletList.getSelectionModel().getSelectedIndex() >= 0;
         updateOutletButton.setDisable(!outletSelected);
         removeOutletButton.setDisable(!outletSelected);
         choosePowerSourceButton.setDisable(!powerConsumerSelected);
@@ -9316,7 +9324,7 @@ public class PlaaniseppApp extends Application {
                     signedCount(stoneSummary.adjustment()),
                     stoneSummary.totalCount()
             ));
-            decreaseFenceNetworkStonesButton.setDisable(stoneSummary.totalCount() == 0);
+            decreaseFenceNetworkStonesButton.setDisable(multipleSelection || stoneSummary.totalCount() == 0);
             showFenceInventoryLabelCheckBox.setSelected(
                     plan.showFenceNetworkInventoryLabel(fenceRow.id())
             );
@@ -9959,25 +9967,31 @@ public class PlaaniseppApp extends Application {
             return;
         }
         PlanSnapshot before = planSnapshotService.create(plan);
-        if (selectedObject instanceof Tent tent) {
-            tent.setColorHex(toHex(tentColorPicker.getValue()));
-        } else if (selectedObject instanceof PowerSource powerSource) {
-            powerSource.setColorHex(toHex(powerSourceColorPicker.getValue()));
-        } else if (selectedObject instanceof CustomObject customObject) {
-            customObject.setColorHex(toHex(customObjectColorPicker.getValue()));
-        } else if (selectedObject instanceof TextObject textObject) {
-            textObject.setColorHex(toHex(textObjectColorPicker.getValue()));
-        } else if (selectedObject instanceof MarkerObject markerObject) {
-            markerObject.setColorHex(toHex(markerColorPicker.getValue()));
-        } else if (selectedObject instanceof AreaObject areaObject) {
-            areaObject.setColorHex(toHex(areaColorPicker.getValue()));
-        } else if (selectedObject instanceof LineObject lineObject) {
-            lineObject.setColorHex(toHex(lineColorPicker.getValue()));
-        } else if (selectedObject instanceof FenceRow fenceRow) {
-            String colorHex = toHex(fenceColorPicker.getValue());
-            plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setColorHex(colorHex));
-        }
+        String colorHex = selectedColorPickerValue();
+        selectedObjects().forEach(object -> setObjectColor(object, colorHex));
         finishAutoAppliedDetailsChange(before, false);
+    }
+
+    private String selectedColorPickerValue() {
+        if (selectedObject instanceof Tent) return toHex(tentColorPicker.getValue());
+        if (selectedObject instanceof PowerSource) return toHex(powerSourceColorPicker.getValue());
+        if (selectedObject instanceof CustomObject) return toHex(customObjectColorPicker.getValue());
+        if (selectedObject instanceof TextObject) return toHex(textObjectColorPicker.getValue());
+        if (selectedObject instanceof MarkerObject) return toHex(markerColorPicker.getValue());
+        if (selectedObject instanceof AreaObject) return toHex(areaColorPicker.getValue());
+        if (selectedObject instanceof LineObject) return toHex(lineColorPicker.getValue());
+        return toHex(fenceColorPicker.getValue());
+    }
+
+    private void setObjectColor(PlannerObject object, String colorHex) {
+        if (object instanceof Tent tent) tent.setColorHex(colorHex);
+        else if (object instanceof PowerSource powerSource) powerSource.setColorHex(colorHex);
+        else if (object instanceof CustomObject customObject) customObject.setColorHex(colorHex);
+        else if (object instanceof TextObject textObject) textObject.setColorHex(colorHex);
+        else if (object instanceof MarkerObject markerObject) markerObject.setColorHex(colorHex);
+        else if (object instanceof AreaObject areaObject) areaObject.setColorHex(colorHex);
+        else if (object instanceof LineObject lineObject) lineObject.setColorHex(colorHex);
+        else if (object instanceof FenceRow fenceRow) fenceRow.setColorHex(colorHex);
     }
 
     private void autoApplyMarkerType() {
