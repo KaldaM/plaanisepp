@@ -1133,6 +1133,8 @@ public class PlaaniseppApp extends Application {
             lineObjectsItem.setSelected(showLineObjectsButton.isSelected());
         });
 
+        MenuItem gettingStartedItem = new MenuItem("Alustamise juhend");
+        gettingStartedItem.setOnAction(event -> showGettingStartedGuide());
         MenuItem shortcutsItem = new MenuItem("Klahvikombinatsioonid");
         shortcutsItem.setOnAction(event -> showKeyboardShortcuts());
         MenuItem versionsItem = new MenuItem("Versioonid");
@@ -1141,6 +1143,7 @@ public class PlaaniseppApp extends Application {
         aboutItem.setOnAction(event -> showAboutDialog());
         Menu helpMenu = new Menu("Abi");
         helpMenu.getItems().addAll(
+                gettingStartedItem,
                 shortcutsItem,
                 versionsItem,
                 new SeparatorMenuItem(),
@@ -1149,6 +1152,37 @@ public class PlaaniseppApp extends Application {
 
         updatePlanHistoryButtons();
         return new MenuBar(fileMenu, editMenu, viewMenu, helpMenu);
+    }
+
+    private void showGettingStartedGuide() {
+        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        dialog.initOwner(stage);
+        dialog.setTitle("Alustamise juhend");
+        dialog.setHeaderText("Esimese plaani koostamine");
+        TextArea guide = new TextArea("""
+                1. Loo plaan
+                Vali Fail → Uus plaan, anna plaanile nimi ja vali aluskaart. Tehnilisi seadeid pole tavaliselt vaja muuta.
+
+                2. Lisa objektid
+                Vali ülaribalt objekti tüüp, vajuta „Lisa” ja klõpsa kaardil soovitud asukohta. Ala, joone ja aia puhul märgi kaardil järjest vajalikud punktid.
+
+                3. Muuda plaani
+                Klõpsa objektil või vali see külgpaneeli jaotisest „Objektid”. Selle nime, gruppi, mõõte ja inventari saab muuta jaotises „Valitud objekt”.
+
+                4. Korralda ja kontrolli
+                Kasuta gruppe plaani osade eristamiseks. Silmaikoon peidab objekti ning lukuikoon kaitseb seda kogemata liigutamise eest. Muudatusi saab tagasi võtta Ctrl+Z abil.
+
+                5. Salvesta ja jaga
+                Salvesta Ctrl+S abil. Jagatava kaardi ja objektide loendi loomiseks vali Fail → Ekspordi → Plaan ja raport (PDF)…
+
+                Kui vajad elektrikaableid, kilpe ja koormuste arvutamist, lülita menüüs Vaade „Korraldajavaade” välja.
+                """);
+        guide.setEditable(false);
+        guide.setWrapText(true);
+        guide.setPrefSize(650, 380);
+        dialog.getDialogPane().setContent(guide);
+        dialog.getDialogPane().setPrefWidth(700);
+        dialog.showAndWait();
     }
 
     private CheckMenuItem mapLayerMenuItem(

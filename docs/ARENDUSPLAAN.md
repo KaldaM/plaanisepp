@@ -41,6 +41,8 @@ Enne festivaliülest optimeerimist ja muid keerukaid koondfunktsioone peab Plaan
 
 Uue plaani ja „Plaani andmed” dialoogi põhivaates kuvatakse ainult plaani nimi, festival/sündmus ja kaardi valik. Mõõtkava ning objekti- ja kaablisiltide suurused asuvad vaikimisi suletud „Täpsemad seaded” jaotises, et korraldaja ei peaks plaani alustamisel tegema tarbetuid tehnilisi valikuid.
 
+„Abi → Alustamise juhend” kirjeldab korraldajale viie lühikese sammuna plaani loomist, objektide lisamist ja muutmist, gruppide ning nähtavuse kasutamist, salvestamist ja PDF-i jagamist. Juhend viitab tehnikuvaatele alles siis, kui kasutaja vajab elektriplaneerimist.
+
 Festivali inventari tippvajaduse ja esemete ürituste vahel ümberpaigutamise arvutus on **väga madala prioriteediga**. Seda ei teostata enne, kui korraldajate põhiteekond on päriskasutuses kinnitatud ja ürituste ajastamise tegelikud reeglid on selged.
 
 ## Järgmise töökorra märkmed — 31. august 2026
