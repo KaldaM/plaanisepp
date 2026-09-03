@@ -5284,6 +5284,12 @@ public class PlaaniseppApp extends Application {
                     : "Lisa järgmine punkt · lõpeta lint Enteriga");
             return;
         }
+        boolean hasVisiblePlanningObjects = plan != null && plan.objects().stream()
+                .anyMatch(object -> !organizerView || !(object instanceof PowerSource));
+        if (!hasVisiblePlanningObjects) {
+            mapToolStatusLabel.setText("Vali objekti tüüp → Lisa → klõpsa kaardil");
+            return;
+        }
         mapToolStatusLabel.setText(organizerView
                 ? "Korraldajavaade"
                 : "Vali tööriist või objekt");

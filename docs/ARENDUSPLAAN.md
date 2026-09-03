@@ -43,6 +43,8 @@ Uue plaani ja „Plaani andmed” dialoogi põhivaates kuvatakse ainult plaani n
 
 „Abi → Alustamise juhend” kirjeldab korraldajale viie lühikese sammuna plaani loomist, objektide lisamist ja muutmist, gruppide ning nähtavuse kasutamist, salvestamist ja PDF-i jagamist. Sama juhend avaneb „Kuidas alustada?” nupust juba plaanide avavaates, ka siis, kui kasutajal pole veel ühtegi hiljutist plaani. Juhend viitab tehnikuvaatele alles siis, kui kasutaja vajab elektriplaneerimist.
 
+Tühja plaani olekuriba juhendab esimese objektini lühikese tegevusreaga „Vali objekti tüüp → Lisa → klõpsa kaardil”. Korraldajavaates ei loeta automaatselt imporditud peidetud elektrikilpe korraldaja plaaniobjektideks, seega jääb juhis nähtavaks kuni esimese korraldajale nähtava objekti lisamiseni.
+
 Festivali inventari tippvajaduse ja esemete ürituste vahel ümberpaigutamise arvutus on **väga madala prioriteediga**. Seda ei teostata enne, kui korraldajate põhiteekond on päriskasutuses kinnitatud ja ürituste ajastamise tegelikud reeglid on selged.
 
 ## Järgmise töökorra märkmed — 31. august 2026
