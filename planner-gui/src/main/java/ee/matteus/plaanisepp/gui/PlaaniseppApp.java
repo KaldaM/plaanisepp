@@ -3323,9 +3323,9 @@ public class PlaaniseppApp extends Application {
             double length = CableDisplayHelper.lengthMeters(
                     cablePath(consumer, powerSource, connection), pixelsPerMeter());
             String pieces = connection.cableLengthNotes().isBlank()
-                    ? "kaablitükid määramata"
-                    : "tükid " + connection.cableLengthNotes();
-            return "Kaabel %s · %.1f m · %s%s".formatted(
+                    ? ""
+                    : " · tükid " + connection.cableLengthNotes();
+            return "Kaabel %s · %.1f m%s%s".formatted(
                     CableDisplayHelper.shortTypeName(connection.connectorType()),
                     length,
                     pieces,
