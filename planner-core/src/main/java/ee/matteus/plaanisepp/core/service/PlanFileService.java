@@ -55,7 +55,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 26;
+    public static final int CURRENT_FORMAT_VERSION = 27;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -216,6 +216,7 @@ public class PlanFileService {
             properties.setProperty(prefix + "cableNotes", connection.cableNotes());
             properties.setProperty(prefix + "cableLengthNotes", connection.cableLengthNotes());
             properties.setProperty(prefix + "showCableLabel", Boolean.toString(plan.showCableLabel(connection.id())));
+            properties.setProperty(prefix + "hidden", Boolean.toString(plan.isCableHidden(connection.id())));
             properties.setProperty(prefix + "opacity", Double.toString(plan.cableOpacity(connection.id())));
             properties.setProperty(prefix + "customCableLabelPosition", Boolean.toString(connection.customCableLabelPosition()));
             properties.setProperty(prefix + "cableLabelOffsetX", Double.toString(connection.cableLabelOffset().x()));
@@ -443,6 +444,8 @@ public class PlanFileService {
                 connection.id(), readRoutePoints(properties, prefix)));
         loadedConnection.ifPresent(connection -> plan.setShowCableLabel(
                 connection.id(), booleanValue(properties, prefix + "showCableLabel", true)));
+        loadedConnection.ifPresent(connection -> plan.setCableHidden(
+                connection.id(), booleanValue(properties, prefix + "hidden", false)));
         loadedConnection.ifPresent(connection -> plan.setCableOpacity(
                 connection.id(), doubleValue(properties, prefix + "opacity", 1.0)));
         if (loadedConnection.isPresent()

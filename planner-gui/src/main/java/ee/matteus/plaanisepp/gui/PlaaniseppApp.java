@@ -2872,12 +2872,11 @@ public class PlaaniseppApp extends Application {
                                 () -> renderLayerTextCell(this, "Puuduv objekt", "", "#9ca3af")
                         );
                     } else {
-                        renderLayerTextCell(
-                                this,
-                                layerEntryName(entry),
-                                layerEntryDetailText(entry),
-                                layerEntryColorHex(entry)
-                        );
+                        plan.findPowerConnection(entry.id()).ifPresent(connection -> {
+                            setText(null);
+                            setGraphic(createCableListRow(connection));
+                            setStyle("");
+                        });
                     }
                 }
             };
@@ -3019,18 +3018,37 @@ public class PlaaniseppApp extends Application {
             PowerConnection connection
     ) {
         PlanLayerEntry entry = PlanLayerEntry.cable(connection.id());
+        cell.setText(null);
+        cell.setGraphic(createCableListRow(connection));
+        cell.setStyle("");
+        cell.setOnContextMenuRequested(null);
+    }
+
+    private HBox createCableListRow(PowerConnection connection) {
+        PlanLayerEntry entry = PlanLayerEntry.cable(connection.id());
+        boolean hidden = plan.isCableHidden(connection.id());
         Label nameLabel = new Label(layerEntryName(entry));
         nameLabel.setStyle("-fx-font-weight: bold;");
         Label detailLabel = new Label(layerEntryDetailText(entry));
         detailLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 11;");
         VBox textBox = new VBox(2, nameLabel, detailLabel);
-        HBox row = new HBox(6, objectListColorSwatch(layerEntryColorHex(entry), true), textBox);
+        Button visibilityButton = objectStateIconButton(
+                "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+                !hidden,
+                hidden ? "Kuva kaabel kaardil" : "Peida kaabel kaardilt",
+                () -> setCableHidden(connection.id(), !hidden));
+        HBox row = new HBox(6, visibilityButton,
+                objectListColorSwatch(layerEntryColorHex(entry), !hidden), textBox);
         row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        row.setPadding(new Insets(0, 0, 0, 102));
-        cell.setText(null);
-        cell.setGraphic(row);
-        cell.setStyle("");
-        cell.setOnContextMenuRequested(null);
+        row.setPadding(new Insets(0, 0, 0, 68));
+        return row;
+    }
+
+    private void setCableHidden(String connectionId, boolean hidden) {
+        plan.setCableHidden(connectionId, hidden);
+        redrawMap();
+        refreshObjectList();
+        markDirty();
     }
 
     private int layerDropTargetIndex(
@@ -3304,11 +3322,12 @@ public class PlaaniseppApp extends Application {
             if (!(source instanceof PowerSource powerSource) || consumer == null) return "Puuduv kaabel";
             double length = CableDisplayHelper.lengthMeters(
                     cablePath(consumer, powerSource, connection), pixelsPerMeter());
-            return "Kaabel %s · %.1f m · %s → %s".formatted(
+            return "Kaabel %s · %.1f m · %s → %s%s".formatted(
                     CableDisplayHelper.shortTypeName(connection.connectorType()),
                     length,
                     groupNameForFilter(source),
-                    groupNameForFilter(consumer)
+                    groupNameForFilter(consumer),
+                    plan.isCableHidden(connection.id()) ? " · peidetud" : ""
             );
         }).orElse("Puuduv kaabel");
     }
@@ -6114,7 +6133,7 @@ public class PlaaniseppApp extends Application {
 
     private void drawPowerConnection(String connectionId) {
         plan.findPowerConnection(connectionId).ifPresent(connection -> {
-            if (!showCableType(connection.connectorType())) return;
+            if (plan.isCableHidden(connectionId) || !showCableType(connection.connectorType())) return;
             PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
             PowerSource source = plan.findObject(connection.sourceId())
                     .filter(PowerSource.class::isInstance)
