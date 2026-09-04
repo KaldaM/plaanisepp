@@ -456,6 +456,9 @@ public class PlaaniseppApp extends Application {
     private VBox powerSourcePanel;
     private Button powerSourceAttachmentsButton;
     private VBox powerConnectionPanel;
+    private Label selectedCableSummaryLabel;
+    private GridPane selectedObjectBaseForm;
+    private VBox selectedObjectNotesPanel;
     private VBox equipmentPanel;
     private VBox outletPanel;
     private Button deleteObjectButton;
@@ -486,6 +489,7 @@ public class PlaaniseppApp extends Application {
     private ComboBox<PlacementType> placementTypeComboBox;
     private Button addPlacementButton;
     private PlannerObject selectedObject;
+    private String selectedCableConnectionId;
     private PlannerObject pendingPowerSourceConsumer;
     private Dialog<ButtonType> objectEditDialog;
     private boolean objectEditDialogHiddenForPowerSourceSelection;
@@ -3085,7 +3089,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private String cableListSelectionStyle(PowerConnection connection) {
-        return connection.id().equals(selectedPowerConnectionId())
+        return connection.id().equals(selectedCableConnectionId)
                 ? "-fx-background-color: rgba(37,99,235,0.24);"
                         + "-fx-border-color: transparent transparent transparent #2563eb;"
                         + "-fx-border-width: 0 0 0 3;"
@@ -4552,15 +4556,15 @@ public class PlaaniseppApp extends Application {
         removeOutletButton = new Button("Eemalda valitud");
         removeOutletButton.setOnAction(event -> removeSelectedOutlet());
 
-        GridPane baseForm = detailGrid();
-        baseForm.addRow(0, new Label("Tüüp"), selectedTypeLabel);
-        baseForm.addRow(1, new Label("Nimi"), nameField);
-        baseForm.addRow(2, new Label("Grupp"), groupField);
-        baseForm.addRow(3, new Label("Lukustus"), lockedCheckBox);
-        baseForm.addRow(4, new Label("Kaardil"), showMapLabelCheckBox);
-        baseForm.addRow(5, new Label("Nime asukoht"), resetMapLabelButton);
-        baseForm.addRow(6, new Label("Läbipaistvus"), opacityControl(selectedObjectOpacitySlider));
-        baseForm.addRow(7, generalRotationLabel, generalRotationField);
+        selectedObjectBaseForm = detailGrid();
+        selectedObjectBaseForm.addRow(0, new Label("Tüüp"), selectedTypeLabel);
+        selectedObjectBaseForm.addRow(1, new Label("Nimi"), nameField);
+        selectedObjectBaseForm.addRow(2, new Label("Grupp"), groupField);
+        selectedObjectBaseForm.addRow(3, new Label("Lukustus"), lockedCheckBox);
+        selectedObjectBaseForm.addRow(4, new Label("Kaardil"), showMapLabelCheckBox);
+        selectedObjectBaseForm.addRow(5, new Label("Nime asukoht"), resetMapLabelButton);
+        selectedObjectBaseForm.addRow(6, new Label("Läbipaistvus"), opacityControl(selectedObjectOpacitySlider));
+        selectedObjectBaseForm.addRow(7, generalRotationLabel, generalRotationField);
 
         GridPane customObjectForm = detailGrid();
         customObjectForm.addRow(0, new Label("Kuju"), customObjectShapeComboBox);
@@ -4697,9 +4701,13 @@ public class PlaaniseppApp extends Application {
         HBox powerConnectionActions = new HBox(
                 8, addAlternativePowerConnectionButton, makeDefaultPowerConnectionButton, removePowerConnectionButton
         );
+        selectedCableSummaryLabel = new Label();
+        selectedCableSummaryLabel.setWrapText(true);
+        selectedCableSummaryLabel.setStyle("-fx-font-weight: bold;");
         powerConnectionPanel = new VBox(
                 8,
                 sectionLabel("Vool"),
+                selectedCableSummaryLabel,
                 powerConnectionForm,
                 cableDetailsPane,
                 powerConnectionActions
@@ -4735,9 +4743,10 @@ public class PlaaniseppApp extends Application {
                 removeOutletButton
         );
         outletSection = collapsibleSection(OUTLET_SECTION, "Kapi väljundid", outletPanel, false);
+        selectedObjectNotesPanel = new VBox(8, sectionLabel("Märkmed"), notesForm);
         VBox detailPanel = new VBox(
                 10,
-                baseForm,
+                selectedObjectBaseForm,
                 customObjectPanel,
                 textObjectPanel,
                 markerPanel,
@@ -4750,7 +4759,7 @@ public class PlaaniseppApp extends Application {
                 equipmentSection,
                 objectInventorySection,
                 outletSection,
-                new VBox(8, sectionLabel("Märkmed"), notesForm),
+                selectedObjectNotesPanel,
                 deleteObjectButton
         );
         detailPanel.setPadding(new Insets(0, 0, 12, 0));
@@ -6579,7 +6588,7 @@ public class PlaaniseppApp extends Application {
     private void drawPowerConnection(PowerCableView cable) {
         List<Position> path = cablePath(cable);
         Color cableColor = CableDisplayHelper.color(cable.connection().connectorType());
-        boolean selectedCable = cable.connection().id().equals(selectedPowerConnectionId())
+        boolean selectedCable = cable.connection().id().equals(selectedCableConnectionId)
                 || addingCablePoint && cable.connection().id().equals(editingCableConnectionId);
         double strokeWidth = adaptiveMapPixels(CableDisplayHelper.width(cable.connection().connectorType())
                 + (selectedCable ? 2.0 : 0.0));
@@ -6756,12 +6765,24 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
+            if (cable.connection() != null && pointerHitsObjectVisual(consumer, event)) {
+                selectObject(consumer);
+                event.consume();
+                return;
+            }
             selectObject(consumer);
             if (cable.connection() != null) {
                 selectPowerConnection(cable.connection().id());
             }
             event.consume();
         });
+    }
+
+    private boolean pointerHitsObjectVisual(PlannerObject object, MouseEvent event) {
+        return mapObjectVisualNodes.getOrDefault(object.id(), List.of()).stream()
+                .filter(Node::isVisible)
+                .filter(node -> node.getOpacity() > 0)
+                .anyMatch(node -> node.contains(node.sceneToLocal(event.getSceneX(), event.getSceneY())));
     }
 
     private void showCableContextMenu(PowerCableView cable, double screenX, double screenY) {
@@ -9552,6 +9573,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void selectObject(PlannerObject object) {
+        selectedCableConnectionId = null;
         selectedMeasurementPaths.clear();
         if (temporarilyRevealedObjectId != null
                 && (object == null || !logicalObjectIds(object).contains(temporarilyRevealedObjectId))) {
@@ -9799,6 +9821,24 @@ public class PlaaniseppApp extends Application {
         }
     }
 
+    private void revealCableInObjectList(String connectionId) {
+        if (objectList != null) {
+            objectList.getItems().stream()
+                    .filter(ObjectListEntry::isCable)
+                    .filter(entry -> entry.connectionId().equals(connectionId))
+                    .findFirst()
+                    .ifPresent(entry -> selectSidebarItem(objectList, entry, objectListSection));
+        }
+        if (layerList != null && layerOrderModeButton != null && layerOrderModeButton.isSelected()) {
+            layerList.getItems().stream()
+                    .filter(entry -> entry.type() == PlanLayerEntry.Type.CABLE)
+                    .filter(entry -> entry.id().equals(connectionId))
+                    .findFirst()
+                    .ifPresent(entry -> selectSidebarItem(layerList, entry, objectListSection));
+        }
+        updateRevealObjectButton();
+    }
+
     private boolean objectListEntryRepresents(ObjectListEntry entry, PlannerObject object) {
         PlannerObject listedObject = entry.objectItem().object();
         if (listedObject.id().equals(object.id())) {
@@ -9981,6 +10021,15 @@ public class PlaaniseppApp extends Application {
 
     private void refreshDetailControls() {
         boolean hasSelection = selectedObject != null;
+        boolean cableSelected = selectedCableConnectionId != null
+                && plan.findPowerConnection(selectedCableConnectionId).isPresent();
+        selectedObjectSection.setText(cableSelected ? "Valitud kaabel" : "Valitud objekt");
+        setSectionVisible(selectedCableSummaryLabel, cableSelected);
+        if (cableSelected) {
+            PlanLayerEntry cableEntry = PlanLayerEntry.cable(selectedCableConnectionId);
+            selectedCableSummaryLabel.setText("%s\n%s".formatted(
+                    layerEntryName(cableEntry), layerEntryDetailText(cableEntry)));
+        }
         List<PlannerObject> currentSelection = selectedObjects();
         boolean multipleSelection = selectedLogicalObjects().size() > 1;
         boolean tentSelected = selectedObject instanceof Tent;
@@ -10127,21 +10176,23 @@ public class PlaaniseppApp extends Application {
         choosePowerSourceButton.setText(selectingPowerSourceForThisConsumer
                 ? "Tühista kapi valik"
                 : "Vali kapp kaardilt");
-        setSectionVisible(customObjectPanel, customObjectSelected);
-        setSectionVisible(textObjectPanel, textObjectSelected);
-        setSectionVisible(markerPanel, markerSelected);
-        setSectionVisible(areaPanel, areaSelected);
-        setSectionVisible(linePanel, lineSelected);
-        setSectionVisible(fenceRowPanel, fenceRowSelected);
-        setSectionVisible(tentPanel, tentSelected);
-        setSectionVisible(powerSourcePanel, powerSourceSelected);
+        setSectionVisible(selectedObjectBaseForm, hasSelection && !cableSelected);
+        setSectionVisible(customObjectPanel, customObjectSelected && !cableSelected);
+        setSectionVisible(textObjectPanel, textObjectSelected && !cableSelected);
+        setSectionVisible(markerPanel, markerSelected && !cableSelected);
+        setSectionVisible(areaPanel, areaSelected && !cableSelected);
+        setSectionVisible(linePanel, lineSelected && !cableSelected);
+        setSectionVisible(fenceRowPanel, fenceRowSelected && !cableSelected);
+        setSectionVisible(tentPanel, tentSelected && !cableSelected);
+        setSectionVisible(powerSourcePanel, powerSourceSelected && !cableSelected);
         setSectionVisible(powerSourceAttachmentsButton, tartuCabinetSelected && !organizerView);
         setSectionVisible(powerConnectionPanel, powerConsumerSelected && !organizerView);
-        setSectionVisible(equipmentSection, equipmentContainerSelected);
-        setSectionVisible(objectInventorySection, inventoryContainerSelected);
+        setSectionVisible(equipmentSection, equipmentContainerSelected && !cableSelected);
+        setSectionVisible(objectInventorySection, inventoryContainerSelected && !cableSelected);
         setSectionVisible(outletSection, powerSourceSelected && !organizerView);
         setSectionVisible(choosePowerSourceButton, powerConsumerSelected && !organizerView);
-        setSectionVisible(deleteObjectButton, hasSelection);
+        setSectionVisible(selectedObjectNotesPanel, hasSelection && !cableSelected);
+        setSectionVisible(deleteObjectButton, hasSelection && !cableSelected);
 
         if (!hasSelection) {
             selectedTypeLabel.setText("Vali kaardilt objekt");
@@ -12544,10 +12595,13 @@ public class PlaaniseppApp extends Application {
         if (connectionId == null || connectionId.isBlank()) {
             return;
         }
+        selectedCableConnectionId = connectionId;
         powerConnectionComboBox.getItems().stream()
                 .filter(choice -> choice.connectionId().equals(connectionId))
                 .findFirst()
                 .ifPresent(choice -> powerConnectionComboBox.getSelectionModel().select(choice));
+        refreshDetails();
+        revealCableInObjectList(connectionId);
         if (objectList != null) objectList.refresh();
         if (layerList != null) layerList.refresh();
         redrawMap();
