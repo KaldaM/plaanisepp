@@ -3868,12 +3868,14 @@ public class PlaaniseppApp extends Application {
                     isObjectVisibleOnMap(object)
             ));
         }
+        Map<PlanLayerEntry, Integer> layerIndexes = new HashMap<>();
+        for (int index = 0; index < plan.layerOrder().size(); index++) {
+            layerIndexes.put(plan.layerOrder().get(index), index);
+        }
         List<ObjectListItem> objectItems = unfilteredItems.stream()
                 .filter(item -> objectListItemMatches(item, query))
-                .sorted(Comparator
-                        .comparing(ObjectListItem::visible).reversed()
-                        .thenComparing(ObjectListItem::type, String.CASE_INSENSITIVE_ORDER)
-                        .thenComparing(item -> item.object().name(), String.CASE_INSENSITIVE_ORDER))
+                .sorted(Comparator.comparingInt((ObjectListItem item) -> layerIndexes.getOrDefault(
+                        PlanLayerEntry.object(item.object().id()), -1)).reversed())
                 .toList();
 
         Map<String, List<ObjectListItem>> itemsByGroup = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
