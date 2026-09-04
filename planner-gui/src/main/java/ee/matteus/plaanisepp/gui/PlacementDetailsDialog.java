@@ -69,6 +69,7 @@ final class PlacementDetailsDialog {
         TextField fenceSegmentLengthField = new TextField(Double.toString(initialFenceSegmentLengthMeters));
         CheckBox showFenceInventoryLabelCheckBox = new CheckBox("Näita kogusesilti");
         showFenceInventoryLabelCheckBox.setSelected(initialShowFenceInventoryLabel);
+        CheckBox highFenceCheckBox = new CheckBox("Kõrge aed (2 m)");
         Label fenceRingPreviewLabel = new Label();
         fenceRingPreviewLabel.setWrapText(true);
 
@@ -107,6 +108,7 @@ final class PlacementDetailsDialog {
                 fenceRadiusField,
                 fenceSegmentLengthField,
                 showFenceInventoryLabelCheckBox,
+                highFenceCheckBox,
                 fenceRingPreviewLabel
         );
         if (placementType == PlacementType.FENCE_RING) {
@@ -151,7 +153,8 @@ final class PlacementDetailsDialog {
                 showMapLabelCheckBox,
                 fenceRadiusField,
                 fenceSegmentLengthField,
-                showFenceInventoryLabelCheckBox
+                showFenceInventoryLabelCheckBox,
+                highFenceCheckBox
         );
     }
 
@@ -234,6 +237,7 @@ final class PlacementDetailsDialog {
             TextField fenceRadiusField,
             TextField fenceSegmentLengthField,
             CheckBox showFenceInventoryLabelCheckBox,
+            CheckBox highFenceCheckBox,
             Label fenceRingPreviewLabel
     ) {
         GridPane form = detailGrid();
@@ -257,11 +261,13 @@ final class PlacementDetailsDialog {
             form.addRow(3, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
             form.addRow(4, new Label("Paksus"), pixelControl(lineWidthSlider));
             form.addRow(5, new Label("Kogusesilt"), showFenceInventoryLabelCheckBox);
-            form.addRow(6, new Label("Eelvaade"), fenceRingPreviewLabel);
+            form.addRow(6, new Label("Aia tüüp"), highFenceCheckBox);
+            form.addRow(7, new Label("Eelvaade"), fenceRingPreviewLabel);
         } else if (placementType == PlacementType.FENCE_ROW) {
             form.addRow(2, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
             form.addRow(3, new Label("Paksus"), pixelControl(lineWidthSlider));
             form.addRow(4, new Label("Kogusesilt"), showFenceInventoryLabelCheckBox);
+            form.addRow(5, new Label("Aia tüüp"), highFenceCheckBox);
         } else if (placementType == PlacementType.LINE_OBJECT) {
             form.addRow(2, new Label("Paksus"), pixelControl(lineWidthSlider));
         } else if (placementType == PlacementType.TEXT_OBJECT) {
@@ -277,8 +283,8 @@ final class PlacementDetailsDialog {
         return switch (placementType) {
             case TENT, DJ_TRUCK -> 5;
             case CUSTOM_OBJECT -> 6;
-            case FENCE_RING -> 7;
-            case FENCE_ROW -> 5;
+            case FENCE_RING -> 8;
+            case FENCE_ROW -> 6;
             case MARKER_OBJECT, AREA_OBJECT, LINE_OBJECT, TEXT_OBJECT -> 3;
             case POWER_SOURCE, DISTRIBUTION_PANEL -> 2;
         };
@@ -302,7 +308,8 @@ final class PlacementDetailsDialog {
             CheckBox showMapLabelCheckBox,
             TextField fenceRadiusField,
             TextField fenceSegmentLengthField,
-            CheckBox showFenceInventoryLabelCheckBox
+            CheckBox showFenceInventoryLabelCheckBox,
+            CheckBox highFenceCheckBox
     ) {
         String groupName = groupComboBox.getEditor().getText().trim();
         if (groupName.isBlank()) {
@@ -360,7 +367,8 @@ final class PlacementDetailsDialog {
                 showMapLabelCheckBox.isSelected(),
                 fenceRingValues.radiusMeters(),
                 fenceSegmentLength,
-                showFenceInventoryLabelCheckBox.isSelected()
+                showFenceInventoryLabelCheckBox.isSelected(),
+                highFenceCheckBox.isSelected()
         ));
     }
 
@@ -660,7 +668,8 @@ record PlacementDetails(
         boolean showMapLabel,
         double fenceRadiusMeters,
         double fenceSegmentLengthMeters,
-        boolean showFenceInventoryLabel
+        boolean showFenceInventoryLabel,
+        boolean highFence
 ) {
 }
 

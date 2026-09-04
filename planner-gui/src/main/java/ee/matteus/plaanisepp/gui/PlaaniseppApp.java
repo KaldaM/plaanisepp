@@ -470,6 +470,7 @@ public class PlaaniseppApp extends Application {
     private Boolean pendingPlacementShowMapLabel;
     private Boolean pendingPlacementShowFenceInventoryLabel;
     private Double pendingFenceSegmentLengthMeters;
+    private boolean pendingHighFence;
     private CustomObjectShape pendingPlacementShape;
     private boolean pendingTentPlacement;
     private PlacementType pendingTentPlacementType;
@@ -4379,6 +4380,7 @@ public class PlaaniseppApp extends Application {
         pendingPlacementShowMapLabel = placementDetails.showMapLabel();
         pendingPlacementShowFenceInventoryLabel = placementDetails.showFenceInventoryLabel();
         pendingFenceSegmentLengthMeters = placementDetails.fenceSegmentLengthMeters();
+        pendingHighFence = placementDetails.highFence();
         pendingFenceRingRadiusMeters = placementDetails.fenceRadiusMeters();
         preferences.putBoolean(PLACEMENT_SHOW_MAP_LABEL_PREFERENCE, placementDetails.showMapLabel());
         if (selectedType == PlacementType.FENCE_ROW || selectedType == PlacementType.FENCE_RING) {
@@ -4763,6 +4765,7 @@ public class PlaaniseppApp extends Application {
             row.setSegmentCount(1);
             row.setSegmentLengthMeters(pendingFenceSegmentLengthMetersOrDefault());
             row.setShowInventoryLabel(pendingPlacementShowFenceInventoryLabelOrDefault());
+            row.setHighFence(pendingHighFence);
             row.setRotationDegrees(Math.toDegrees(Math.atan2(end.y() - start.y(), end.x() - start.x())));
             plan.addObject(row);
             if (firstStartJointId == null) {
@@ -4824,6 +4827,7 @@ public class PlaaniseppApp extends Application {
         fenceRow.setSegmentCount(segmentCount);
         fenceRow.setSegmentLengthMeters(fenceSegmentLength);
         fenceRow.setShowInventoryLabel(pendingPlacementShowFenceInventoryLabelOrDefault());
+        fenceRow.setHighFence(pendingHighFence);
         if (pendingFenceTemplateRowId != null) {
             plan.findObject(pendingFenceTemplateRowId)
                     .filter(FenceRow.class::isInstance)
@@ -4835,6 +4839,7 @@ public class PlaaniseppApp extends Application {
                         fenceRow.setWidthPixels(parent.widthPixels());
                         fenceRow.setSegmentLengthMeters(parent.segmentLengthMeters());
                         fenceRow.setShowInventoryLabel(parent.showInventoryLabel());
+                        fenceRow.setHighFence(parent.highFence());
                     });
         }
         fenceRow.setRotationDegrees(Math.toDegrees(Math.atan2(deltaY, deltaX)));
@@ -5032,6 +5037,7 @@ public class PlaaniseppApp extends Application {
         pendingPlacementShowMapLabel = null;
         pendingPlacementShowFenceInventoryLabel = null;
         pendingFenceSegmentLengthMeters = null;
+        pendingHighFence = false;
         pendingPowerSourcePlacementType = null;
         pendingShapePoints.clear();
     }
