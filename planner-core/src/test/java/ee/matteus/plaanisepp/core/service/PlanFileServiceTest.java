@@ -139,7 +139,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(27, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(28, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -893,13 +893,14 @@ class PlanFileServiceTest {
         plan.updateCableLabelOffsetForConnection(alternativeConnection.id(), new Position(7, 8));
         plan.setShowCableLabel(alternativeConnection.id(), false);
         plan.setCableHidden(alternativeConnection.id(), true);
+        plan.setCableLocked(alternativeConnection.id(), true);
         plan.assignEquipmentToPowerConnection(tent.id(), fridge.id(), alternativeConnection.id());
         Path file = tempDirectory.resolve("multiple-power-connections.pplan");
 
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(27, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(28, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()
@@ -912,6 +913,7 @@ class PlanFileServiceTest {
         assertEquals(new Position(7, 8), loadedAlternative.cableLabelOffset());
         assertFalse(loadedPlan.showCableLabel(loadedAlternative.id()));
         assertTrue(loadedPlan.isCableHidden(loadedAlternative.id()));
+        assertTrue(loadedPlan.isCableLocked(loadedAlternative.id()));
         Tent loadedTent = (Tent) loadedPlan.findObject(tent.id()).orElseThrow();
         assertEquals(alternativeConnection.id(), loadedTent.equipment().get(1).powerConnectionId());
         assertEquals(1200, new PowerSummaryService().summaries(loadedPlan).get(0).usedWatts());

@@ -3025,6 +3025,7 @@ public class PlaaniseppApp extends Application {
     private HBox createCableListRow(PowerConnection connection) {
         PlanLayerEntry entry = PlanLayerEntry.cable(connection.id());
         boolean hidden = plan.isCableHidden(connection.id());
+        boolean locked = plan.isCableLocked(connection.id());
         Label nameLabel = new Label(layerEntryName(entry));
         nameLabel.setStyle("-fx-font-weight: bold;");
         Label detailLabel = new Label(layerEntryDetailText(entry));
@@ -3035,15 +3036,27 @@ public class PlaaniseppApp extends Application {
                 !hidden,
                 hidden ? "Kuva kaabel kaardil" : "Peida kaabel kaardilt",
                 () -> setCableHidden(connection.id(), !hidden));
-        HBox row = new HBox(6, visibilityButton,
+        Button lockButton = objectStateIconButton(
+                "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",
+                locked,
+                locked ? "Eemalda kaabli lukustus" : "Lukusta kaabel",
+                () -> setCableLocked(connection.id(), !locked));
+        HBox row = new HBox(6, visibilityButton, lockButton,
                 objectListColorSwatch(layerEntryColorHex(entry), !hidden), textBox);
         row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        row.setPadding(new Insets(0, 0, 0, 68));
+        row.setPadding(new Insets(0, 0, 0, 34));
         return row;
     }
 
     private void setCableHidden(String connectionId, boolean hidden) {
         plan.setCableHidden(connectionId, hidden);
+        redrawMap();
+        refreshObjectList();
+        markDirty();
+    }
+
+    private void setCableLocked(String connectionId, boolean locked) {
+        plan.setCableLocked(connectionId, locked);
         redrawMap();
         refreshObjectList();
         markDirty();
@@ -3327,7 +3340,8 @@ public class PlaaniseppApp extends Application {
                     CableDisplayHelper.shortTypeName(connection.connectorType()),
                     length,
                     pieces,
-                    plan.isCableHidden(connection.id()) ? " · peidetud" : ""
+                    (plan.isCableHidden(connection.id()) ? " · peidetud" : "")
+                            + (plan.isCableLocked(connection.id()) ? " · lukus" : "")
             );
         }).orElse("Puuduv kaabel");
     }
@@ -6460,7 +6474,7 @@ public class PlaaniseppApp extends Application {
         }
         List<Circle> routePointMarkers = new ArrayList<>();
         Circle anchorMarker = null;
-        if (selectedCable && !mapLayoutLocked) {
+        if (selectedCable && !mapLayoutLocked && !plan.isCableLocked(cable.connection().id())) {
             for (int index = 0; index < cable.connection().routePoints().size(); index++) {
                 Position routePoint = cable.connection().routePoints().get(index);
                 Circle marker = new Circle(routePoint.x(), routePoint.y(), screenPixels(5));
@@ -6598,7 +6612,7 @@ public class PlaaniseppApp extends Application {
         MenuItem routeItem = new MenuItem(editingThisCable
                 ? "Lõpeta trajektoori muutmine"
                 : "Muuda trajektoori");
-        routeItem.setDisable(mapLayoutLocked);
+        routeItem.setDisable(mapLayoutLocked || plan.isCableLocked(cable.connection().id()));
         routeItem.setOnAction(event -> {
             if (editingThisCable) {
                 finishEditingCableRoute();
@@ -6607,10 +6621,12 @@ public class PlaaniseppApp extends Application {
             }
         });
         MenuItem noteItem = new MenuItem("Muuda märkust");
+        noteItem.setDisable(plan.isCableLocked(cable.connection().id()));
         noteItem.setOnAction(event -> showCableNoteDialog(
                 cable.connection(), cableInventoryHeader(cable.connection())
         ));
         MenuItem piecesItem = new MenuItem("Muuda kaablitükke");
+        piecesItem.setDisable(plan.isCableLocked(cable.connection().id()));
         piecesItem.setOnAction(event -> showCableLengthNotesDialog(
                 cable.connection(), cableInventoryHeader(cable.connection())
         ));
@@ -6618,10 +6634,14 @@ public class PlaaniseppApp extends Application {
                 ? "Kuva kaabel" : "Peida kaabel");
         visibilityItem.setOnAction(event -> setCableHidden(
                 cable.connection().id(), !plan.isCableHidden(cable.connection().id())));
+        MenuItem lockItem = new MenuItem(plan.isCableLocked(cable.connection().id())
+                ? "Eemalda kaabli lukustus" : "Lukusta kaabel");
+        lockItem.setOnAction(event -> setCableLocked(
+                cable.connection().id(), !plan.isCableLocked(cable.connection().id())));
         Menu layerMenu = cableLayerMenu(cable.connection());
         showContextMenu(
                 new ContextMenu(noteItem, piecesItem, new SeparatorMenuItem(), routeItem, layerMenu,
-                        new SeparatorMenuItem(), visibilityItem),
+                        new SeparatorMenuItem(), visibilityItem, lockItem),
                 mapPane,
                 screenX,
                 screenY
@@ -6655,7 +6675,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void startEditingCableRoute(PowerCableView cable) {
-        if (mapLayoutLocked) {
+        if (mapLayoutLocked || plan.isCableLocked(cable.connection().id())) {
             showMapLayoutLockedMessage();
             return;
         }

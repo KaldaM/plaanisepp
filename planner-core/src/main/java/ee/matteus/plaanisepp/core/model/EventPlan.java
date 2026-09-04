@@ -45,6 +45,7 @@ public class EventPlan {
     private final Set<String> lockedGroups = new HashSet<>();
     private final Set<String> hiddenCableLabelConnectionIds = new HashSet<>();
     private final Set<String> hiddenCableConnectionIds = new HashSet<>();
+    private final Set<String> lockedCableConnectionIds = new HashSet<>();
     private final Map<String, Double> cableOpacities = new TreeMap<>();
     private boolean showCables = true;
     private boolean showCableLabels = true;
@@ -1470,6 +1471,15 @@ public class EventPlan {
         else hiddenCableConnectionIds.remove(connectionId);
     }
 
+    public boolean isCableLocked(String connectionId) {
+        return lockedCableConnectionIds.contains(connectionId);
+    }
+
+    public void setCableLocked(String connectionId, boolean locked) {
+        if (locked && findPowerConnection(connectionId).isPresent()) lockedCableConnectionIds.add(connectionId);
+        else lockedCableConnectionIds.remove(connectionId);
+    }
+
     public void setShowCableLabel(String connectionId, boolean visible) {
         if (visible) {
             hiddenCableLabelConnectionIds.remove(connectionId);
@@ -1555,6 +1565,7 @@ public class EventPlan {
                 && removedConnectionIds.contains(entry.id()));
         hiddenCableLabelConnectionIds.removeAll(removedConnectionIds);
         hiddenCableConnectionIds.removeAll(removedConnectionIds);
+        lockedCableConnectionIds.removeAll(removedConnectionIds);
         if (removedConnectionIds.isEmpty()) {
             return;
         }
