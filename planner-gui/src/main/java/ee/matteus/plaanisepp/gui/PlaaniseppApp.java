@@ -9625,7 +9625,7 @@ public class PlaaniseppApp extends Application {
         boolean customObjectSelected = selectedObject instanceof CustomObject;
         CustomObjectShape selectedShape = customObjectShapeComboBox.getSelectionModel().getSelectedItem();
         boolean circleSelected = selectedShape == CustomObjectShape.CIRCLE;
-        customObjectWidthLabel.setText(circleSelected ? "Objekti läbimõõt m" : "Objekti laius m");
+        customObjectWidthLabel.setText(circleSelected ? "Ringi läbimõõt m" : "Ristküliku laius m");
         customObjectWidthLabel.setVisible(true);
         customObjectWidthLabel.setManaged(true);
         customObjectWidthField.setVisible(true);
@@ -9894,8 +9894,8 @@ public class PlaaniseppApp extends Application {
         if (object instanceof LineObject) {
             return "Joon";
         }
-        if (object instanceof CustomObject) {
-            return "Objekt";
+        if (object instanceof CustomObject customObject) {
+            return customObject.shape().displayName();
         }
         return "Objekt";
     }

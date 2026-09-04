@@ -192,6 +192,9 @@ public final class InventorySummaryService {
         if (object instanceof ee.matteus.plaanisepp.core.model.AreaObject) {
             return "Ala";
         }
-            return "Kujund";
+        if (object instanceof ee.matteus.plaanisepp.core.model.CustomObject customObject) {
+            return customObject.shape().displayName();
+        }
+        return "Objekt";
     }
 }

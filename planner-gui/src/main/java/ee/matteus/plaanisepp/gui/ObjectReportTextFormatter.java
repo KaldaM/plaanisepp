@@ -173,8 +173,8 @@ final class ObjectReportTextFormatter {
         if (object instanceof LineObject) {
             return "Joon";
         }
-        if (object instanceof CustomObject) {
-            return "Kujund";
+        if (object instanceof CustomObject customObject) {
+            return customObject.shape().displayName();
         }
         return "Objekt";
     }

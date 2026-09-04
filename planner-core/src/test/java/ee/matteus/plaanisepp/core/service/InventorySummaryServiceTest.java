@@ -1,6 +1,7 @@
 package ee.matteus.plaanisepp.core.service;
 
 import ee.matteus.plaanisepp.core.model.CustomObject;
+import ee.matteus.plaanisepp.core.model.CustomObjectShape;
 import ee.matteus.plaanisepp.core.model.EventPlan;
 import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.InventoryItem;
@@ -63,6 +64,27 @@ class InventorySummaryServiceTest {
     @Test
     void emptyPlanHasEmptyInventory() {
         assertTrue(new InventorySummaryService().summarize(new EventPlan("Tühi")).isEmpty());
+    }
+
+    @Test
+    void identifiesCustomInventoryByItsActualShape() {
+        EventPlan plan = new EventPlan("Kujundid");
+        CustomObject rectangle = custom("rectangle", "Infolaud");
+        rectangle.addInventoryItem(new InventoryItem("Silt", 1, ""));
+        CustomObject circle = custom("circle", "Purskkaev");
+        circle.setShape(CustomObjectShape.CIRCLE);
+        circle.addInventoryItem(new InventoryItem("Valgusti", 1, ""));
+        plan.addObject(rectangle);
+        plan.addObject(circle);
+
+        InventorySummaryService.Summary summary = new InventorySummaryService().summarize(plan);
+
+        assertEquals("Ristkülik", summary.objectInventoryGroups().stream()
+                .filter(group -> group.name().equals("Silt"))
+                .findFirst().orElseThrow().contributions().getFirst().objectType());
+        assertEquals("Ring", summary.objectInventoryGroups().stream()
+                .filter(group -> group.name().equals("Valgusti"))
+                .findFirst().orElseThrow().contributions().getFirst().objectType());
     }
 
     @Test
