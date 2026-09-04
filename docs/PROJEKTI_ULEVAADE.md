@@ -1,8 +1,8 @@
 # Plaanisepp: eesmärgid, areng ja hetkeseis
 
-- Dokumendi viimane sisuline uuendus: 26. august 2026
-- Koodi viimane dokumenteeritud commit: `1c5f419` (`Add straight fence row planning`, 26. august 2026)
-- Projekti versioon: `0.1.0`
+- Dokumendi viimane sisuline uuendus: 4. september 2026
+- Koodi viimane dokumenteeritud commit: `a435174` (`Prepare v0.7.1 release`, 3. september 2026)
+- Projekti versioon: `0.7.1`
 
 ## 1. Dokumendi eesmärk
 
@@ -90,7 +90,7 @@ Need ei ole praeguse prototüübi lubatud funktsioonid, vaid suurema süsteemi u
 
 ## 4. Arenduspõhimõtted
 
-Arendus on toimunud teadlikult väikeste sammudena. Üks kasutaja jaoks kontrollitav muudatus tehakse valmis, käivitatakse, proovitakse päris plaanil ning commititakse eraldi. Selline tööviis on seni andnud 186 commiti ja võimaldab näha, miks iga funktsioon lisati või ümber tehti.
+Arendus on toimunud teadlikult väikeste sammudena. Üks kasutaja jaoks kontrollitav muudatus tehakse valmis, käivitatakse, proovitakse päris plaanil ning commititakse eraldi. Selline tööviis on seni andnud 364 commiti ja võimaldab näha, miks iga funktsioon lisati või ümber tehti.
 
 Olulisemad kujunenud põhimõtted:
 
@@ -176,7 +176,7 @@ Need väärtused on planeerimise praktilised vaikeväärtused, mitte elektriproj
 
 ### 5.5 Salvestusvorming
 
-Plaan salvestatakse ühe `.pplan` failina. Praegune vorminguversioon on `2` ja faili sisemine kuju on ZIP-pakett:
+Plaan salvestatakse ühe `.pplan` failina. Praegune vorminguversioon on `23` ja faili sisemine kuju on ZIP-pakett:
 
 | Paketi kirje | Sisu |
 | --- | --- |
@@ -196,13 +196,13 @@ Plaaniandmetes salvestatakse muu hulgas:
 
 Kasutaja laaditud PNG- või JPEG-kaart lisatakse paketti binaarfailina, mitte Base64 tekstina. Projektiga kaasas olev vaikekaart jääb `classpath:` viiteks ja seda paketis ei dubleerita. Pärast edukat salvestamist saab plaani uuesti salvestada ka siis, kui algne kasutaja kaardifail on ümber nimetatud, teisaldatud või kustutatud.
 
-Versioonita ja versioon 1 `.pplan` failid on tavalised Java properties-failid ning versioon 2 on esimene ZIP-paketivorming. Versioon 3 lisas uue voolujaotuse ning versioon 4 üksikobjektide nähtavuse. Kõik varasemad versioonid avanevad endiselt. Vana faili avamine seda ei muuda; järgmine salvestamine kirjutab faili versioon 4 paketina. Rakendus keeldub endast uuema vormingu avamisest ja palub kasutajal rakendust uuendada. Vigane või poolik pakett valideeritakse enne plaani kasutuselevõttu ning ebaõnnestunud salvestus ei kirjuta olemasolevat sihtfaili osaliselt üle.
+Versioonita ja versioon 1 `.pplan` failid on tavalised Java properties-failid ning versioon 2 on esimene ZIP-paketivorming. Hilisemad versioonid on lisanud muu hulgas seadme- ja ühendusepõhise elektrimudeli, checklisti, aiavõrgud, inventari, seotud tekstid, aluskaardid ning korraldajavaate andmed. Kõik varasemad versioonid avanevad endiselt. Vana faili avamine seda ei muuda; järgmine salvestamine kirjutab faili praeguse vorminguversiooniga. Rakendus keeldub endast uuema vormingu avamisest ja palub kasutajal rakendust uuendada. Vigane või poolik pakett valideeritakse enne plaani kasutuselevõttu ning ebaõnnestunud salvestus ei kirjuta olemasolevat sihtfaili osaliselt üle.
 
 ### 5.6 Tähtsamad teenused ja GUI komponendid
 
 | Komponent | Vastutus |
 | --- | --- |
-| `PlanFileService` | Versioon 4 pakettide kirjutamine, versioon 2–4 pakettide valideeritud lugemine ning vanade versioonita ja versioon 1 failide lugemine |
+| `PlanFileService` | Praeguse versiooni 23 pakettide kirjutamine, varasemate pakettide valideeritud lugemine ning vanade versioonita ja versioon 1 failide lugemine |
 | `PlanFactory` | Uue plaani algseisu loomine |
 | `PowerSummaryService` | Elektrikappide koormuse ja vaba võimsuse arvutamine |
 | `GeometryCalculator` | Joonte pikkuse ning kujundite pindala ja ümbermõõdu arvutamine |
@@ -227,14 +227,14 @@ Versioonita ja versioon 1 `.pplan` failid on tavalised Java properties-failid ni
 - Repository sisaldab Gradle Wrapperi käivitajaid nii Windowsile kui Unixilaadsetele süsteemidele.
 - `planner-gui` sõltub `planner-core` moodulist Gradle'i projektisõltuvuse kaudu; core kompileeritakse eraldi teegiks.
 - Kasutaja eelistused salvestatakse Java `Preferences` API kaudu, mille tegeliku asukoha valib operatsioonisüsteem.
-- Rakenduse käivitamist ja põhilisi JavaFX-i töövooge on kontrollitud nii Linuxis kui Windowsis; väljastuspaketid vajavad kummalgi platvormil veel eraldi kontrolli.
-- Ühegi platvormi tavakasutaja paketti ega rakendusega kaasas olevat Java runtime'i ei ole veel loodud.
+- Rakenduse käivitamist ja põhilisi JavaFX-i töövooge on kontrollitud nii Linuxis kui Windowsis; platvormipakettide lõplik kontroll tuleb teha iga release'i järel sihtsüsteemil.
+- GitHub Actions loob release'i tag'i põhjal Windowsi EXE-paigaldaja, Fedora RPM-i ja Linuxi rakendusearhiivi koos rakendusega kaasas oleva Java runtime'iga.
 
 ## 6. Praeguseks saavutatud funktsionaalsus
 
 ### 6.1 Plaan ja aluskaart
 
-- Rakendus alustab tühja plaaniga ja avaneb maksimeeritud aknas.
+- Rakendus avaneb käivitusvaates, kus saab valida hiljutise plaani või luua uue; vaikimisi kasutatav korraldajavaade säilib lokaalselt.
 - Kasutada saab projektiga kaasas olevat tavakaarti ja ortofotot.
 - Kasutaja saab laadida oma PNG- või JPEG-kaardi.
 - Plaanile saab anda nime; nimi on rakenduses nähtav.
@@ -340,7 +340,7 @@ Jooned ja alad kasutavad telgiga sama seadmete ning vooluühenduste mudelit. Nen
 
 ## 7. Arenduse kronoloogia
 
-Allolev ajajoon koondab 186 commitist tähenduslikud etapid. Täpne muudatuste loetelu on käsuga `git log --reverse --oneline`.
+Allolev ajajoon koondab 364 commitist tähenduslikud etapid. Täpne muudatuste loetelu on käsuga `git log --reverse --oneline`.
 
 ### 1. juuli 2026: alus ja esimene töötav vertikaallõige
 
@@ -492,7 +492,7 @@ Need tähelepanekud sobivad bakalaureusetöös kasutajakeskse iteratiivse arendu
 
 ### 9.1 Vahetu jätkamiskoht
 
-`.pplan` versioon 4 paketivorming, Windowsi ja Fedora paigaldajad ning esimene `PlaaniseppApp` klassi refaktoreerimisseeria on teostatud. Rakenduse uueks nimeks valiti **Plaanisepp** ning kasutajale nähtav nimi, pakendid ja Java paketid nimetati ümber. Ajalooline Preferences-sõlm ning failivormingu ja paigaldajate ühilduvusidentifikaatorid säilivad. Sügis-eelse väljalaske elektrimudel toetab nüüd ühe objekti vaiketoidet, alternatiivseid füüsilisi ühendusi ja seadmepõhist koormuse jaotamist. Järgmine suurem domeenisamm on alajaotuskilpide lisamine. Elektri külgpaneeli visuaalne ümberkujundamine tehakse pärast uue elektrimudeli valmimist. Täpsem tööjärjekord ja vastuvõtukriteeriumid on failis `docs/ARENDUSPLAAN.md`.
+`v0.7.1` seisus on teostatud `.pplan` versioon 23 paketivorming, Windowsi ja Fedora paigaldajad, kaardipõhine sündmuseplaneerimine, elektri- ja kaablivõrk, inventari kokkuvõte, korraldajavaade ning mitmikvaliku põhilised ühistoimingud. Rakenduse uueks nimeks valiti **Plaanisepp** ning kasutajale nähtav nimi ja pakendid nimetati ümber; ajaloolised ühilduvusidentifikaatorid säilivad. Praegune arendus keskendub korraldajate põhivoo päriskasutuses stabiliseerimisele. Täpsem tööjärjekord ja vastuvõtukriteeriumid on failis `docs/ARENDUSPLAAN.md`.
 
 ### 9.2 Kvaliteet ja arhitektuur
 
@@ -504,29 +504,24 @@ Need tähelepanekud sobivad bakalaureusetöös kasutajakeskse iteratiivse arendu
 
 ### 9.3 Platvormiülene kontroll ja väljastamine
 
-- Käivitada puhas build ja testid Linuxis.
-- Kontrollida Linuxis JavaFX-i kaardivaadet, failidialooge, kasutaja eelistusi ning TXT-, PNG- ja PDF-eksporti.
+- GitHub Actions kontrollib push'e ja pull request'e Linuxi Java 25 `clean test` töövooga; versioonisildi põhine workflow ehitab Linuxi ja Windowsi levituspaketid ning avaldab need GitHub Release'is.
+- Kontrollida iga väljalaske järel Linuxis JavaFX-i kaardivaadet, failidialooge, kasutaja eelistusi ning TXT-, PNG- ja PDF-eksporti.
 - Hoida Windowsi ja Linuxi `jpackage` sisendid ning väljundid eraldi, et ühe platvormi pakendamine ei rikuks teist.
-- Fedora RPM-is ja Windowsi EXE-paigaldajas on kontrollitud paigaldamine, menüüst käivitamine, `.pplan` faili topeltklõpsuga avamine, rakenduse ja failitüübi ikoonid ning eemaldamine.
-- Täiendada enne avalikku väljalaset versiooniinfot ning paigaldamise ja uuendamise juhiseid.
-- Kontrollida paketti arvutis, kus Javat ega arenduskeskkonda pole paigaldatud.
+- Kontrollida paketti arvutis, kus Javat ega arenduskeskkonda pole paigaldatud, ning korrata uuendamise ja `.pplan` failiseose põhivoogu.
+- Täiendada paigaldamise ja uuendamise juhiseid vastavalt Fedora ning Windowsi tegelikule kasutajakogemusele.
 - Allkirjastada avalikult levitatav Windowsi paigaldaja usaldusväärse koodisigneerimise sertifikaadiga.
 
 ### 9.4 Suurema süsteemi funktsioonid
 
-Pärast prototüübi põhivoo stabiliseerimist:
+Pärast korraldajate põhivoo stabiliseerimist võib kaaluda järgmisi suuremaid samme:
 
-- alajaotuskilbid ehk korraga tarbija ja allikas;
-- eraldiseisvad elektritarbijad;
-- kõlarid, helipuldid ja XLR-kaablid;
-- aiad, bännerid ja lipud;
-- ülesannetega liikmed ning muud korraldaja objektid;
-- hele ja tume režiim;
-- tagasivõtmine ja uuestitegemine;
-- automaatsalvestus või taastamisfail;
-- aluskaartide geograafilised koordinaadid;
+- visuaalne ümberkujundus ja parem ligipääsetavus tihedate plaanide korral;
+- märkused ja kommentaarid, mis sobivad mitme korraldaja koostööks;
+- täiendavad helitehnika ja PA-seadmete eelseadistused;
+- pilves talletamine, jagamine ja ajakohaste plaanide import organisatsiooni sees;
 - veebis vaadatav avaldatud plaan;
-- autentimine, organisatsioonid, festivalid, kaustad ja õigused.
+- autentimine, organisatsioonid, festivalid, kaustad ja õigused;
+- XLR-kaablite ning keerukamate helisüsteemide modelleerimine.
 
 Veebivaade ja organisatsioonid tähendavad tõenäoliselt eraldi serverit, andmebaasi ja veebiklienti. Neid ei ole mõistlik praegusesse JavaFX-i klassi otse juurde kasvatada; bakalaureusetöö arhitektuur peaks käsitlema töölauarakendust ühe võimaliku kliendina.
 
@@ -534,73 +529,40 @@ Veebivaade ja organisatsioonid tähendavad tõenäoliselt eraldi serverit, andme
 
 - Automaattestid katavad geomeetriat, seadmemudelit, salvestamise tagasiühilduvust, vooluarvutust, kaabli otspunkte ja tekstiaruannet, kuid kasutajaliidese sündmuste testikate on endiselt piiratud.
 - Peamine JavaFX-i rakendusklass on liiga suur ja koondab veel palju erinevaid vastutusi.
-- Versioon 2 ja 3 paketi lugemine ning versioon 4 lugemine ja kirjutamine on automaattestidega kaetud. Versioon 4 praktiline avamine vajab eraldi kontrolli. Eri kaardipildivormingute ja platvormide kombinatsioone tuleb regressioonide vältimiseks edaspidi siiski korrata.
-- Vanad versioon 1 failid võivad viidata algsele kaardifailile absoluutse või platvormipõhise teega; kaart peab vana faili esmakordsel avamisel veel kättesaadav olema, et järgmine salvestamine saaks selle versioon 4 paketti lisada.
-- Undo/redo puudub, mistõttu sõltub vigade parandamine käsitsi muutmisest või varasemast salvestusest.
+- Vanemate vormingute lugemine ja migratsioon on automaattestidega kaetud kuni praeguse `.pplan` vorminguni 23. Eri kaardipildivormingute ja platvormide kombinatsioone tuleb regressioonide vältimiseks edaspidi siiski korrata.
+- Vanad versioonita ning versioon 1–3 failid võivad viidata algsele kaardifailile absoluutse või platvormipõhise teega; kaart peab vana faili esmakordsel avamisel veel kättesaadav olema, et järgmine salvestamine saaks selle uude paketti lisada.
+- Kõiki keerukate JavaFX-i sündmuste ja kõrge resolutsiooni jõudlusjuhte ei kata automaattest; valitud objektide, kaartide ja ekspordi põhivoogu tuleb kontrollida päris rakenduses.
 - Fedora RPM-i ja Windowsi EXE-paigaldaja paigaldamine, menüüst käivitamine, `.pplan` failiseos, ikoonid ja eemaldamine on kontrollitud. JavaFX-i Linuxi failidialoog ei kuva kohandatud MIME-ikooni, kuigi Dolphin ja süsteemi failiseos seda teevad.
 - Windowsi kohalik arenduspaigaldaja ei ole digitaalselt allkirjastatud ning võib seetõttu avalikul levitamisel kuvada SmartScreeni hoiatuse.
 - Kõiki platvormipõhiseid failidialooge ja eksportide äärejuhte ei ole Linuxis ega Windowsis veel süstemaatiliselt kontrollitud.
-- GitHub Actions kontrollib push'e ja pull request'e Java 25 Linuxi `clean test` töövooga; mitme operatsioonisüsteemi CI-d ja automaatset release-buildi veel ei ole.
-- Lohistatava ühenduspunkti JavaFX-i hiirekäitumist ei kata automaattest; see vajab käsitsi kontrollimist eri objektitüüpidega.
+- Tartu kaardiandmete import sõltub võrguühendusest ja GIS-teenuse kättesaadavusest; imporditud püsivoolukilbi lisafailid jäävad praegu välisteks linkideks.
 - Rakendusel ei ole veel veebivaadet, kasutajakontosid, õigusi ega keskset andmehoidlat.
-- Tartu kaardiandmetega otseliidestust ei ole.
-- Aiavahend toetab sirgeid jäiku ridu ja nende jagatud ühenduspunktidega võrke. Vabakujulise kõvera automaatne aedadeks jaotamine ning suletud võrgu kuju piirangutega ümbervormimine on veel tegemata.
+- Aiavahend toetab sirgeid jäiku ridu ja nende jagatud ühenduspunktidega võrke. Eraldi aiasegmentide identiteet ning automaatne vabakujulise kõvera aedadeks jaotamine ei ole praegu rakendatud ega ole põhivoo prioriteet.
 
 ## 11. Soovituslik tööjärjekord
 
-1. Vali rakendusele üritusteülese kasutusega nimi ja fikseeri ümbernimetamise ulatus.
-2. Lisa alajaotuskilbid, objekti vaiketoide ja seadmepõhised toiteerandid koos tagasiühilduva failimigratsiooniga.
-3. Muuda elektri kokkuvõte uue mudeli põhjal interaktiivseks ning lisa väljundite koormusribad.
-4. Lisa kahekordse Shift-klahviga objekti kiirotsing ja kaardil esiletõstmine.
-5. Lisa suumiliugur ning `Alt + hiirerull` suumimine.
-6. Jätka `PlaaniseppApp` tükeldamist funktsioonidega seotud väikeste sammudena.
-7. Laienda CI hiljem Windowsi testide ning versioonisildi põhise release-buildiga ja lahenda avaliku väljalaske koodisigneerimine.
+1. Kontrolli süstemaatiliselt korraldaja põhivoogu: uue plaani loomine, kaardi valimine, objektide ja gruppide haldus, külgpaneeli peitmine/taastamine, inventar, salvestamine ja uuesti avamine ning korraldajavaate PDF.
+2. Kontrolli tehnikuvaate põhivoogu: püsivoolukilpide import, kaablid, ühenduspunktid, voolu kokkuvõte ning vaate eelistuse taastumine pärast taaskäivitust.
+3. Paranda ainult päris kasutustestis leitud vead ja tee iga paranduse järel väike regressioonikontroll; ära lisa samasse sammu uut suurt funktsiooni.
+4. Laienda automaatteste nendele piiridele, kus käsitsi korduvad vead: valik, lohistamine, nähtavus/lukustus, salvestamise migratsioon ja eksport.
+5. Tee pärast põhivoo stabiilsust sihitud UI- ja ligipääsetavusparandused ning alles seejärel väike refaktor, mis toetab konkreetset kasutusjuhtu.
+6. Hoia pilv, kasutajakontod, festivalideülene koondinventar ja muud suured süsteemifunktsioonid praegu teadlikult ootel.
 
 ## 12. Uue arendusvestluse alustamise juhis
 
-Uuele arendajale või tehisintellekti vestlusele tuleks anda vähemalt järgmine info:
+Uue vestluse alguses kasuta võimalikult täpset lähteinfot, et pikk ajalugu ei sunniks juba tehtud töid uuesti planeerima:
 
-> Ava esmalt `README.md` ja `docs/PROJEKTI_ULEVAADE.md`. Kontrolli töökausta ja viimaseid committe ning võrdle dokumenti alati tegeliku koodiga. Projektis tehakse üks kasutaja poolt kontrollitav muudatus korraga, see testitakse ning kasutaja commitib selle eraldi. `planner-gui` sõltub `planner-core` moodulist; ära lisa core'i lähtekoode GUI source set'i. Uued `.pplan` failid on versioon 4 ZIP-paketid ja sisaldavad kasutaja valitud kaardipilti, uut voolujaotust ning objektide nähtavust. Säilita versioonita ning versioon 1–3 failide avamine ja ära muuda vana faili enne kasutaja järgmist salvestamist.
-
-Tavaline kontroll enne muutmist:
-
-```powershell
-git status --short
-git log -15 --oneline
-```
-
-Rakenduse käivitamine Windowsis:
-
-```powershell
-.\gradlew.bat :planner-gui:run
-```
-
-Rakenduse käivitamine Linuxis või macOS-is:
-
-```bash
-./gradlew :planner-gui:run
-```
-
-Testide käivitamine Windowsis:
-
-```powershell
-.\gradlew.bat test
-```
-
-Testide käivitamine Linuxis või macOS-is:
-
-```bash
-./gradlew test
-```
-
-Pärast iga sammu:
-
-```powershell
-git diff --check
-git status --short
-```
-
-Seejärel kontrollib kasutaja muudatust rakenduses. Kui see töötab, tehakse üks kirjeldava ingliskeelse nimega commit ja lükatakse GitHubi.
+> Jätkame Plaaniseppa arendamist kataloogis `/home/matteus/Projects/pannkoogihommiku-planeerija-java`.
+>
+> Loe esmalt `README.md`, `docs/ARENDUSPLAAN.md` ja `docs/PROJEKTI_ULEVAADE.md`. Kontrolli tegelikku seisu käsuga `git status --short`, viimaseid committe ja tage ning vaata Gradle'i tegelikku versiooni. Ära eelda dokumentide põhjal, et vana või juba tehtud funktsioon on veel tegemata; kui dokument ja kood erinevad, uuenda dokumenti või käsitle koodi tegeliku allikana.
+>
+> Projekt kasutab Java 25 ja JavaFX 26.0.2 ning on jaotatud mooduliteks `planner-core` ja `planner-gui`. Hoia domeeniloogika ja `.pplan` faili lugemine/kirjutamine core'is ning JavaFX-i vaated GUI-s. Praegune failivorming on 23 ja vanemate vormingute lugemine peab säilima. Ära kustuta, lähtesta ega kirjuta üle minu olemasolevaid muudatusi.
+>
+> Töömeetod: tee üks kasutaja poolt kontrollitav muudatus korraga, kasuta failide muutmiseks `apply_patch`-i, säilita eestikeelne kasutajaliides ning ütle enne suuremat muudatust lühidalt, mida kontrollid. Ära paku uuesti juba tehtud arengukava punkte. Kui probleem on piisavalt selge, rakenda parandust kohe, mitte ära piirdu ainult plaaniga.
+>
+> Praegune esimene töö on korraldaja põhivoo süstemaatiline regressioonikontroll: uue plaani loomine ja päriskaardilt aluskaardi valimine, objektide ja gruppide haldus, külgpaneeli sektorite peitmine ja vaikejärjestuse taastamine, inventar, salvestamine/uuesti avamine ning korraldajavaate PDF. Seejärel kontrolli tehnikuvaates püsivoolukilpide importi, kaableid, ühenduspunkte, voolu kokkuvõtet ja vaate eelistuse taastumist. Paranda leitud vead väikeste eraldi sammudena; ära alusta uut suurt süsteemifunktsiooni enne, kui põhivoog on stabiilne.
+>
+> Kontrolli pärast muudatusi vähemalt `./gradlew test --no-daemon` ja `git diff --check`. Lõpus anna kokkuvõte muudetud failidest, tehtud kontrollidest, võimalikest lahtistest kohtadest ning soovituslikust ingliskeelsest commiti nimest. Commiti, tage ega GitHubi push'i ära tee ilma minu eraldi soovita.
 
 ## 13. Dokumendi hooldamine
 

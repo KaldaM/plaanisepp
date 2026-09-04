@@ -1,7 +1,7 @@
 # Rakenduse edasine arendusplaan
 
-- Koostatud: 20. august 2026
-- Lähtepunkt: commit `e53fb3a` (`Extract marker icon factory from application`)
+- Viimati üle vaadatud: 4. september 2026
+- Funktsionaalse koodi seis: commit `a435174` (`Prepare v0.7.1 release`), versioon `v0.7.1`
 
 ## Eesmärk
 
@@ -24,10 +24,10 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 13. **Tehtud:** rippvalikud, kaardilt vooluallika valimine, automaatne rakendamine ja objektide kiirklahvid.
 14. **Tehtud:** kogu kaardi geomeetriat kaitsev paigutuslukustus.
 15. **Tehtud:** kõrglahutusega ja georefereeritud aluskaartide hankimise töövoog, tavakaardi/ortofoto vahetamine, kaardiala hilisem muutmine ning Tartu püsivoolukilpide automaatne import.
-16. **Pooleli:** tehnikakihita korraldajavaate esimene etapp on tehtud. Rakendus käivitub esmakordsel kasutamisel korraldajavaates ning jätab lokaalselt meelde viimati kasutatud korraldaja-/tehnikuvaate. PDF-eksport kasutab aktiivset kaardivaadet; korraldajavaates jäetakse välja voolu- ja kaabliinfo ning kilpidest loodud tekstobjektid. Valitav objektide legend sisaldab kõiki kaardil nähtavaid objekte samas grupijaotuses nagu külgpaneel, koos joondatud värvinäidise, tüübi, nime ja mõõdu-/koguseinfoga. Aiavõrgud kuvatakse raporti grupiloendis ühe tervikobjektina ning voolu kokkuvõttes on kilbi plokid ja koormustaseme värvilised ribad. Kuvaprofiilid ja kommentaarid on lisamata.
+16. **Tehtud (esimene etapp):** tehnikakihita korraldajavaade käivitub esmakordsel kasutamisel vaikimisi ning jätab lokaalselt meelde viimati kasutatud korraldaja-/tehnikuvaate. PDF-eksport kasutab aktiivset kaardivaadet; korraldajavaates jäetakse välja voolu- ja kaabliinfo ning kilpidest loodud tekstobjektid. Valitav objektide legend sisaldab kõiki kaardil nähtavaid objekte samas grupijaotuses nagu külgpaneel, koos joondatud värvinäidise, tüübi, nime ja mõõdu-/koguseinfoga. Aiavõrgud kuvatakse raporti grupiloendis ühe tervikobjektina ning voolu kokkuvõttes on kilbi plokid ja koormustaseme värvilised ribad. Kuvaprofiilid ja kommentaarid on lisamata ning jäävad hilisemasse etappi.
 17. **Tegemata:** terviklik visuaalse keele uuendus.
-18. **Peaaegu tehtud:** interaktiivne pööramine, mitmikvalik, valikukast ja põhilised ühistoimingud töötavad; ühise grupi ja nimesildi nähtavuse hulgi muutmine on teostatud ning viimased mitmikvaliku mugavused ootavad käsitsi kontrolli.
-19. **Jätkuv töö:** `PlaaniseppApp` refaktoreerimine väikeste funktsioonipõhiste sammudena.
+18. **Tehtud (põhifunktsioonid):** interaktiivne pööramine, mitmikvalik, valikukast ja põhilised ühistoimingud töötavad. Ühise grupi, nimesildi nähtavuse, värvi ja läbipaistvuse hulgi muutmine on teostatud; ainult elektrikappidest koosneva valiku suurust saab samuti korraga muuta. Ühe objekti põhised väljad on mitmikvaliku ajal lukus. Alles jääb tavapärane käsitsi regressioonikontroll eri objektitüüpide ja suure valiku korral.
+19. **Jätkuv töö:** `PlaaniseppApp` refaktoreerimine väikeste funktsioonipõhiste sammudena; seda ei alustata enne, kui korraldajate põhivoos on päris kasutusest leitud probleemid fikseeritud.
 
 ### Praegune põhifookus: korraldajate kasutuselevõtt
 
@@ -54,6 +54,12 @@ Uue plaani ja „Plaani andmed” dialoogi põhivaates kuvatakse ainult plaani n
 Tühja plaani olekuriba juhendab esimese objektini lühikese tegevusreaga „Vali objekti tüüp → Lisa → klõpsa kaardil”. Korraldajavaates ei loeta automaatselt imporditud peidetud elektrikilpe korraldaja plaaniobjektideks, seega jääb juhis nähtavaks kuni esimese korraldajale nähtava objekti lisamiseni.
 
 Festivali inventari tippvajaduse ja esemete ürituste vahel ümberpaigutamise arvutus on **väga madala prioriteediga**. Seda ei teostata enne, kui korraldajate põhiteekond on päriskasutuses kinnitatud ja ürituste ajastamise tegelikud reeglid on selged.
+
+### Järgmine konkreetne töö
+
+Järgmine töö on korraldajate põhiteekonna süsteemne käsitsi regressioonikontroll ja selle käigus leitud väikeste vigade parandamine. Kontroll peab läbima ühe tühja plaani loomise, olemasoleva plaani avamise, kaardi valimise, objektide ja gruppide lisamise, külgpaneeli jaotiste peitmise ning taastamise, inventari muutmise, salvestamise, uuesti avamise ja korraldajavaatest PDF-i eksportimise. Tehnikavaates kontrollitakse eraldi, et elektrikapid, kaablid ja nende kokkuvõtted taastuvad ning korraldajavaate piirangud ei muuda plaaniandmeid.
+
+Selle töö eesmärk ei ole uue suure funktsiooni lisamine. Iga leitud probleem kirjeldatakse ühe kasutusjuhtumina, parandatakse eraldi ning kontrollitakse uuesti samas põhiteekonnas. Alles pärast selle kontrolli läbimist otsustame, kas järgmine suurem samm on visuaalse kasutajaliidese uuendus või `PlaaniseppApp` refaktoreerimine.
 
 ## Järgmise töökorra märkmed — 31. august 2026
 

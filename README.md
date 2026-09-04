@@ -1,25 +1,95 @@
 # Plaanisepp
 
-Plaanisepp on JavaFX-is tehtud töölauarakendus sündmusala ja elektrivajaduse planeerimiseks. Rakenduses saab paigutada kaardile telke, elektrikappe ja teisi objekte, ühendada tarbijaid konkreetsete väljunditega, koostada kaablite trajektoore ning salvestada ja eksportida valminud plaani.
+Plaanisepp on kaardipõhine töölauarakendus sündmusala, inventari ja elektrivajaduse planeerimiseks. See aitab ühel meeskonnal koostada arusaadava plaani, kus ruumiline paigutus, inventar, elektriseadmed, elektrikapid ja kaablid on omavahel seotud.
 
-Projekt sai alguse varasema ühefaililise Pythoni rakenduse objektorienteeritud ümbertegemisest. Pikem eesmärk on kasutada siin kujunevat arhitektuuri ja kasutuskogemust bakalaureusetööna arendatava suurema ürituste planeerimise süsteemi alusena.
+Rakendus on alguse saanud pannkoogihommiku planeerimise vajadusest, kuid seda arendatakse üldisemaks eri tüüpi sündmuste töövahendiks. Tegemist on aktiivselt arendatava prototüübiga, mille kasutusmugavust kontrollitakse päris ürituste plaanidel.
 
-Põhjalik ülevaade algsetest eesmärkidest, senisest arendusest ja praegusest seisust asub failis [docs/PROJEKTI_ULEVAADE.md](docs/PROJEKTI_ULEVAADE.md). Kavandatud kasutajaliidese muudatused ja nimevahetuse otsused on koondatud faili [docs/ARENDUSPLAAN.md](docs/ARENDUSPLAAN.md).
+## Milleks seda kasutada saab?
 
-## Moodulid
+- valida olemasolev aluskaart, laadida oma pilt või määrata ala Maa- ja Ruumiameti päriskaardilt;
+- paigutada kaardile telke, elektrikappe, alajaotuskilpe, alasid, jooni, aedu, markereid, tekste ja muid objekte;
+- määrata objektidele nimed, grupid, värvid, mõõdud, märkmed, nähtavuse ja lukustuse;
+- planeerida telkide, alade ja joonte inventari ning näha koondkoguseid;
+- arvutada aiaridade, aiakivide ja kaablijuppide vajadust;
+- lisada seadmeid ning ühendada need konkreetsete elektrikappide ja väljunditega;
+- vaadata väljundite, elektrikappide ja alajaotuskilpide koormust ning vaba võimsust;
+- kujundada kaablite tegelikku trajektoori ja mõõta kaardil vahemaid;
+- kasutada eraldi korraldaja- ja tehnikavaadet;
+- eksportida plaan TXT- või PDF-aruandena ning kaardipildina.
 
-- `planner-core` - plaani domeenimudel, vooluarvutused ja salvestamise loogika.
-- `planner-gui` - JavaFX-i kasutajaliides, kaardivaade ja ekspordid.
+## Kuidas alustada?
 
-## Tehnoloogiad
+1. Paigalda Plaanisepp GitHubi [Releases](https://github.com/KaldaM/plaanisepp/releases) lehelt või käivita see arenduskeskkonnast.
+2. Käivitamisel vali olemasolev plaan või loo uus. Uue plaani dialoogis määra nimi, vajaduse korral festival või sündmus ning aluskaart.
+3. Vali tööriistaribalt objekti tüüp, vajuta **Lisa** ja klõpsa soovitud asukohal. Alade, joonte ja aiaridade puhul lisa punktid järjest.
+4. Vali objekt kaardil või külgpaneeli jaotisest **Objektid**. Objekti andmeid saab muuta jaotises **Valitud objekt** või objekti paremklõpsumenüüst.
+5. Korraldajavaates on kaardil ja külgpaneelil ainult sündmuse paigutuse jaoks vajalik info. Elektri ja kaablite haldamiseks lülita menüüst **Vaade → Tehnikavaade**.
+6. Salvesta töö `.pplan` failina ja jaga vajaduse korral TXT- või PDF-eksporti.
 
-- Java 25 LTS
-- JavaFX 26.0.2
-- Gradle Wrapper
-- Apache PDFBox
-- JUnit 5
+Rakendusesisene **Abi → Alustamise juhend** annab sama töövoo kohta lühema samm-sammulise ülevaate.
 
-## Käivitamine arenduses
+## Olulisemad töövood
+
+### Kaart ja objektid
+
+Kaardil saab suumida, nihutada, vahetada tavakaardi ja ortofoto vahel ning kasutada kõrglahutusega georefereeritud aluskaarte. Objekte saab valida kaardilt või nimekirjast, otsida, kopeerida, kleepida, mitmikvalida, liigutada, pöörata, lukustada ja peita. `Ctrl + Z` ning `Ctrl + Alt + Z` võimaldavad plaanimuudatusi tagasi võtta ja uuesti teha.
+
+### Inventar ja aiad
+
+Inventari vaade koondab aiad, aiakivid, telgid, lauad, pingid, telgiraskused, kaablid ja muud kasutaja määratud inventariread. Koguseid saab muuta `− / +` nuppudega ning iga rea vajaduse saab avada objektide kaupa. Aiarida koosneb standardsetest füüsilistest lõikudest ja võib moodustada avatud, hargneva või suletud aiavõrgu.
+
+### Elekter ja kaablid
+
+Telk, ala või joon võib sisaldada seadmeid ja olla ühendatud konkreetse elektrikapi konkreetse väljundiga. Alajaotuskilp saab olla korraga tarbija ja järgmiste väljundite allikas. Elektri kokkuvõte näitab koormust, vaba võimsust ja ülekoormust; kaablite puhul saab märkida pikkusjupid ning kujundada tee vahepunkte.
+
+### Korraldaja- ja tehnikavaade
+
+Korraldajavaade käivitub esmakordsel kasutamisel vaikimisi ning peidab tehnilise elektriinfo. Tehnikavaade taastab elektrikapid, kaablid ja elektri külgpaneelid. Viimati kasutatud vaade säilib lokaalselt. Külgpaneeli jaotisi saab kasutaja järjestada, peita ja vaikejärjestusse taastada.
+
+## Failivorming ja ühilduvus
+
+`.pplan` on üks kaasaskantav ZIP-pakett, mis sisaldab plaani andmeid ning kasutaja valitud kaardipilte. Praegune sisemine vorminguversioon on **23**. Pakett säilitab muu hulgas objektid, grupid, nähtavuse, inventari, elektriühendused, kaablitrajektoorid, aluskaardid ja checklisti.
+
+Rakendus avab ka vanemad versioonita ning varasemad `.pplan` vormingud. Vana faili ei muudeta avamisel; järgmine salvestamine viib selle praegusesse vormingusse. Rakendus ei ava endast uuema vorminguga faili enne, kui programm on uuendatud.
+
+## Paigaldamine tavakasutajale
+
+GitHub Release sisaldab Windowsi EXE-paigaldajat, Fedora RPM-i, Linuxi iseseisva rakenduse arhiivi ja `SHA256SUMS` kontrollsummasid. Pakendid sisaldavad vajalikku Java runtime'i, mistõttu tavakasutaja ei pea paigaldama Javat, Gradle'it ega lähtekoodi.
+
+### Windows
+
+Windowsi paigaldaja seob `.pplan` failid Plaaniseppaga, lisab rakenduse Start-menüüsse ja paigaldab rakenduse koos Java runtime'iga.
+
+### Fedora Linux
+
+Fedora RPM-i saab paigaldada näiteks nii:
+
+```bash
+sudo dnf install ./plaanisepp-<versioon>-1.x86_64.rpm
+```
+
+Paigaldatud rakenduse saab eemaldada käsuga `sudo dnf remove plaanisepp`. `.pplan` faili saab avada failihalduris topeltklõpsuga.
+
+## Arendajale
+
+Projekt koosneb kahest Gradle'i moodulist:
+
+- `planner-core` sisaldab domeenimudelit, geomeetriat, inventari, elektriarvutusi ja `.pplan` salvestusloogikat;
+- `planner-gui` sisaldab JavaFX-i kasutajaliidest, kaardivaadet, dialooge ja eksporti.
+
+Tehnoloogiad:
+
+- Java 25;
+- JavaFX 26.0.2;
+- Gradle Wrapper;
+- Apache PDFBox 2.0.31;
+- JUnit 5.
+
+Käivita rakendus Linuxis või macOS-is:
+
+```bash
+./gradlew :planner-gui:run
+```
 
 Windowsis:
 
@@ -27,82 +97,21 @@ Windowsis:
 .\gradlew.bat :planner-gui:run
 ```
 
-Projekt avaneb IntelliJ IDEA-s Gradle'i projektina. Rakendus käivitub maksimeeritud aknas ja uus plaan on tühi.
-
-## Kontrollimine
-
-```powershell
-.\gradlew.bat test
-```
-
-Automaattestid katavad muu hulgas domeenimudelit, vooluarvutusi, geomeetriat, eksporti ning `.pplan` failide tagasiühilduvust ja paketivormingut. JavaFX-i kasutajaliidese sündmuste testikate vajab veel laiendamist.
-
-GitHub Actions käivitab iga push'i ja pull request'i korral Java 25-ga automaatselt puhta `test`-töövoo.
-
-## Plaanifailid
-
-Uued `.pplan` failid salvestatakse versioon 4 ZIP-paketina. Pakett sisaldab plaani andmeid ja kasutaja valitud PNG- või JPEG-kaarti, mistõttu piisab plaani teise arvutisse viimiseks ühest `.pplan` failist. Versioon 4 säilitab alajaotuskilbid, objektide mitu vooluühendust, seadmete ühendusevalikud ja üksikobjektide nähtavuse. Projektiga kaasas olevatele vaikekaartidele säilitatakse paketis viide ning neid ei dubleerita.
-
-Rakendus avab edasi vanad versioonita ja versioon 1 properties-vormingus ning versioon 2 ja 3 ZIP-paketina salvestatud `.pplan` failid. Vana fail teisendatakse versioon 4 paketiks alles siis, kui kasutaja selle järgmine kord salvestab.
-
-## Tavakasutajale jagamine
-
-### Windows
-
-Windowsis saab luua iseseisva rakendusepildi, mis sisaldab vajalikku Java runtime'i, JavaFX-i ja kõiki muid käitusaegseid sõltuvusi:
-
-```powershell
-.\gradlew.bat :planner-gui:packageWindowsAppImage
-```
-
-Valmis rakendus asub kaustas `planner-gui/build/jpackage-windows/Plaanisepp`.
-
-Windowsi EXE-paigaldaja loomiseks peavad lisaks Java 25-le olema paigaldatud [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) ja ametlik [WiX Toolset 4](https://docs.firegiant.com/wix/using-wix/). Seejärel tuleb käivitada:
-
-```powershell
-.\gradlew.bat :planner-gui:packageWindowsInstaller
-```
-
-Paigaldaja luuakse kausta `planner-gui/build/jpackage-windows-installer`. Paigaldatud rakendus lisatakse Start-menüüsse ning `.pplan` failitüüp seotakse rakendusega, nii et plaani saab avada topeltklõpsuga. Kasutaja arvutisse ei pea olema eraldi Javat, Gradle'it ega repository't paigaldatud.
-
-Kohalik arendusbuild ei ole digitaalselt allkirjastatud. Avalikult levitatav paigaldaja tuleb enne väljalaset usaldusväärse koodisigneerimise sertifikaadiga allkirjastada.
-
-### Linux
-
-Linuxis saab luua iseseisva rakendusekausta, mis sisaldab vajalikku Java runtime'i ja JavaFX-i:
+Käivita testid:
 
 ```bash
-./gradlew :planner-gui:packageLinuxAppImage
+./gradlew test
 ```
 
-Valmis rakendus asub kaustas `planner-gui/build/jpackage/plaanisepp`. Selle käivitaja on `bin/plaanisepp` ning kasutaja arvutisse ei pea olema eraldi Javat ega Gradle'it paigaldatud.
+Puhas CI-kontroll kasutab `./gradlew clean test --no-daemon` ning GitHub Actions käivitub iga push'i ja pull request'i korral.
 
-Fedora RPM-paigalduspaketi loomiseks:
+## Dokumentatsioon ja edasine areng
 
-```bash
-./gradlew :planner-gui:packageLinuxRpm
-```
+- [Projekti ülevaade](docs/PROJEKTI_ULEVAADE.md) kirjeldab tausta, arhitektuuri, failivormingut ja seniseid etappe.
+- [Arengukava](docs/ARENDUSPLAAN.md) on projekti aktiivne tööjärjekord ning eristab tehtud, pooleliolevaid ja madala prioriteediga ideid.
 
-Valmis pakett asub kaustas `planner-gui/build/jpackage-rpm`. Selle saab paigaldada ja hiljem eemaldada järgmiselt:
+Lähim praktiline eesmärk on stabiliseerida korraldajate põhiteekond päriskasutuseks: plaani loomine, objektide paigutamine ja muutmine, inventar, nähtavus, salvestamine ning PDF-i jagamine. Suuremad tulevikuideed, nagu pilvehoidla, kasutajakontod ja festivalideülene inventari optimeerimine, jäävad sellest etapist väljapoole.
 
-```bash
-sudo dnf install ./planner-gui/build/jpackage-rpm/plaanisepp-0.2.0-4.x86_64.rpm
-sudo dnf remove plaanisepp
-```
+## Avaldamine
 
-RPM paigaldab rakenduse `/opt/plaanisepp` alla, lisab rakenduste menüüsse kirje „Plaanisepp” ning seob `.pplan` failid rakendusega. Uus RPM asendab varasema tehnilise nimega `pannkoogihommiku-planeerija` paketi. Paigaldamise järel saab plaani avada failihalduris topeltklõpsuga. Rakenduse aknas, menüüs ja plaanifailidel kasutatakse projekti enda ikooni.
-
-`jpackage` paketid tuleb koostada ning kontrollida sellel operatsioonisüsteemil, millele need on mõeldud.
-
-### Avaldamine GitHub Releasesis
-
-GitHub Actions ehitab avaliku väljalaske automaatselt GitHubi Windowsi ja Linuxi runnerites. Uus Release tekib, kui `main` harus oleva versiooni jaoks push'itakse samanimeline tag. Näiteks praeguse versiooni `0.2.0` avaldamiseks:
-
-```bash
-git tag -a v0.2.0 -m "Plaanisepp v0.2.0"
-git push origin v0.2.0
-```
-
-Töövoog kontrollib, et tag ja Gradle'i versioon kattuvad, ning lisab GitHub Release'i külge Windowsi EXE-paigaldaja, Fedora RPM-i, Linuxi iseseisva rakendusepildi `.tar.gz` arhiivina ja nende `SHA256SUMS` kontrollsummad. Tõrke korral Release'i ei avaldata; tag'i parandamiseks tuleb luua uus versiooninumber ja uus tag.
-
-Rakenduses saab menüüst **Abi → Versioonid** vaadata paigaldatud versiooni ning avada GitHub Releases'i lehe.
+Uus GitHub Release luuakse versiooniga samanimelise tag'i push'imisel. Näiteks `v0.7.1` puhul peab Gradle'i versioon olema `0.7.1` ja tag `v0.7.1`. Release-workflow kontrollib versiooni, ehitab platvormipaketid ning lisab kontrollsummad.
