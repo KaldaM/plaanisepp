@@ -1678,9 +1678,7 @@ public class PlaaniseppApp extends Application {
                 pendingPowerSourceConsumer = null;
                 finishEditingCableRoute();
             }
-            if (selectedObject instanceof PowerSource) {
-                selectedObject = null;
-            }
+            retainOrganizerSelection();
         }
         refreshOrganizerViewControls();
         refreshPlacementButtons();
@@ -1689,6 +1687,24 @@ public class PlaaniseppApp extends Application {
         refreshDetails();
         refreshSummary();
         redrawMap();
+    }
+
+    private void retainOrganizerSelection() {
+        selectedObjectIds.retainAll(organizerObjectIds(plan.objects()));
+        if (selectedObject instanceof PowerSource) {
+            selectedObject = firstSelectedObject().orElse(null);
+        }
+        if (selectionRangeAnchorObjectId != null
+                && !selectedObjectIds.contains(selectionRangeAnchorObjectId)) {
+            selectionRangeAnchorObjectId = selectedObject == null ? null : selectedObject.id();
+        }
+    }
+
+    static Set<String> organizerObjectIds(List<PlannerObject> objects) {
+        return objects.stream()
+                .filter(object -> !(object instanceof PowerSource))
+                .map(PlannerObject::id)
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     private void refreshOrganizerViewControls() {
