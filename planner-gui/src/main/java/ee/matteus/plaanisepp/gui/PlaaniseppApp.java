@@ -107,9 +107,12 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.Dragboard;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
+import javafx.scene.input.TransferMode;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
@@ -321,6 +324,8 @@ public class PlaaniseppApp extends Application {
     private Label saveStatusLabel;
     private TextField objectSearchField;
     private ListView<ObjectListEntry> objectList;
+    private ListView<PlanLayerEntry> layerList;
+    private ToggleButton layerOrderModeButton;
     private ListView<ChecklistItem> checklistList;
     private ListView<ChecklistSuggestion> checklistSuggestionList;
     private TextField checklistItemField;
@@ -2763,6 +2768,19 @@ public class PlaaniseppApp extends Application {
                 event.consume();
             }
         });
+        layerOrderModeButton = new ToggleButton("Kihistus");
+        layerOrderModeButton.setTooltip(new Tooltip(
+                "Kuva objektid ja kaablid nende tegelikus kihijärjekorras"
+        ));
+        layerOrderModeButton.setOnAction(event -> {
+            boolean layerMode = layerOrderModeButton.isSelected();
+            setSectionVisible(objectSearchField, !layerMode);
+            setSectionVisible(objectList, !layerMode);
+            setSectionVisible(layerList, layerMode);
+            refreshObjectList();
+        });
+        layerList = createLayerOrderList();
+        setSectionVisible(layerList, false);
         revealObjectButton = new Button("Näita kaardil");
         revealObjectButton.setOnAction(event -> revealSelectedObjectOnMap());
         activeSelectionCountLabel = new Label();
@@ -2772,12 +2790,114 @@ public class PlaaniseppApp extends Application {
         refreshObjectList();
         return new VBox(
                 8,
+                layerOrderModeButton,
                 objectSearchField,
                 objectList,
+                layerList,
                 createObjectListResizeHandle(),
                 activeSelectionCountLabel,
                 revealObjectButton
         );
+    }
+
+    private ListView<PlanLayerEntry> createLayerOrderList() {
+        ListView<PlanLayerEntry> list = new ListView<>();
+        list.setPrefHeight(objectListHeight);
+        list.setTooltip(new Tooltip(
+                "Ülemised read joonistatakse kaardil alumiste peale. Lohista järjestuse muutmiseks."
+        ));
+        list.setCellFactory(ignored -> {
+            ListCell<PlanLayerEntry> cell = new ListCell<>() {
+                @Override
+                protected void updateItem(PlanLayerEntry entry, boolean empty) {
+                    super.updateItem(entry, empty);
+                    setText(empty || entry == null ? null : layerEntryText(entry));
+                }
+            };
+            cell.setOnDragDetected(event -> {
+                if (cell.getItem() == null || mapLayoutLocked) return;
+                Dragboard dragboard = cell.startDragAndDrop(TransferMode.MOVE);
+                ClipboardContent content = new ClipboardContent();
+                content.putString(layerEntryStorageKey(cell.getItem()));
+                dragboard.setContent(content);
+                event.consume();
+            });
+            cell.setOnDragOver(event -> {
+                if (cell.getItem() != null && event.getDragboard().hasString()) {
+                    event.acceptTransferModes(TransferMode.MOVE);
+                }
+                event.consume();
+            });
+            cell.setOnDragDropped(event -> {
+                PlanLayerEntry dragged = layerEntryFromStorageKey(event.getDragboard().getString());
+                int layerIndex = plan.layerOrder().indexOf(cell.getItem());
+                boolean moved = dragged != null && moveLayerEntryToIndex(dragged, layerIndex);
+                event.setDropCompleted(moved);
+                event.consume();
+            });
+            cell.setOnMouseClicked(event -> {
+                if (event.getButton() != MouseButton.PRIMARY || cell.getItem() == null) return;
+                PlanLayerEntry entry = cell.getItem();
+                if (entry.type() == PlanLayerEntry.Type.OBJECT) {
+                    plan.findObject(entry.id()).ifPresent(this::selectObject);
+                } else {
+                    plan.findPowerConnection(entry.id()).ifPresent(connection -> {
+                        plan.findObject(connection.consumerId()).ifPresent(this::selectObject);
+                        selectPowerConnection(connection.id());
+                    });
+                }
+            });
+            return cell;
+        });
+        return list;
+    }
+
+    private boolean moveLayerEntryToIndex(PlanLayerEntry entry, int targetIndex) {
+        PlanSnapshot before = planSnapshotService.create(plan);
+        if (!plan.moveLayerEntryToIndex(entry, targetIndex)) return false;
+        finishAutoAppliedDetailsChange(before, false);
+        return true;
+    }
+
+    private String layerEntryStorageKey(PlanLayerEntry entry) {
+        return entry.type().name() + ":" + entry.id();
+    }
+
+    private PlanLayerEntry layerEntryFromStorageKey(String key) {
+        if (key == null || !key.contains(":")) return null;
+        int separator = key.indexOf(':');
+        try {
+            return new PlanLayerEntry(
+                    PlanLayerEntry.Type.valueOf(key.substring(0, separator)),
+                    key.substring(separator + 1)
+            );
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
+    private String layerEntryText(PlanLayerEntry entry) {
+        if (entry.type() == PlanLayerEntry.Type.OBJECT) {
+            return plan.findObject(entry.id())
+                    .map(object -> "%s · %s · %s".formatted(
+                            objectTypeName(object), object.name(), groupNameForFilter(object)))
+                    .orElse("Puuduv objekt");
+        }
+        return plan.findPowerConnection(entry.id()).map(connection -> {
+            PlannerObject source = plan.findObject(connection.sourceId()).orElse(null);
+            PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
+            if (!(source instanceof PowerSource powerSource) || consumer == null) return "Puuduv kaabel";
+            double length = CableDisplayHelper.lengthMeters(
+                    cablePath(consumer, powerSource, connection), pixelsPerMeter());
+            return "Kaabel %s · %.1f m · %s → %s · %s → %s".formatted(
+                    CableDisplayHelper.shortTypeName(connection.connectorType()),
+                    length,
+                    groupNameForFilter(source),
+                    groupNameForFilter(consumer),
+                    source.name(),
+                    consumer.name()
+            );
+        }).orElse("Puuduv kaabel");
     }
 
     private ObjectListEntry objectListEntryAt(MouseEvent event) {
@@ -3161,6 +3281,7 @@ public class PlaaniseppApp extends Application {
                     MAX_OBJECT_LIST_HEIGHT
             );
             objectList.setPrefHeight(objectListHeight);
+            layerList.setPrefHeight(objectListHeight);
             event.consume();
         });
         handle.setOnMouseReleased(event -> {
@@ -3292,8 +3413,22 @@ public class PlaaniseppApp extends Application {
         }
 
         objectList.getItems().setAll(entries);
+        if (layerList != null) {
+            layerList.getItems().setAll(plan.layerOrder().reversed().stream()
+                    .filter(this::isLayerEntryAvailableInCurrentView)
+                    .toList());
+        }
         revealObjectInObjectList(selectedObject);
         updateRevealObjectButton();
+    }
+
+    private boolean isLayerEntryAvailableInCurrentView(PlanLayerEntry entry) {
+        if (entry.type() == PlanLayerEntry.Type.CABLE) {
+            return !organizerView;
+        }
+        return plan.findObject(entry.id())
+                .map(this::isObjectAvailableInCurrentView)
+                .orElse(false);
     }
 
     private String fenceNetworkMeasurementText(FenceRow representative) {

@@ -374,6 +374,17 @@ public class EventPlan {
         return true;
     }
 
+    public boolean moveLayerEntryToIndex(PlanLayerEntry entry, int targetIndex) {
+        synchronizeLayerOrder();
+        int currentIndex = layerOrder.indexOf(entry);
+        if (currentIndex < 0) return false;
+        int boundedTarget = Math.max(0, Math.min(targetIndex, layerOrder.size() - 1));
+        if (currentIndex == boundedTarget) return false;
+        layerOrder.remove(currentIndex);
+        layerOrder.add(boundedTarget, entry);
+        return true;
+    }
+
     private void synchronizeLayerOrder() {
         Set<PlanLayerEntry> valid = new HashSet<>();
         objects.forEach(object -> valid.add(PlanLayerEntry.object(object.id())));
@@ -1231,7 +1242,8 @@ public class EventPlan {
         powerConnections.add(connection);
         PlanLayerEntry cableLayer = PlanLayerEntry.cable(connection.id());
         if (!layerOrder.contains(cableLayer)) {
-            layerOrder.add(cableLayer);
+            int consumerLayerIndex = layerOrder.indexOf(PlanLayerEntry.object(consumerId));
+            layerOrder.add(consumerLayerIndex < 0 ? layerOrder.size() : consumerLayerIndex + 1, cableLayer);
         }
         return Optional.of(connection);
     }

@@ -60,6 +60,12 @@ class EventPlanObjectLayerTest {
                 source.id(), tent.id(), ConnectorType.SCHUKO_230V, "outlet"
         ).orElseThrow();
 
+        assertEquals(List.of(
+                PlanLayerEntry.object(source.id()),
+                PlanLayerEntry.object(tent.id()),
+                PlanLayerEntry.cable(cable.id()),
+                PlanLayerEntry.object(shape.id())
+        ), plan.layerOrder());
         assertTrue(plan.moveLayerEntriesToBoundary(List.of(PlanLayerEntry.cable(cable.id())), false));
         assertEquals(PlanLayerEntry.cable(cable.id()), plan.layerOrder().getFirst());
         assertTrue(plan.moveLayerEntries(List.of(PlanLayerEntry.cable(cable.id())), 1));
