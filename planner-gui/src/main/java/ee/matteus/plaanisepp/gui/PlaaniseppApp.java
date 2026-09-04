@@ -48,6 +48,7 @@ import ee.matteus.plaanisepp.core.service.PowerHierarchyService;
 import ee.matteus.plaanisepp.core.service.InventorySummaryService;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.animation.AnimationTimer;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.PauseTransition;
@@ -302,6 +303,10 @@ public class PlaaniseppApp extends Application {
     private final Set<String> expandedObjectInventoryKeys = new HashSet<>();
     private final Set<String> selectedObjectIds = new LinkedHashSet<>();
     private String selectionRangeAnchorObjectId;
+    private AnimationTimer layerDragAutoScrollTimer;
+    private double layerDragScrollRowsPerSecond;
+    private double layerDragScrollRowAccumulator;
+    private long layerDragScrollPreviousNanos;
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private final Set<String> hiddenSidebarSections = new HashSet<>();
@@ -2842,6 +2847,7 @@ public class PlaaniseppApp extends Application {
                         .map(this::layerEntryStorageKey)
                         .collect(java.util.stream.Collectors.joining(",")));
                 dragboard.setContent(content);
+                startLayerDragAutoScroll(list);
                 event.consume();
             });
             cell.setOnDragOver(event -> {
@@ -2849,7 +2855,7 @@ public class PlaaniseppApp extends Application {
                     event.acceptTransferModes(TransferMode.MOVE);
                     boolean insertAbove = event.getY() < cell.getHeight() / 2.0;
                     cell.setStyle(layerDropIndicatorStyle(insertAbove));
-                    autoScrollLayerList(list, cell);
+                    updateLayerDragScrollSpeed(list, cell, event.getX(), event.getY());
                 }
                 event.consume();
             });
@@ -2860,16 +2866,20 @@ public class PlaaniseppApp extends Application {
                 boolean insertAbove = event.getY() < cell.getHeight() / 2.0;
                 int layerIndex = layerDropTargetIndex(dragged, cell.getItem(), insertAbove);
                 boolean moved = layerIndex >= 0 && moveLayerEntriesToIndex(dragged, layerIndex);
+                stopLayerDragAutoScroll();
                 restoreLayerCellStyle(cell);
                 event.setDropCompleted(moved);
                 event.consume();
             });
+            cell.setOnDragDone(event -> stopLayerDragAutoScroll());
             cell.setOnMouseClicked(event -> {
                 if (event.getButton() != MouseButton.PRIMARY || cell.getItem() == null) return;
                 PlanLayerEntry entry = cell.getItem();
                 if (entry.type() == PlanLayerEntry.Type.OBJECT) {
                     plan.findObject(entry.id()).ifPresent(object -> {
-                        if (event.isControlDown()) {
+                        if (event.isControlDown() && event.isShiftDown()) {
+                            selectLayerObjectRange(object);
+                        } else if (event.isControlDown()) {
                             toggleObjectSelection(object);
                         } else {
                             selectObject(object);
@@ -2884,6 +2894,11 @@ public class PlaaniseppApp extends Application {
                 }
             });
             return cell;
+        });
+        list.setOnDragExited(event -> {
+            if (!list.getBoundsInLocal().contains(list.sceneToLocal(event.getSceneX(), event.getSceneY()))) {
+                layerDragScrollRowsPerSecond = 0;
+            }
         });
         return list;
     }
@@ -2903,13 +2918,104 @@ public class PlaaniseppApp extends Application {
         return targetIndexAfterRemoval + (insertAbove ? 1 : 0);
     }
 
-    private void autoScrollLayerList(ListView<PlanLayerEntry> list, ListCell<PlanLayerEntry> cell) {
-        int index = cell.getIndex();
-        if (cell.getLayoutY() < 30) {
-            list.scrollTo(Math.max(0, index - 1));
-        } else if (cell.getLayoutY() + cell.getHeight() > list.getHeight() - 30) {
-            list.scrollTo(Math.min(list.getItems().size() - 1, index + 1));
+    private void startLayerDragAutoScroll(ListView<PlanLayerEntry> list) {
+        stopLayerDragAutoScroll();
+        layerDragScrollRowAccumulator = 0;
+        layerDragScrollPreviousNanos = 0;
+        layerDragAutoScrollTimer = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                if (layerDragScrollPreviousNanos == 0) {
+                    layerDragScrollPreviousNanos = now;
+                    return;
+                }
+                double elapsedSeconds = (now - layerDragScrollPreviousNanos) / 1_000_000_000.0;
+                layerDragScrollPreviousNanos = now;
+                layerDragScrollRowAccumulator += elapsedSeconds * Math.abs(layerDragScrollRowsPerSecond);
+                while (layerDragScrollRowAccumulator >= 1.0) {
+                    scrollLayerListOneRow(list, layerDragScrollRowsPerSecond > 0 ? 1 : -1);
+                    layerDragScrollRowAccumulator -= 1.0;
+                }
+            }
+        };
+        layerDragAutoScrollTimer.start();
+    }
+
+    private void updateLayerDragScrollSpeed(
+            ListView<PlanLayerEntry> list,
+            ListCell<PlanLayerEntry> cell,
+            double cellX,
+            double cellY
+    ) {
+        Point2D pointer = list.sceneToLocal(cell.localToScene(cellX, cellY));
+        double edgeZone = Math.min(64, list.getHeight() / 3.0);
+        double edgeDistance;
+        int direction;
+        if (pointer.getY() < edgeZone) {
+            edgeDistance = edgeZone - pointer.getY();
+            direction = -1;
+        } else if (pointer.getY() > list.getHeight() - edgeZone) {
+            edgeDistance = pointer.getY() - (list.getHeight() - edgeZone);
+            direction = 1;
+        } else {
+            layerDragScrollRowsPerSecond = 0;
+            layerDragScrollRowAccumulator = 0;
+            return;
         }
+        double intensity = clamp(edgeDistance / edgeZone, 0, 1);
+        layerDragScrollRowsPerSecond = direction * (1.2 + 13.8 * intensity * intensity);
+    }
+
+    private void scrollLayerListOneRow(ListView<PlanLayerEntry> list, int direction) {
+        Bounds visibleBounds = list.localToScene(list.getBoundsInLocal());
+        int edgeIndex = list.lookupAll(".list-cell").stream()
+                .filter(ListCell.class::isInstance)
+                .map(ListCell.class::cast)
+                .filter(cell -> cell.getItem() != null && cell.isVisible())
+                .filter(cell -> {
+                    Bounds cellBounds = cell.localToScene(cell.getBoundsInLocal());
+                    return cellBounds.getMaxY() > visibleBounds.getMinY() + 2
+                            && cellBounds.getMinY() < visibleBounds.getMaxY() - 2;
+                })
+                .mapToInt(ListCell::getIndex)
+                .min()
+                .orElse(0);
+        list.scrollTo(Math.clamp(edgeIndex + direction, 0, list.getItems().size() - 1));
+    }
+
+    private void stopLayerDragAutoScroll() {
+        layerDragScrollRowsPerSecond = 0;
+        if (layerDragAutoScrollTimer != null) {
+            layerDragAutoScrollTimer.stop();
+            layerDragAutoScrollTimer = null;
+        }
+    }
+
+    private void selectLayerObjectRange(PlannerObject target) {
+        List<PlannerObject> visibleObjects = layerList.getItems().stream()
+                .filter(entry -> entry.type() == PlanLayerEntry.Type.OBJECT)
+                .map(entry -> plan.findObject(entry.id()).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        int targetIndex = indexOfVisibleObject(visibleObjects, target);
+        int anchorIndex = indexOfVisibleObjectById(visibleObjects, selectionRangeAnchorObjectId);
+        if (targetIndex < 0 || anchorIndex < 0) {
+            toggleObjectSelection(target);
+            return;
+        }
+        if (selectedObject != null && !updatingDetailControls) {
+            commitPendingDetailFieldsBeforeSelectionChange();
+        }
+        int from = Math.min(anchorIndex, targetIndex);
+        int to = Math.max(anchorIndex, targetIndex);
+        for (int index = from; index <= to; index++) {
+            selectedObjectIds.addAll(logicalObjectIds(visibleObjects.get(index)));
+        }
+        selectedObject = target;
+        refreshDetails();
+        refreshObjectList();
+        revealObjectInPowerSummary(target);
+        redrawMap();
     }
 
     private List<PlanLayerEntry> layerEntriesForDrag(PlanLayerEntry dragged) {
