@@ -8614,6 +8614,11 @@ public class PlaaniseppApp extends Application {
             refreshDetails();
         });
         dialog.show();
+        Scene dialogScene = dialog.getDialogPane().getScene();
+        dialogScene.addEventFilter(
+                KeyEvent.KEY_PRESSED,
+                event -> handlePlanHistoryShortcut(event, dialogScene)
+        );
     }
 
     private void deleteObject(PlannerObject object) {
