@@ -2811,7 +2811,26 @@ public class PlaaniseppApp extends Application {
                 @Override
                 protected void updateItem(PlanLayerEntry entry, boolean empty) {
                     super.updateItem(entry, empty);
-                    setText(empty || entry == null ? null : layerEntryText(entry));
+                    if (empty || entry == null) {
+                        setText(null);
+                        setGraphic(null);
+                        setStyle("");
+                        setOnContextMenuRequested(null);
+                        return;
+                    }
+                    if (entry.type() == PlanLayerEntry.Type.OBJECT) {
+                        plan.findObject(entry.id()).ifPresentOrElse(
+                                object -> renderLayerObjectCell(this, object),
+                                () -> renderLayerTextCell(this, "Puuduv objekt", "", "#9ca3af")
+                        );
+                    } else {
+                        renderLayerTextCell(
+                                this,
+                                layerEntryName(entry),
+                                layerEntryDetailText(entry),
+                                layerEntryColorHex(entry)
+                        );
+                    }
                 }
             };
             cell.setOnDragDetected(event -> {
@@ -2825,13 +2844,18 @@ public class PlaaniseppApp extends Application {
             cell.setOnDragOver(event -> {
                 if (cell.getItem() != null && event.getDragboard().hasString()) {
                     event.acceptTransferModes(TransferMode.MOVE);
+                    boolean insertAbove = event.getY() < cell.getHeight() / 2.0;
+                    cell.setStyle(layerDropIndicatorStyle(insertAbove));
                 }
                 event.consume();
             });
+            cell.setOnDragExited(event -> restoreLayerCellStyle(cell));
             cell.setOnDragDropped(event -> {
                 PlanLayerEntry dragged = layerEntryFromStorageKey(event.getDragboard().getString());
-                int layerIndex = plan.layerOrder().indexOf(cell.getItem());
+                boolean insertAbove = event.getY() < cell.getHeight() / 2.0;
+                int layerIndex = layerDropTargetIndex(dragged, cell.getItem(), insertAbove);
                 boolean moved = dragged != null && moveLayerEntryToIndex(dragged, layerIndex);
+                restoreLayerCellStyle(cell);
                 event.setDropCompleted(moved);
                 event.consume();
             });
@@ -2850,6 +2874,119 @@ public class PlaaniseppApp extends Application {
             return cell;
         });
         return list;
+    }
+
+    private int layerDropTargetIndex(
+            PlanLayerEntry dragged,
+            PlanLayerEntry target,
+            boolean insertAbove
+    ) {
+        int draggedIndex = plan.layerOrder().indexOf(dragged);
+        int targetIndex = plan.layerOrder().indexOf(target);
+        if (draggedIndex < 0 || targetIndex < 0) return targetIndex;
+        int targetIndexAfterRemoval = targetIndex - (draggedIndex < targetIndex ? 1 : 0);
+        return targetIndexAfterRemoval + (insertAbove ? 1 : 0);
+    }
+
+    private String layerDropIndicatorStyle(boolean insertAbove) {
+        return (insertAbove
+                ? "-fx-border-color: #2563eb transparent transparent transparent;"
+                        + "-fx-border-width: 3 0 0 0;"
+                : "-fx-border-color: transparent transparent #2563eb transparent;"
+                        + "-fx-border-width: 0 0 3 0;")
+                + "-fx-background-color: rgba(37,99,235,0.10);";
+    }
+
+    private void restoreLayerCellStyle(ListCell<PlanLayerEntry> cell) {
+        cell.setStyle(cell.getItem() == null ? "" : layerCellSelectionStyle(cell.getItem()));
+    }
+
+    private String layerCellSelectionStyle(PlanLayerEntry entry) {
+        if (entry.type() != PlanLayerEntry.Type.OBJECT) return "";
+        return plan.findObject(entry.id())
+                .filter(this::isSelected)
+                .map(ignored -> "-fx-background-color: rgba(37,99,235,0.24);"
+                        + "-fx-border-color: transparent transparent transparent #2563eb;"
+                        + "-fx-border-width: 0 0 0 3;")
+                .orElse("");
+    }
+
+    private void renderLayerObjectCell(ListCell<PlanLayerEntry> cell, PlannerObject object) {
+        ObjectListItem item = new ObjectListItem(
+                object,
+                objectTypeName(object),
+                groupNameForFilter(object),
+                object instanceof FenceRow fenceRow
+                        ? fenceNetworkMeasurementText(fenceRow)
+                        : objectMeasurementText(object),
+                isObjectVisibleOnMap(object)
+        );
+        Label nameLabel = new Label(object.name());
+        nameLabel.setStyle(item.visible()
+                ? "-fx-font-weight: bold;"
+                : "-fx-font-weight: bold; -fx-text-fill: #6b7280; -fx-font-style: italic;");
+        boolean lockedByGroup = plan.isGroupLocked(item.groupName());
+        Label detailLabel = new Label(item.detailText() + (lockedByGroup ? " · grupilukk" : ""));
+        detailLabel.setStyle(item.visible()
+                ? "-fx-text-fill: #6b7280; -fx-font-size: 11;"
+                : "-fx-text-fill: #6b7280; -fx-font-size: 11; -fx-font-style: italic;");
+        Rectangle colorSwatch = objectListColorSwatch(objectListColorHex(object), item.visible());
+        Button visibilityButton = objectStateIconButton(
+                "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+                !object.hidden(),
+                object.hidden() ? "Kuva objekt kaardil" : "Peida objekt kaardilt",
+                () -> setObjectHidden(item, !object.hidden())
+        );
+        boolean individuallyLocked = object.locked();
+        Button lockButton = objectStateIconButton(
+                "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",
+                individuallyLocked || lockedByGroup,
+                individuallyLocked ? "Eemalda objekti lukustus" : "Lukusta objekt",
+                () -> setObjectLocked(object, !object.locked()),
+                lockedByGroup ? individuallyLocked ? "#7c3aed" : "#b45309" : "#2563eb"
+        );
+        VBox textBox = new VBox(2, nameLabel, detailLabel);
+        HBox row = new HBox(6, visibilityButton, lockButton, colorSwatch, textBox);
+        row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        row.setPadding(new Insets(0, 0, 0, 34));
+        cell.setText(null);
+        cell.setGraphic(row);
+        cell.setStyle(layerCellSelectionStyle(PlanLayerEntry.object(object.id())));
+        cell.setOnContextMenuRequested(event -> {
+            showObjectContextMenu(object, event.getScreenX(), event.getScreenY());
+            event.consume();
+        });
+    }
+
+    private void renderLayerTextCell(
+            ListCell<PlanLayerEntry> cell,
+            String name,
+            String detail,
+            String colorHex
+    ) {
+        Label nameLabel = new Label(name);
+        nameLabel.setStyle("-fx-font-weight: bold;");
+        Label detailLabel = new Label(detail);
+        detailLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 11;");
+        VBox textBox = new VBox(2, nameLabel, detailLabel);
+        HBox row = new HBox(6, objectListColorSwatch(colorHex, true), textBox);
+        row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        row.setPadding(new Insets(0, 0, 0, 102));
+        cell.setText(null);
+        cell.setGraphic(row);
+        cell.setStyle("");
+        cell.setOnContextMenuRequested(null);
+    }
+
+    private Rectangle objectListColorSwatch(String colorHex, boolean visible) {
+        Rectangle colorSwatch = new Rectangle(12, 12);
+        colorSwatch.setArcWidth(3);
+        colorSwatch.setArcHeight(3);
+        colorSwatch.setFill(Color.web(colorHex));
+        colorSwatch.setStroke(Color.web("#111827"));
+        colorSwatch.setStrokeWidth(0.7);
+        colorSwatch.setOpacity(visible ? 1.0 : 0.45);
+        return colorSwatch;
     }
 
     private boolean moveLayerEntryToIndex(PlanLayerEntry entry, int targetIndex) {
@@ -2876,28 +3013,35 @@ public class PlaaniseppApp extends Application {
         }
     }
 
-    private String layerEntryText(PlanLayerEntry entry) {
-        if (entry.type() == PlanLayerEntry.Type.OBJECT) {
-            return plan.findObject(entry.id())
-                    .map(object -> "%s · %s · %s".formatted(
-                            objectTypeName(object), object.name(), groupNameForFilter(object)))
-                    .orElse("Puuduv objekt");
-        }
+    private String layerEntryName(PlanLayerEntry entry) {
+        return plan.findPowerConnection(entry.id()).map(connection -> {
+            PlannerObject source = plan.findObject(connection.sourceId()).orElse(null);
+            PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
+            if (source == null || consumer == null) return "Puuduv kaabel";
+            return "%s → %s".formatted(source.name(), consumer.name());
+        }).orElse("Puuduv kaabel");
+    }
+
+    private String layerEntryDetailText(PlanLayerEntry entry) {
         return plan.findPowerConnection(entry.id()).map(connection -> {
             PlannerObject source = plan.findObject(connection.sourceId()).orElse(null);
             PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
             if (!(source instanceof PowerSource powerSource) || consumer == null) return "Puuduv kaabel";
             double length = CableDisplayHelper.lengthMeters(
                     cablePath(consumer, powerSource, connection), pixelsPerMeter());
-            return "Kaabel %s · %.1f m · %s → %s · %s → %s".formatted(
+            return "Kaabel %s · %.1f m · %s → %s".formatted(
                     CableDisplayHelper.shortTypeName(connection.connectorType()),
                     length,
                     groupNameForFilter(source),
-                    groupNameForFilter(consumer),
-                    source.name(),
-                    consumer.name()
+                    groupNameForFilter(consumer)
             );
         }).orElse("Puuduv kaabel");
+    }
+
+    private String layerEntryColorHex(PlanLayerEntry entry) {
+        return plan.findPowerConnection(entry.id())
+                .map(connection -> toHex(CableDisplayHelper.color(connection.connectorType())))
+                .orElse("#9ca3af");
     }
 
     private ObjectListEntry objectListEntryAt(MouseEvent event) {
@@ -3427,7 +3571,9 @@ public class PlaaniseppApp extends Application {
             return !organizerView;
         }
         return plan.findObject(entry.id())
-                .map(this::isObjectAvailableInCurrentView)
+                .map(object -> isObjectAvailableInCurrentView(object)
+                        && (!(object instanceof FenceRow fenceRow)
+                        || plan.isFenceNetworkRepresentative(fenceRow)))
                 .orElse(false);
     }
 
