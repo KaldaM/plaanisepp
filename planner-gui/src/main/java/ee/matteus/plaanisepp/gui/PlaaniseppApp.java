@@ -2876,7 +2876,7 @@ public class PlaaniseppApp extends Application {
                         plan.findPowerConnection(entry.id()).ifPresent(connection -> {
                             setText(null);
                             setGraphic(createCableListRow(connection));
-                            setStyle("");
+                            setStyle(cableListSelectionStyle(connection));
                             setOnContextMenuRequested(event -> {
                                 showCableContextMenu(connection, event.getScreenX(), event.getScreenY());
                                 event.consume();
@@ -3028,7 +3028,7 @@ public class PlaaniseppApp extends Application {
         PlanLayerEntry entry = PlanLayerEntry.cable(connection.id());
         cell.setText(null);
         cell.setGraphic(createCableListRow(connection));
-        cell.setStyle("");
+        cell.setStyle(cableListSelectionStyle(connection));
         cell.setOnContextMenuRequested(event -> {
             showCableContextMenu(connection, event.getScreenX(), event.getScreenY());
             event.consume();
@@ -3059,6 +3059,14 @@ public class PlaaniseppApp extends Application {
         row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         row.setPadding(new Insets(0, 0, 0, 34));
         return row;
+    }
+
+    private String cableListSelectionStyle(PowerConnection connection) {
+        return connection.id().equals(selectedPowerConnectionId())
+                ? "-fx-background-color: rgba(37,99,235,0.24);"
+                        + "-fx-border-color: transparent transparent transparent #2563eb;"
+                        + "-fx-border-width: 0 0 0 3;"
+                : "";
     }
 
     private void setCableHidden(String connectionId, boolean hidden) {
@@ -12403,6 +12411,8 @@ public class PlaaniseppApp extends Application {
                 .filter(choice -> choice.connectionId().equals(connectionId))
                 .findFirst()
                 .ifPresent(choice -> powerConnectionComboBox.getSelectionModel().select(choice));
+        if (objectList != null) objectList.refresh();
+        if (layerList != null) layerList.refresh();
         redrawMap();
     }
 
