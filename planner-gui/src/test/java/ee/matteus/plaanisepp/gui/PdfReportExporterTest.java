@@ -11,6 +11,7 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class PdfReportExporterTest {
     @TempDir
@@ -68,6 +69,22 @@ class PdfReportExporterTest {
             assertTrue(pdfText.contains("Pudruala"));
             assertFalse(pdfText.contains("#99cccc"));
             assertTrue(pdfText.contains("6.0 × 4.0 m"));
+        }
+    }
+
+    @Test
+    void repeatedBlankLinesDoNotCreateMostlyEmptyPages() throws Exception {
+        File output = temporaryDirectory.resolve("blank-lines.pdf").toFile();
+
+        PdfReportExporter.export(
+                output,
+                "Testplaan",
+                new BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB),
+                "Raport\n" + "\n".repeat(100) + "Lõpp"
+        );
+
+        try (PDDocument document = PDDocument.load(output)) {
+            assertEquals(2, document.getNumberOfPages());
         }
     }
 }

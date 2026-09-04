@@ -31,7 +31,7 @@ final class ReportTextExporter {
     ) {
         String lineSeparator = System.lineSeparator();
         StringBuilder builder = new StringBuilder();
-        planOverviewTextFormatter.append(builder, plan, lineSeparator);
+        planOverviewTextFormatter.append(builder, plan, lineSeparator, includeTechnicalObjects);
 
         if (includePower) {
             powerReportTextFormatter.append(builder, plan, reportScope, lineSeparator);

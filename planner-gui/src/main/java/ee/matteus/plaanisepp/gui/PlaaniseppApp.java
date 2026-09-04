@@ -13288,7 +13288,9 @@ public class PlaaniseppApp extends Application {
     private void exportSummary() {
         refreshSummary();
 
-        Optional<ReportExportScope> selectedReportScope = ExportOptionsDialog.chooseReportExportScope(stage);
+        Optional<ReportExportScope> selectedReportScope = ExportOptionsDialog.chooseReportExportScope(
+                stage, !organizerView
+        );
         if (selectedReportScope.isEmpty()) {
             return;
         }
@@ -13345,7 +13347,9 @@ public class PlaaniseppApp extends Application {
     private void exportPdf() {
         redrawMap();
 
-        Optional<PdfExportOptions> selectedOptions = ExportOptionsDialog.choosePdfExportOptions(stage);
+        Optional<PdfExportOptions> selectedOptions = ExportOptionsDialog.choosePdfExportOptions(
+                stage, !organizerView
+        );
         if (selectedOptions.isEmpty()) {
             return;
         }

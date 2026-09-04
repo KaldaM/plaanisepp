@@ -103,9 +103,15 @@ final class PdfReportExporter {
         document.addPage(page);
         PDPageContentStream content = new PDPageContentStream(document, page);
         float y = pageSize.getHeight() - margin;
+        boolean previousLineBlank = false;
         try {
             for (String originalLine : reportText.split("\\R", -1)) {
                 String trimmedLine = originalLine.trim();
+                boolean lineBlank = trimmedLine.isBlank();
+                if (lineBlank && previousLineBlank) {
+                    continue;
+                }
+                previousLineBlank = lineBlank;
                 if (!trimmedLine.isBlank() && trimmedLine.chars().allMatch(character -> character == '=')) {
                     continue;
                 }

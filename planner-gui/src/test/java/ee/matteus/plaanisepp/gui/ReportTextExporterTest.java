@@ -93,6 +93,7 @@ class ReportTextExporterTest {
         assertFalse(report.contains("Põhikilp"));
         assertFalse(report.contains("Põhikilbi väljundid"));
         assertFalse(report.contains("63A väljund"));
+        assertFalse(report.contains("Vooluühendusi:"));
     }
 
     @Test

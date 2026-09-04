@@ -29,7 +29,10 @@ final class ExportOptionsDialog {
         return dialog.showAndWait();
     }
 
-    static Optional<ReportExportScope> chooseReportExportScope(Stage owner) {
+    static Optional<ReportExportScope> chooseReportExportScope(Stage owner, boolean technicalDetailsAvailable) {
+        if (!technicalDetailsAvailable) {
+            return Optional.of(ReportExportScope.COMPACT);
+        }
         ChoiceDialog<ReportExportScope> dialog = new ChoiceDialog<>(
                 ReportExportScope.COMPACT,
                 ReportExportScope.COMPACT,
@@ -42,7 +45,7 @@ final class ExportOptionsDialog {
         return dialog.showAndWait();
     }
 
-    static Optional<PdfExportOptions> choosePdfExportOptions(Stage owner) {
+    static Optional<PdfExportOptions> choosePdfExportOptions(Stage owner, boolean technicalDetailsAvailable) {
         ComboBox<MapImageExportScope> mapScopeComboBox = new ComboBox<>();
         mapScopeComboBox.getItems().addAll(MapImageExportScope.values());
         mapScopeComboBox.getSelectionModel().select(MapImageExportScope.FULL_MAP);
@@ -55,8 +58,11 @@ final class ExportOptionsDialog {
 
         GridPane form = formGrid();
         form.addRow(0, new Label("Kaardi ala"), mapScopeComboBox);
-        form.addRow(1, new Label("Raport"), reportScopeComboBox);
-        form.addRow(2, new Label("Kaardil"), includeObjectLegend);
+        int nextRow = 1;
+        if (technicalDetailsAvailable) {
+            form.addRow(nextRow++, new Label("Raport"), reportScopeComboBox);
+        }
+        form.addRow(nextRow, new Label("Kaardil"), includeObjectLegend);
 
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
         dialog.initOwner(owner);
