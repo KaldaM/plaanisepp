@@ -625,6 +625,10 @@ public class PlaaniseppApp extends Application {
             } else if (event.getCode() == KeyCode.ENTER && isShapePlacementPending()) {
                 finishPendingShapePlacement();
                 event.consume();
+            } else if (event.getCode() == KeyCode.ENTER && pendingFenceRowPlacement
+                    && pendingFenceTemplateRowId != null) {
+                finishPendingFencePlacement();
+                event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && rotatingObjectId != null) {
                 finishObjectRotation();
                 event.consume();
@@ -1885,11 +1889,11 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             if (pendingLineObjectPlacement && !mapDraggedSincePress) {
-                addPendingShapePoint(new Position(event.getX(), event.getY()));
+                handleContinuousPlacementClick(event, new Position(event.getX(), event.getY()));
                 return;
             }
             if (pendingFenceRowPlacement && !mapDraggedSincePress) {
-                addPendingFencePoint(new Position(event.getX(), event.getY()));
+                handleContinuousPlacementClick(event, new Position(event.getX(), event.getY()));
                 return;
             }
             if (pendingFenceRingPlacement && !mapDraggedSincePress) {
@@ -4340,6 +4344,8 @@ public class PlaaniseppApp extends Application {
         if (isPlacementPending()) {
             if (isShapePlacementPending() && canFinishPendingShapePlacement()) {
                 finishPendingShapePlacement();
+            } else if (pendingFenceRowPlacement && pendingFenceTemplateRowId != null) {
+                finishPendingFencePlacement();
             } else {
                 cancelPlacement();
             }
@@ -4849,17 +4855,44 @@ public class PlaaniseppApp extends Application {
                 : pendingFenceStartJointId;
         String endJointId = snappedEndJoint.map(FenceJoint::id).orElse(fenceRow.endJointId());
         plan.setFenceRowJoints(fenceRow, startJointId, endJointId);
-        clearPendingPlacementDetails();
-        pendingFenceRowPlacement = false;
-        pendingFenceStartJointId = null;
-        pendingFenceTemplateRowId = null;
         pendingShapePoints.clear();
+        pendingShapePoints.add(fenceRow.endPosition(pixelsPerMeter()));
+        pendingFenceStartJointId = endJointId;
+        pendingFenceTemplateRowId = fenceRow.id();
         refreshPlacementButtons();
         updateMapToolStatus();
         refreshGroupFilters();
         selectObject(fenceRow);
         refreshSummary();
         markDirty();
+    }
+
+    private void handleContinuousPlacementClick(MouseEvent event, Position point) {
+        if (event.getClickCount() == 2) {
+            if (pendingLineObjectPlacement && canFinishPendingShapePlacement()) {
+                finishPendingShapePlacement();
+                return;
+            }
+            if (pendingFenceRowPlacement && pendingFenceTemplateRowId != null) {
+                finishPendingFencePlacement();
+                return;
+            }
+        }
+        if (pendingLineObjectPlacement) {
+            addPendingShapePoint(point);
+        } else if (pendingFenceRowPlacement) {
+            addPendingFencePoint(point);
+        }
+    }
+
+    private void finishPendingFencePlacement() {
+        pendingFenceRowPlacement = false;
+        pendingFenceStartJointId = null;
+        pendingFenceTemplateRowId = null;
+        clearPendingPlacementDetails();
+        refreshPlacementButtons();
+        updateMapToolStatus();
+        redrawMap();
     }
 
     private Optional<FenceJoint> nearestFenceJoint(Position point, String excludedJointId) {
@@ -5874,7 +5907,7 @@ public class PlaaniseppApp extends Application {
             }
             if (pendingLineObjectPlacement) {
                 Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-                addPendingShapePoint(new Position(mapPoint.getX(), mapPoint.getY()));
+                handleContinuousPlacementClick(event, new Position(mapPoint.getX(), mapPoint.getY()));
                 event.consume();
                 return;
             }
@@ -6766,9 +6799,7 @@ public class PlaaniseppApp extends Application {
         });
         endHandle.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && pendingFenceRowPlacement) {
-                plan.findFenceJoint(fenceRow.endJointId())
-                        .map(FenceJoint::position)
-                        .ifPresent(this::addPendingFencePoint);
+                handleFenceEndpointClick(event, fenceRow.endJointId());
             }
             event.consume();
         });
@@ -6838,12 +6869,23 @@ public class PlaaniseppApp extends Application {
         });
         startHandle.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && pendingFenceRowPlacement) {
-                plan.findFenceJoint(fenceRow.startJointId())
-                        .map(FenceJoint::position)
-                        .ifPresent(this::addPendingFencePoint);
+                handleFenceEndpointClick(event, fenceRow.startJointId());
             }
             event.consume();
         });
+    }
+
+    private void handleFenceEndpointClick(MouseEvent event, String jointId) {
+        if (event.getClickCount() == 2 && pendingFenceTemplateRowId != null) {
+            finishPendingFencePlacement();
+            return;
+        }
+        if (jointId.equals(pendingFenceStartJointId)) {
+            return;
+        }
+        plan.findFenceJoint(jointId)
+                .map(FenceJoint::position)
+                .ifPresent(this::addPendingFencePoint);
     }
 
     private void updateFenceNetworkDragPreview(FenceRow selectedFenceRow) {
@@ -7642,13 +7684,13 @@ public class PlaaniseppApp extends Application {
             }
             if (pendingLineObjectPlacement) {
                 Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-                addPendingShapePoint(new Position(mapPoint.getX(), mapPoint.getY()));
+                handleContinuousPlacementClick(event, new Position(mapPoint.getX(), mapPoint.getY()));
                 event.consume();
                 return;
             }
             if (pendingFenceRowPlacement) {
                 Point2D mapPoint = mapPane.sceneToLocal(event.getSceneX(), event.getSceneY());
-                addPendingFencePoint(new Position(mapPoint.getX(), mapPoint.getY()));
+                handleContinuousPlacementClick(event, new Position(mapPoint.getX(), mapPoint.getY()));
                 event.consume();
                 return;
             }
@@ -10650,7 +10692,8 @@ public class PlaaniseppApp extends Application {
         if (!placementPending) {
             return "Lisa";
         }
-        if (isShapePlacementPending() && canFinishPendingShapePlacement()) {
+        if (isShapePlacementPending() && canFinishPendingShapePlacement()
+                || pendingFenceRowPlacement && pendingFenceTemplateRowId != null) {
             return "Lõpeta";
         }
         return "Tühista";
