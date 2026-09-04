@@ -316,6 +316,14 @@ public class PlaaniseppApp extends Application {
     private boolean layerMouseDragActive;
     private Scene layerMouseDragScene;
     private javafx.event.EventHandler<MouseEvent> layerMouseReleaseFilter;
+    private ObjectListEntry objectListDragCandidate;
+    private List<PlanLayerEntry> objectListDraggedEntries = List.of();
+    private double objectListDragStartX;
+    private double objectListDragStartY;
+    private boolean objectListDragActive;
+    private ListCell<ObjectListEntry> objectListDropCell;
+    private boolean objectListDropAbove;
+    private javafx.event.EventHandler<MouseEvent> objectListReleaseFilter;
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private final Set<String> hiddenSidebarSections = new HashSet<>();
@@ -2602,6 +2610,7 @@ public class PlaaniseppApp extends Application {
         });
         objectList = new ListView<>();
         objectList.setPrefHeight(objectListHeight);
+        objectList.setStyle("-fx-selection-bar: transparent; -fx-selection-bar-non-focused: transparent;");
         objectList.setTooltip(new Tooltip(
                 "Topeltklõps viib kaardil objektini\n"
                         + "Ctrl+klõps lisab või eemaldab objekti valikust\n"
@@ -2617,9 +2626,11 @@ public class PlaaniseppApp extends Application {
                     setGraphic(null);
                     setStyle("");
                     setOnContextMenuRequested(null);
+                    setCursor(Cursor.DEFAULT);
                     return;
                 }
                 if (entry.isGroup()) {
+                    setCursor(Cursor.DEFAULT);
                     Button toggleButton = new Button(entry.expanded() ? "▾" : "▸");
                     toggleButton.setFocusTraversable(false);
                     toggleButton.setMinWidth(28);
@@ -2667,12 +2678,14 @@ public class PlaaniseppApp extends Application {
                 }
 
                 if (entry.isCable()) {
+                    setCursor(Cursor.DEFAULT);
                     plan.findPowerConnection(entry.connectionId())
                             .ifPresent(connection -> renderObjectListCableCell(this, connection));
                     return;
                 }
 
                 ObjectListItem item = entry.objectItem();
+                setCursor(mapLayoutLocked ? Cursor.DEFAULT : Cursor.OPEN_HAND);
                 Label nameLabel = new Label(item.object().name());
                 nameLabel.setStyle(item.visible()
                         ? "-fx-font-weight: bold;"
@@ -2733,6 +2746,9 @@ public class PlaaniseppApp extends Application {
             }
         });
         objectList.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            if (!event.isControlDown() && !event.isShiftDown()) {
+                beginObjectListDrag(event);
+            }
             ObjectListEntry entry = objectListEntryAt(event);
             if (event.getButton() == MouseButton.SECONDARY
                     && entry != null
@@ -2761,8 +2777,13 @@ public class PlaaniseppApp extends Application {
             }
             event.consume();
         });
+        objectList.addEventHandler(MouseEvent.MOUSE_DRAGGED, this::continueObjectListDrag);
+        objectList.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> {
+            if (!objectListDragActive) objectListDragCandidate = null;
+        });
         objectList.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-            if (synchronizingSidebarSelection || preservingSidebarMultiSelection) {
+            if (synchronizingSidebarSelection || preservingSidebarMultiSelection
+                    || objectListDragCandidate != null) {
                 return;
             }
             if (newValue == null) {
@@ -2787,6 +2808,7 @@ public class PlaaniseppApp extends Application {
             selectObject(object);
         });
         objectList.setOnMouseClicked(event -> {
+            objectListDragCandidate = null;
             ObjectListEntry selectedEntry = objectList.getSelectionModel().getSelectedItem();
             if (selectedEntry == null || selectedEntry.isGroup() || event.getButton() != MouseButton.PRIMARY) {
                 return;
@@ -3382,6 +3404,78 @@ public class PlaaniseppApp extends Application {
             return entry;
         }
         return null;
+    }
+
+    private void beginObjectListDrag(MouseEvent event) {
+        ObjectListEntry entry = objectListEntryAt(event);
+        if (event.getButton() != MouseButton.PRIMARY || mapLayoutLocked
+                || entry == null || entry.isGroup() || entry.isCable()
+                || event.getPickResult().getIntersectedNode() instanceof Button) {
+            objectListDragCandidate = null;
+            return;
+        }
+        objectListDragCandidate = entry;
+        objectListDragStartX = event.getSceneX();
+        objectListDragStartY = event.getSceneY();
+        objectListDragActive = false;
+    }
+
+    private void continueObjectListDrag(MouseEvent event) {
+        if (objectListDragCandidate == null) return;
+        if (!objectListDragActive) {
+            if (Math.hypot(event.getSceneX() - objectListDragStartX,
+                    event.getSceneY() - objectListDragStartY) < 5) return;
+            PlannerObject draggedObject = objectListDragCandidate.objectItem().object();
+            if (!isSelected(draggedObject)) selectObjectForLayerDrag(draggedObject);
+            objectListDraggedEntries = selectedLayerObjectIds(draggedObject).stream()
+                    .map(PlanLayerEntry::object).toList();
+            objectListDragActive = true;
+            objectList.setCursor(Cursor.CLOSED_HAND);
+            objectListReleaseFilter = release -> finishObjectListDrag(release);
+            objectList.getScene().addEventFilter(MouseEvent.MOUSE_RELEASED, objectListReleaseFilter);
+        }
+        updateObjectListDropIndicator(event.getSceneX(), event.getSceneY());
+        event.consume();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void updateObjectListDropIndicator(double sceneX, double sceneY) {
+        ListCell<ObjectListEntry> target = objectList.lookupAll(".list-cell").stream()
+                .filter(ListCell.class::isInstance)
+                .map(node -> (ListCell<ObjectListEntry>) node)
+                .filter(cell -> cell.getItem() != null && !cell.getItem().isGroup()
+                        && !cell.getItem().isCable())
+                .filter(cell -> cell.localToScene(cell.getBoundsInLocal()).contains(sceneX, sceneY))
+                .filter(cell -> cell.getItem().groupName().equals(objectListDragCandidate.groupName()))
+                .findFirst().orElse(null);
+        if (target == null) return;
+        if (objectListDropCell != null && objectListDropCell != target) objectListDropCell.setStyle("");
+        objectListDropCell = target;
+        objectListDropAbove = target.sceneToLocal(sceneX, sceneY).getY() < target.getHeight() / 2.0;
+        target.setStyle(layerDropIndicatorStyle(objectListDropAbove));
+    }
+
+    private void finishObjectListDrag(MouseEvent event) {
+        if (objectListReleaseFilter != null) {
+            objectList.getScene().removeEventFilter(MouseEvent.MOUSE_RELEASED, objectListReleaseFilter);
+            objectListReleaseFilter = null;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        boolean moved = false;
+        if (objectListDropCell != null) {
+            int targetIndex = layerDropTargetIndex(objectListDraggedEntries,
+                    PlanLayerEntry.object(objectListDropCell.getItem().objectItem().object().id()),
+                    objectListDropAbove);
+            moved = targetIndex >= 0 && plan.moveLayerEntriesToIndex(objectListDraggedEntries, targetIndex);
+        }
+        objectList.setCursor(Cursor.DEFAULT);
+        objectListDragCandidate = null;
+        objectListDraggedEntries = List.of();
+        objectListDragActive = false;
+        objectListDropCell = null;
+        if (moved) finishAutoAppliedDetailsChange(before, false);
+        else refreshObjectList();
+        event.consume();
     }
 
     private void selectObjectRange(PlannerObject target) {
