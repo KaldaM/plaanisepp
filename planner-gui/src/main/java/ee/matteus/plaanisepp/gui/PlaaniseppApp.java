@@ -3446,7 +3446,6 @@ public class PlaaniseppApp extends Application {
                 .filter(cell -> cell.getItem() != null && !cell.getItem().isGroup()
                         && !cell.getItem().isCable())
                 .filter(cell -> cell.localToScene(cell.getBoundsInLocal()).contains(sceneX, sceneY))
-                .filter(cell -> cell.getItem().groupName().equals(objectListDragCandidate.groupName()))
                 .findFirst().orElse(null);
         if (target == null) return;
         if (objectListDropCell != null && objectListDropCell != target) objectListDropCell.setStyle("");
@@ -3462,7 +3461,17 @@ public class PlaaniseppApp extends Application {
         }
         PlanSnapshot before = planSnapshotService.create(plan);
         boolean moved = false;
+        boolean groupChanged = false;
         if (objectListDropCell != null) {
+            String targetGroup = objectListDropCell.getItem().groupName();
+            Set<String> draggedIds = objectListDraggedEntries.stream()
+                    .map(PlanLayerEntry::id).collect(java.util.stream.Collectors.toSet());
+            for (PlannerObject object : plan.objects()) {
+                if (draggedIds.contains(object.id()) && !groupNameForFilter(object).equals(targetGroup)) {
+                    object.setGroupName(targetGroup.equals("Määramata") ? "" : targetGroup);
+                    groupChanged = true;
+                }
+            }
             int targetIndex = layerDropTargetIndex(objectListDraggedEntries,
                     PlanLayerEntry.object(objectListDropCell.getItem().objectItem().object().id()),
                     objectListDropAbove);
@@ -3473,7 +3482,7 @@ public class PlaaniseppApp extends Application {
         objectListDraggedEntries = List.of();
         objectListDragActive = false;
         objectListDropCell = null;
-        if (moved) finishAutoAppliedDetailsChange(before, false);
+        if (moved || groupChanged) finishAutoAppliedDetailsChange(before, groupChanged);
         else refreshObjectList();
         event.consume();
     }
