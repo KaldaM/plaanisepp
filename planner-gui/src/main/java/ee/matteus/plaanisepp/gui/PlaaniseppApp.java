@@ -24,6 +24,7 @@ import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.MarkerType;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
+import ee.matteus.plaanisepp.core.model.PlanLayerEntry;
 import ee.matteus.plaanisepp.core.model.Position;
 import ee.matteus.plaanisepp.core.model.PowerConnection;
 import ee.matteus.plaanisepp.core.model.PowerConnectionValidationResult;
@@ -5488,10 +5489,17 @@ public class PlaaniseppApp extends Application {
         fenceInteractionNodes.clear();
         powerConnectionAnchorMarkers.clear();
         addMapImage();
-        if (showCables()) {
-            drawPowerConnections();
-        }
-        for (PlannerObject object : plan.objects()) {
+        for (PlanLayerEntry layerEntry : plan.layerOrder()) {
+            if (layerEntry.type() == PlanLayerEntry.Type.CABLE) {
+                if (showCables()) {
+                    drawPowerConnection(layerEntry.id());
+                }
+                continue;
+            }
+            PlannerObject object = plan.findObject(layerEntry.id()).orElse(null);
+            if (object == null) {
+                continue;
+            }
             if (!isObjectVisibleOnMap(object)) {
                 continue;
             }
@@ -5520,6 +5528,21 @@ public class PlaaniseppApp extends Application {
         powerConnectionAnchorMarkers.forEach(Node::toFront);
         drawPendingShapePreview();
         mapPane.getChildren().addAll(measurementNodes);
+    }
+
+    private void drawPowerConnection(String connectionId) {
+        plan.findPowerConnection(connectionId).ifPresent(connection -> {
+            if (!showCableType(connection.connectorType())) return;
+            PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
+            PowerSource source = plan.findObject(connection.sourceId())
+                    .filter(PowerSource.class::isInstance)
+                    .map(PowerSource.class::cast)
+                    .orElse(null);
+            if (consumer != null && source != null
+                    && isObjectVisibleOnMap(consumer) && isObjectVisibleOnMap(source)) {
+                drawPowerConnection(new PowerCableView(consumer, source, connection));
+            }
+        });
     }
 
     private void synchronizeSelectionState() {
@@ -5990,12 +6013,39 @@ public class PlaaniseppApp extends Application {
         piecesItem.setOnAction(event -> showCableLengthNotesDialog(
                 cable.connection(), cableInventoryHeader(cable.connection())
         ));
+        Menu layerMenu = cableLayerMenu(cable.connection());
         showContextMenu(
-                new ContextMenu(noteItem, piecesItem, new SeparatorMenuItem(), routeItem),
+                new ContextMenu(noteItem, piecesItem, new SeparatorMenuItem(), routeItem, layerMenu),
                 mapPane,
                 screenX,
                 screenY
         );
+    }
+
+    private Menu cableLayerMenu(PowerConnection connection) {
+        Menu menu = new Menu("Kihistus");
+        MenuItem forward = new MenuItem("Too ühe kihi võrra ettepoole");
+        forward.setOnAction(event -> moveCableLayer(connection, 1, null));
+        MenuItem backward = new MenuItem("Vii ühe kihi võrra tahapoole");
+        backward.setOnAction(event -> moveCableLayer(connection, -1, null));
+        MenuItem front = new MenuItem("Too kõige ette");
+        front.setOnAction(event -> moveCableLayer(connection, 0, true));
+        MenuItem back = new MenuItem("Vii kõige taha");
+        back.setOnAction(event -> moveCableLayer(connection, 0, false));
+        menu.setDisable(mapLayoutLocked);
+        menu.getItems().addAll(forward, backward, new SeparatorMenuItem(), front, back);
+        return menu;
+    }
+
+    private void moveCableLayer(PowerConnection connection, int direction, Boolean front) {
+        PlanSnapshot before = planSnapshotService.create(plan);
+        PlanLayerEntry entry = PlanLayerEntry.cable(connection.id());
+        boolean moved = front == null
+                ? plan.moveLayerEntries(List.of(entry), direction)
+                : plan.moveLayerEntriesToBoundary(List.of(entry), front);
+        if (moved) {
+            finishAutoAppliedDetailsChange(before, false);
+        }
     }
 
     private void startEditingCableRoute(PowerCableView cable) {
@@ -8532,14 +8582,18 @@ public class PlaaniseppApp extends Application {
 
     private void moveObjectLayer(PlannerObject object, int direction) {
         PlanSnapshot before = planSnapshotService.create(plan);
-        if (plan.moveObjectsByLayer(selectedLayerObjectIds(object), direction)) {
+        List<PlanLayerEntry> entries = selectedLayerObjectIds(object).stream()
+                .map(PlanLayerEntry::object).toList();
+        if (plan.moveLayerEntries(entries, direction)) {
             finishAutoAppliedDetailsChange(before, false);
         }
     }
 
     private void moveObjectToLayerBoundary(PlannerObject object, boolean front) {
         PlanSnapshot before = planSnapshotService.create(plan);
-        if (plan.moveObjectsToLayerBoundary(selectedLayerObjectIds(object), front)) {
+        List<PlanLayerEntry> entries = selectedLayerObjectIds(object).stream()
+                .map(PlanLayerEntry::object).toList();
+        if (plan.moveLayerEntriesToBoundary(entries, front)) {
             finishAutoAppliedDetailsChange(before, false);
         }
     }

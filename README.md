@@ -48,7 +48,7 @@ Korraldajavaade käivitub esmakordsel kasutamisel vaikimisi ning peidab tehnilis
 
 ## Failivorming ja ühilduvus
 
-`.pplan` on üks kaasaskantav ZIP-pakett, mis sisaldab plaani andmeid ning kasutaja valitud kaardipilte. Praegune sisemine vorminguversioon on **25**. Pakett säilitab muu hulgas objektid, grupid, nähtavuse, inventari, elektriühendused, kaablitrajektoorid, aluskaardid ja checklisti.
+`.pplan` on üks kaasaskantav ZIP-pakett, mis sisaldab plaani andmeid ning kasutaja valitud kaardipilte. Praegune sisemine vorminguversioon on **26**. Pakett säilitab muu hulgas objektid, kaablid ja nende ühise kihijärjekorra, grupid, nähtavuse, inventari, elektriühendused, kaablitrajektoorid, aluskaardid ja checklisti.
 
 Rakendus avab ka vanemad versioonita ning varasemad `.pplan` vormingud. Vana faili ei muudeta avamisel; järgmine salvestamine viib selle praegusesse vormingusse. Rakendus ei ava endast uuema vorminguga faili enne, kui programm on uuendatud.
 

@@ -19,6 +19,7 @@ import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.MarkerObject;
 import ee.matteus.plaanisepp.core.model.MarkerType;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
+import ee.matteus.plaanisepp.core.model.PlanLayerEntry;
 import ee.matteus.plaanisepp.core.model.Position;
 import ee.matteus.plaanisepp.core.model.PowerConnection;
 import ee.matteus.plaanisepp.core.model.PowerConnectable;
@@ -41,6 +42,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -53,7 +55,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 25;
+    public static final int CURRENT_FORMAT_VERSION = 26;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -226,6 +228,12 @@ public class PlanFileService {
                 properties.setProperty(pointPrefix + "y", Double.toString(point.y()));
             }
         }
+        properties.setProperty("layers.count", Integer.toString(plan.layerOrder().size()));
+        for (int index = 0; index < plan.layerOrder().size(); index++) {
+            PlanLayerEntry entry = plan.layerOrder().get(index);
+            properties.setProperty("layer." + index + ".type", entry.type().name());
+            properties.setProperty("layer." + index + ".id", entry.id());
+        }
 
         return properties;
     }
@@ -378,6 +386,24 @@ public class PlanFileService {
                 readPowerConnection(properties, prefix, plan, defaultForConsumer);
             }
         }
+        int layerCount = intValue(properties, "layers.count", 0);
+        List<PlanLayerEntry> layerOrder = new ArrayList<>();
+        for (int index = 0; index < layerCount; index++) {
+            String prefix = "layer." + index + ".";
+            try {
+                layerOrder.add(new PlanLayerEntry(
+                        PlanLayerEntry.Type.valueOf(properties.getProperty(prefix + "type", "")),
+                        properties.getProperty(prefix + "id", "")
+                ));
+            } catch (IllegalArgumentException ignored) {
+                // Vigane või tundmatu kihikirje jäetakse vahele.
+            }
+        }
+        if (layerOrder.isEmpty()) {
+            plan.powerConnections().forEach(connection -> layerOrder.add(PlanLayerEntry.cable(connection.id())));
+            plan.objects().forEach(object -> layerOrder.add(PlanLayerEntry.object(object.id())));
+        }
+        plan.setLayerOrder(layerOrder);
         plan.clearInvalidEquipmentPowerAssignments();
         plan.migrateLegacyFenceConnections();
 

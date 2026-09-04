@@ -37,6 +37,7 @@ public class EventPlan {
     private final List<PlannerObject> objects = new ArrayList<>();
     private final List<FenceJoint> fenceJoints = new ArrayList<>();
     private final List<PowerConnection> powerConnections = new ArrayList<>();
+    private final List<PlanLayerEntry> layerOrder = new ArrayList<>();
     private final List<InventoryItem> standaloneInventoryItems = new ArrayList<>();
     private final List<ChecklistItem> checklistItems = new ArrayList<>();
     private final Map<String, ChecklistSuggestionStatus> checklistSuggestionStatuses = new TreeMap<>();
@@ -311,6 +312,7 @@ public class EventPlan {
 
     public void addObject(PlannerObject object) {
         objects.add(object);
+        layerOrder.add(PlanLayerEntry.object(object.id()));
         if (object instanceof FenceRow fenceRow) {
             ensureFenceJoints(fenceRow);
         }
@@ -328,6 +330,7 @@ public class EventPlan {
                                 candidate.gardenStoneAdjustment() + row.gardenStoneAdjustment()
                         )));
         objects.removeIf(object -> object.id().equals(objectId));
+        layerOrder.removeIf(entry -> entry.equals(PlanLayerEntry.object(objectId)));
         removeUnusedFenceJoints();
         removePowerConnections(connection ->
                 connection.sourceId().equals(objectId) || connection.consumerId().equals(objectId));
@@ -335,6 +338,72 @@ public class EventPlan {
 
     public List<PlannerObject> objects() {
         return Collections.unmodifiableList(objects);
+    }
+
+    public List<PlanLayerEntry> layerOrder() {
+        synchronizeLayerOrder();
+        return Collections.unmodifiableList(layerOrder);
+    }
+
+    public void setLayerOrder(List<PlanLayerEntry> entries) {
+        layerOrder.clear();
+        if (entries != null) {
+            entries.stream().filter(entry -> entry != null).forEach(layerOrder::add);
+        }
+        synchronizeLayerOrder();
+    }
+
+    public boolean moveLayerEntries(Collection<PlanLayerEntry> entries, int direction) {
+        synchronizeLayerOrder();
+        return moveEntriesByLayer(layerOrder, entries, direction);
+    }
+
+    public boolean moveLayerEntriesToBoundary(Collection<PlanLayerEntry> entries, boolean front) {
+        synchronizeLayerOrder();
+        if (entries == null || entries.isEmpty()) return false;
+        Set<PlanLayerEntry> selectedIds = Set.copyOf(entries);
+        List<PlanLayerEntry> selected = layerOrder.stream().filter(selectedIds::contains).toList();
+        if (selected.isEmpty()) return false;
+        List<PlanLayerEntry> reordered = new ArrayList<>(layerOrder.size());
+        if (!front) reordered.addAll(selected);
+        layerOrder.stream().filter(entry -> !selectedIds.contains(entry)).forEach(reordered::add);
+        if (front) reordered.addAll(selected);
+        if (reordered.equals(layerOrder)) return false;
+        layerOrder.clear();
+        layerOrder.addAll(reordered);
+        return true;
+    }
+
+    private void synchronizeLayerOrder() {
+        Set<PlanLayerEntry> valid = new HashSet<>();
+        objects.forEach(object -> valid.add(PlanLayerEntry.object(object.id())));
+        powerConnections.forEach(connection -> valid.add(PlanLayerEntry.cable(connection.id())));
+        layerOrder.removeIf(entry -> !valid.contains(entry));
+        for (PlanLayerEntry entry : valid) {
+            if (!layerOrder.contains(entry)) layerOrder.add(entry);
+        }
+    }
+
+    private static <T> boolean moveEntriesByLayer(List<T> order, Collection<T> entries, int direction) {
+        if (entries == null || entries.isEmpty() || direction == 0) return false;
+        Set<T> ids = Set.copyOf(entries);
+        boolean moved = false;
+        if (direction > 0) {
+            for (int index = order.size() - 2; index >= 0; index--) {
+                if (ids.contains(order.get(index)) && !ids.contains(order.get(index + 1))) {
+                    Collections.swap(order, index, index + 1);
+                    moved = true;
+                }
+            }
+        } else {
+            for (int index = 1; index < order.size(); index++) {
+                if (ids.contains(order.get(index)) && !ids.contains(order.get(index - 1))) {
+                    Collections.swap(order, index, index - 1);
+                    moved = true;
+                }
+            }
+        }
+        return moved;
     }
 
     public boolean moveObjectsByLayer(Collection<String> objectIds, int direction) {
@@ -1160,6 +1229,10 @@ public class EventPlan {
                 defaultForConsumer
         );
         powerConnections.add(connection);
+        PlanLayerEntry cableLayer = PlanLayerEntry.cable(connection.id());
+        if (!layerOrder.contains(cableLayer)) {
+            layerOrder.add(cableLayer);
+        }
         return Optional.of(connection);
     }
 
@@ -1447,6 +1520,8 @@ public class EventPlan {
                 .map(PowerConnection::id)
                 .collect(Collectors.toSet());
         powerConnections.removeIf(predicate);
+        layerOrder.removeIf(entry -> entry.type() == PlanLayerEntry.Type.CABLE
+                && removedConnectionIds.contains(entry.id()));
         hiddenCableLabelConnectionIds.removeAll(removedConnectionIds);
         if (removedConnectionIds.isEmpty()) {
             return;

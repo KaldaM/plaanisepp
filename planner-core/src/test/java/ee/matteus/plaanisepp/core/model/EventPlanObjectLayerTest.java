@@ -46,6 +46,27 @@ class EventPlanObjectLayerTest {
         assertFalse(plan.moveObjectsToLayerBoundary(selected, false));
     }
 
+    @Test
+    void movesCableBetweenMapObjects() {
+        EventPlan plan = new EventPlan("Kaablikihid");
+        PowerSource source = new PowerSource("source", "Kilp", new Position(0, 0));
+        source.addOutlet(new PowerOutlet("outlet", ConnectorType.SCHUKO_230V, 3500));
+        Tent tent = new Tent("tent", "Telk", new Position(10, 10));
+        CustomObject shape = new CustomObject("shape", "Kujund", new Position(20, 20));
+        plan.addObject(source);
+        plan.addObject(tent);
+        plan.addObject(shape);
+        PowerConnection cable = plan.connectToPower(
+                source.id(), tent.id(), ConnectorType.SCHUKO_230V, "outlet"
+        ).orElseThrow();
+
+        assertTrue(plan.moveLayerEntriesToBoundary(List.of(PlanLayerEntry.cable(cable.id())), false));
+        assertEquals(PlanLayerEntry.cable(cable.id()), plan.layerOrder().getFirst());
+        assertTrue(plan.moveLayerEntries(List.of(PlanLayerEntry.cable(cable.id())), 1));
+        assertEquals(PlanLayerEntry.object(source.id()), plan.layerOrder().getFirst());
+        assertEquals(PlanLayerEntry.cable(cable.id()), plan.layerOrder().get(1));
+    }
+
     private EventPlan planWithObjects(String... ids) {
         EventPlan plan = new EventPlan("Kihid");
         for (String id : ids) {

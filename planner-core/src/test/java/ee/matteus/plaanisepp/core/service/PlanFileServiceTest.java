@@ -14,6 +14,7 @@ import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.InventoryItem;
 import ee.matteus.plaanisepp.core.model.LineObject;
 import ee.matteus.plaanisepp.core.model.PlannerObject;
+import ee.matteus.plaanisepp.core.model.PlanLayerEntry;
 import ee.matteus.plaanisepp.core.model.Position;
 import ee.matteus.plaanisepp.core.model.PowerConnection;
 import ee.matteus.plaanisepp.core.model.PowerOutlet;
@@ -138,7 +139,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(25, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(26, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -606,6 +607,30 @@ class PlanFileServiceTest {
     }
 
     @Test
+    void savesAndLoadsSharedObjectAndCableLayerOrder() throws IOException {
+        EventPlan plan = new EventPlan("Kihid");
+        PowerSource source = new PowerSource("source", "Kilp", new Position(0, 0));
+        source.addOutlet(new PowerOutlet("outlet", ConnectorType.SCHUKO_230V, 3500));
+        Tent tent = new Tent("tent", "Telk", new Position(10, 10));
+        plan.addObject(source);
+        plan.addObject(tent);
+        PowerConnection cable = plan.connectToPower(
+                source.id(), tent.id(), ConnectorType.SCHUKO_230V, "outlet"
+        ).orElseThrow();
+        plan.setLayerOrder(List.of(
+                PlanLayerEntry.object(source.id()),
+                PlanLayerEntry.cable(cable.id()),
+                PlanLayerEntry.object(tent.id())
+        ));
+        Path file = tempDirectory.resolve("layers.pplan");
+
+        service.save(plan, file);
+        EventPlan loaded = service.load(file);
+
+        assertEquals(plan.layerOrder(), loaded.layerOrder());
+    }
+
+    @Test
     void usesFullOpacityWhenOlderPlanHasNoOpacityValue() throws IOException {
         Path file = tempDirectory.resolve("old-plan.pplan");
         Files.writeString(file, """
@@ -873,7 +898,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(25, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(26, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()
