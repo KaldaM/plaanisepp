@@ -2793,7 +2793,10 @@ public class PlaaniseppApp extends Application {
             }
             if (selectedEntry.isCable()) {
                 plan.findPowerConnection(selectedEntry.connectionId()).ifPresent(connection -> {
-                    plan.findObject(connection.consumerId()).ifPresent(this::selectObject);
+                    plan.findObject(connection.consumerId()).ifPresent(consumer -> {
+                        selectObject(consumer);
+                        if (event.getClickCount() == 2) centerMapOnObject(consumer);
+                    });
                     selectPowerConnection(connection.id());
                 });
                 event.consume();
@@ -2874,6 +2877,10 @@ public class PlaaniseppApp extends Application {
                             setText(null);
                             setGraphic(createCableListRow(connection));
                             setStyle("");
+                            setOnContextMenuRequested(event -> {
+                                showCableContextMenu(connection, event.getScreenX(), event.getScreenY());
+                                event.consume();
+                            });
                         });
                     }
                 }
@@ -2896,7 +2903,10 @@ public class PlaaniseppApp extends Application {
                     });
                 } else {
                     plan.findPowerConnection(entry.id()).ifPresent(connection -> {
-                        plan.findObject(connection.consumerId()).ifPresent(this::selectObject);
+                        plan.findObject(connection.consumerId()).ifPresent(consumer -> {
+                            selectObject(consumer);
+                            if (event.getClickCount() == 2) centerMapOnObject(consumer);
+                        });
                         selectPowerConnection(connection.id());
                     });
                 }
@@ -3019,7 +3029,10 @@ public class PlaaniseppApp extends Application {
         cell.setText(null);
         cell.setGraphic(createCableListRow(connection));
         cell.setStyle("");
-        cell.setOnContextMenuRequested(null);
+        cell.setOnContextMenuRequested(event -> {
+            showCableContextMenu(connection, event.getScreenX(), event.getScreenY());
+            event.consume();
+        });
     }
 
     private HBox createCableListRow(PowerConnection connection) {
@@ -6646,6 +6659,18 @@ public class PlaaniseppApp extends Application {
                 screenX,
                 screenY
         );
+    }
+
+    private void showCableContextMenu(PowerConnection connection, double screenX, double screenY) {
+        PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
+        PowerSource source = plan.findObject(connection.sourceId())
+                .filter(PowerSource.class::isInstance)
+                .map(PowerSource.class::cast)
+                .orElse(null);
+        if (consumer == null || source == null) return;
+        selectObject(consumer);
+        selectPowerConnection(connection.id());
+        showCableContextMenu(new PowerCableView(consumer, source, connection), screenX, screenY);
     }
 
     private Menu cableLayerMenu(PowerConnection connection) {
