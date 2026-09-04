@@ -375,13 +375,22 @@ public class EventPlan {
     }
 
     public boolean moveLayerEntryToIndex(PlanLayerEntry entry, int targetIndex) {
+        return moveLayerEntriesToIndex(List.of(entry), targetIndex);
+    }
+
+    public boolean moveLayerEntriesToIndex(Collection<PlanLayerEntry> entries, int targetIndex) {
         synchronizeLayerOrder();
-        int currentIndex = layerOrder.indexOf(entry);
-        if (currentIndex < 0) return false;
-        int boundedTarget = Math.max(0, Math.min(targetIndex, layerOrder.size() - 1));
-        if (currentIndex == boundedTarget) return false;
-        layerOrder.remove(currentIndex);
-        layerOrder.add(boundedTarget, entry);
+        if (entries == null || entries.isEmpty()) return false;
+        Set<PlanLayerEntry> requested = Set.copyOf(entries);
+        List<PlanLayerEntry> moving = layerOrder.stream().filter(requested::contains).toList();
+        if (moving.isEmpty()) return false;
+        List<PlanLayerEntry> reordered = new ArrayList<>(layerOrder);
+        reordered.removeAll(moving);
+        int boundedTarget = Math.max(0, Math.min(targetIndex, reordered.size()));
+        reordered.addAll(boundedTarget, moving);
+        if (reordered.equals(layerOrder)) return false;
+        layerOrder.clear();
+        layerOrder.addAll(reordered);
         return true;
     }
 

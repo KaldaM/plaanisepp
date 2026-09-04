@@ -47,6 +47,21 @@ class EventPlanObjectLayerTest {
     }
 
     @Test
+    void movesMultipleLayerEntriesToIndexWithoutChangingTheirRelativeOrder() {
+        EventPlan plan = planWithObjects("first", "selected-1", "middle", "selected-2", "last");
+
+        assertTrue(plan.moveLayerEntriesToIndex(List.of(
+                PlanLayerEntry.object("selected-2"),
+                PlanLayerEntry.object("selected-1")
+        ), 3));
+
+        assertEquals(
+                List.of("first", "middle", "last", "selected-1", "selected-2"),
+                plan.layerOrder().stream().map(PlanLayerEntry::id).toList()
+        );
+    }
+
+    @Test
     void movesCableBetweenMapObjects() {
         EventPlan plan = new EventPlan("Kaablikihid");
         PowerSource source = new PowerSource("source", "Kilp", new Position(0, 0));

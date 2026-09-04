@@ -2803,6 +2803,7 @@ public class PlaaniseppApp extends Application {
     private ListView<PlanLayerEntry> createLayerOrderList() {
         ListView<PlanLayerEntry> list = new ListView<>();
         list.setPrefHeight(objectListHeight);
+        list.setStyle("-fx-selection-bar: transparent; -fx-selection-bar-non-focused: transparent;");
         list.setTooltip(new Tooltip(
                 "Ülemised read joonistatakse kaardil alumiste peale. Lohista järjestuse muutmiseks."
         ));
@@ -2837,7 +2838,9 @@ public class PlaaniseppApp extends Application {
                 if (cell.getItem() == null || mapLayoutLocked) return;
                 Dragboard dragboard = cell.startDragAndDrop(TransferMode.MOVE);
                 ClipboardContent content = new ClipboardContent();
-                content.putString(layerEntryStorageKey(cell.getItem()));
+                content.putString(layerEntriesForDrag(cell.getItem()).stream()
+                        .map(this::layerEntryStorageKey)
+                        .collect(java.util.stream.Collectors.joining(",")));
                 dragboard.setContent(content);
                 event.consume();
             });
@@ -2846,15 +2849,17 @@ public class PlaaniseppApp extends Application {
                     event.acceptTransferModes(TransferMode.MOVE);
                     boolean insertAbove = event.getY() < cell.getHeight() / 2.0;
                     cell.setStyle(layerDropIndicatorStyle(insertAbove));
+                    autoScrollLayerList(list, cell);
                 }
                 event.consume();
             });
             cell.setOnDragExited(event -> restoreLayerCellStyle(cell));
             cell.setOnDragDropped(event -> {
-                PlanLayerEntry dragged = layerEntryFromStorageKey(event.getDragboard().getString());
+                List<PlanLayerEntry> dragged = layerEntriesFromStorageKeys(
+                        event.getDragboard().getString());
                 boolean insertAbove = event.getY() < cell.getHeight() / 2.0;
                 int layerIndex = layerDropTargetIndex(dragged, cell.getItem(), insertAbove);
-                boolean moved = dragged != null && moveLayerEntryToIndex(dragged, layerIndex);
+                boolean moved = layerIndex >= 0 && moveLayerEntriesToIndex(dragged, layerIndex);
                 restoreLayerCellStyle(cell);
                 event.setDropCompleted(moved);
                 event.consume();
@@ -2863,7 +2868,14 @@ public class PlaaniseppApp extends Application {
                 if (event.getButton() != MouseButton.PRIMARY || cell.getItem() == null) return;
                 PlanLayerEntry entry = cell.getItem();
                 if (entry.type() == PlanLayerEntry.Type.OBJECT) {
-                    plan.findObject(entry.id()).ifPresent(this::selectObject);
+                    plan.findObject(entry.id()).ifPresent(object -> {
+                        if (event.isControlDown()) {
+                            toggleObjectSelection(object);
+                        } else {
+                            selectObject(object);
+                        }
+                        if (event.getClickCount() == 2) centerMapOnObject(object);
+                    });
                 } else {
                     plan.findPowerConnection(entry.id()).ifPresent(connection -> {
                         plan.findObject(connection.consumerId()).ifPresent(this::selectObject);
@@ -2877,15 +2889,38 @@ public class PlaaniseppApp extends Application {
     }
 
     private int layerDropTargetIndex(
-            PlanLayerEntry dragged,
+            List<PlanLayerEntry> dragged,
             PlanLayerEntry target,
             boolean insertAbove
     ) {
-        int draggedIndex = plan.layerOrder().indexOf(dragged);
         int targetIndex = plan.layerOrder().indexOf(target);
-        if (draggedIndex < 0 || targetIndex < 0) return targetIndex;
-        int targetIndexAfterRemoval = targetIndex - (draggedIndex < targetIndex ? 1 : 0);
+        if (dragged.isEmpty() || targetIndex < 0 || dragged.contains(target)) return -1;
+        long removedBeforeTarget = dragged.stream()
+                .mapToInt(plan.layerOrder()::indexOf)
+                .filter(index -> index >= 0 && index < targetIndex)
+                .count();
+        int targetIndexAfterRemoval = targetIndex - (int) removedBeforeTarget;
         return targetIndexAfterRemoval + (insertAbove ? 1 : 0);
+    }
+
+    private void autoScrollLayerList(ListView<PlanLayerEntry> list, ListCell<PlanLayerEntry> cell) {
+        int index = cell.getIndex();
+        if (cell.getLayoutY() < 30) {
+            list.scrollTo(Math.max(0, index - 1));
+        } else if (cell.getLayoutY() + cell.getHeight() > list.getHeight() - 30) {
+            list.scrollTo(Math.min(list.getItems().size() - 1, index + 1));
+        }
+    }
+
+    private List<PlanLayerEntry> layerEntriesForDrag(PlanLayerEntry dragged) {
+        if (dragged.type() != PlanLayerEntry.Type.OBJECT
+                || !selectedObjectIds.contains(dragged.id())) {
+            return List.of(dragged);
+        }
+        return plan.layerOrder().stream()
+                .filter(entry -> entry.type() == PlanLayerEntry.Type.OBJECT)
+                .filter(entry -> selectedObjectIds.contains(entry.id()))
+                .toList();
     }
 
     private String layerDropIndicatorStyle(boolean insertAbove) {
@@ -2989,9 +3024,9 @@ public class PlaaniseppApp extends Application {
         return colorSwatch;
     }
 
-    private boolean moveLayerEntryToIndex(PlanLayerEntry entry, int targetIndex) {
+    private boolean moveLayerEntriesToIndex(List<PlanLayerEntry> entries, int targetIndex) {
         PlanSnapshot before = planSnapshotService.create(plan);
-        if (!plan.moveLayerEntryToIndex(entry, targetIndex)) return false;
+        if (!plan.moveLayerEntriesToIndex(entries, targetIndex)) return false;
         finishAutoAppliedDetailsChange(before, false);
         return true;
     }
@@ -3011,6 +3046,14 @@ public class PlaaniseppApp extends Application {
         } catch (IllegalArgumentException exception) {
             return null;
         }
+    }
+
+    private List<PlanLayerEntry> layerEntriesFromStorageKeys(String keys) {
+        if (keys == null || keys.isBlank()) return List.of();
+        return java.util.Arrays.stream(keys.split(","))
+                .map(this::layerEntryFromStorageKey)
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 
     private String layerEntryName(PlanLayerEntry entry) {
@@ -9259,6 +9302,17 @@ public class PlaaniseppApp extends Application {
         if (target != null) {
             selectSidebarItem(objectList, target, objectListSection);
             updateRevealObjectButton();
+        }
+        if (layerList != null && layerOrderModeButton != null && layerOrderModeButton.isSelected()) {
+            PlanLayerEntry layerTarget = layerList.getItems().stream()
+                    .filter(entry -> entry.type() == PlanLayerEntry.Type.OBJECT)
+                    .filter(entry -> plan.findObject(entry.id())
+                            .map(listed -> logicalObjectIds(listed).contains(object.id())
+                                    || logicalObjectIds(object).contains(listed.id()))
+                            .orElse(false))
+                    .findFirst()
+                    .orElse(null);
+            if (layerTarget != null) selectSidebarItem(layerList, layerTarget, objectListSection);
         }
     }
 
