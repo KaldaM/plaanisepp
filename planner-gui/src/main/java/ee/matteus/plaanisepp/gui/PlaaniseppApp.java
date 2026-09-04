@@ -305,6 +305,7 @@ public class PlaaniseppApp extends Application {
     private double layerDragScrollRowsPerSecond;
     private double layerDragScrollRowAccumulator;
     private long layerDragScrollPreviousNanos;
+    private Runnable dragScrollIndicatorRefresh;
     private double layerDragPointerSceneX;
     private double layerDragPointerSceneY;
     private ListCell<PlanLayerEntry> layerDropIndicatorCell;
@@ -2977,7 +2978,7 @@ public class PlaaniseppApp extends Application {
             layerMouseDraggedEntries = layerEntriesForDrag(layerMouseDragCandidate);
             layerMouseDragActive = true;
             list.setCursor(Cursor.CLOSED_HAND);
-            startLayerDragAutoScroll(list);
+            startDragAutoScroll(list, () -> refreshLayerDropIndicatorAtPointer(list));
             installLayerMouseReleaseFilter(list);
         }
         layerDragPointerSceneX = event.getSceneX();
@@ -3120,8 +3121,9 @@ public class PlaaniseppApp extends Application {
         return targetIndexAfterRemoval + (insertAbove ? 1 : 0);
     }
 
-    private void startLayerDragAutoScroll(ListView<PlanLayerEntry> list) {
+    private void startDragAutoScroll(ListView<?> list, Runnable indicatorRefresh) {
         stopLayerDragAutoScroll();
+        dragScrollIndicatorRefresh = indicatorRefresh;
         layerDragScrollRowAccumulator = 0;
         layerDragScrollPreviousNanos = 0;
         layerDragAutoScrollTimer = new AnimationTimer() {
@@ -3136,7 +3138,7 @@ public class PlaaniseppApp extends Application {
                 layerDragScrollRowAccumulator += elapsedSeconds * Math.abs(layerDragScrollRowsPerSecond);
                 while (layerDragScrollRowAccumulator >= 1.0) {
                     scrollLayerListOneRow(list, layerDragScrollRowsPerSecond > 0 ? 1 : -1);
-                    Platform.runLater(() -> refreshLayerDropIndicatorAtPointer(list));
+                    Platform.runLater(dragScrollIndicatorRefresh);
                     layerDragScrollRowAccumulator -= 1.0;
                 }
             }
@@ -3144,7 +3146,7 @@ public class PlaaniseppApp extends Application {
         layerDragAutoScrollTimer.start();
     }
 
-    private void updateLayerDragScrollSpeed(ListView<PlanLayerEntry> list) {
+    private void updateLayerDragScrollSpeed(ListView<?> list) {
         Point2D pointer = list.sceneToLocal(layerDragPointerSceneX, layerDragPointerSceneY);
         double edgeZone = Math.min(64, list.getHeight() / 3.0);
         double edgeDistance;
@@ -3164,7 +3166,7 @@ public class PlaaniseppApp extends Application {
         layerDragScrollRowsPerSecond = direction * (1.2 + 13.8 * intensity * intensity);
     }
 
-    private void scrollLayerListOneRow(ListView<PlanLayerEntry> list, int direction) {
+    private void scrollLayerListOneRow(ListView<?> list, int direction) {
         Bounds visibleBounds = list.localToScene(list.getBoundsInLocal());
         int edgeIndex = list.lookupAll(".list-cell").stream()
                 .filter(ListCell.class::isInstance)
@@ -3183,6 +3185,7 @@ public class PlaaniseppApp extends Application {
 
     private void stopLayerDragAutoScroll() {
         layerDragScrollRowsPerSecond = 0;
+        dragScrollIndicatorRefresh = null;
         clearLayerDropIndicator(layerDropIndicatorCell);
         if (layerDragAutoScrollTimer != null) {
             layerDragAutoScrollTimer.stop();
@@ -3429,13 +3432,22 @@ public class PlaaniseppApp extends Application {
             if (!isSelected(draggedObject)) selectObjectForLayerDrag(draggedObject);
             objectListDraggedEntries = selectedLayerObjectIds(draggedObject).stream()
                     .map(PlanLayerEntry::object).toList();
+            objectList.refresh();
             objectListDragActive = true;
             objectList.setCursor(Cursor.CLOSED_HAND);
             objectListReleaseFilter = release -> finishObjectListDrag(release);
             objectList.getScene().addEventFilter(MouseEvent.MOUSE_RELEASED, objectListReleaseFilter);
+            startDragAutoScroll(objectList, this::refreshObjectListDropIndicatorAtPointer);
         }
-        updateObjectListDropIndicator(event.getSceneX(), event.getSceneY());
+        layerDragPointerSceneX = event.getSceneX();
+        layerDragPointerSceneY = event.getSceneY();
+        refreshObjectListDropIndicatorAtPointer();
+        updateLayerDragScrollSpeed(objectList);
         event.consume();
+    }
+
+    private void refreshObjectListDropIndicatorAtPointer() {
+        updateObjectListDropIndicator(layerDragPointerSceneX, layerDragPointerSceneY);
     }
 
     @SuppressWarnings("unchecked")
@@ -3448,7 +3460,9 @@ public class PlaaniseppApp extends Application {
                 .filter(cell -> cell.localToScene(cell.getBoundsInLocal()).contains(sceneX, sceneY))
                 .findFirst().orElse(null);
         if (target == null) return;
-        if (objectListDropCell != null && objectListDropCell != target) objectListDropCell.setStyle("");
+        if (objectListDropCell != null && objectListDropCell != target) {
+            restoreObjectListCellStyle(objectListDropCell);
+        }
         objectListDropCell = target;
         objectListDropAbove = target.sceneToLocal(sceneX, sceneY).getY() < target.getHeight() / 2.0;
         target.setStyle(layerDropIndicatorStyle(objectListDropAbove));
@@ -3460,6 +3474,7 @@ public class PlaaniseppApp extends Application {
             objectListReleaseFilter = null;
         }
         PlanSnapshot before = planSnapshotService.create(plan);
+        stopLayerDragAutoScroll();
         boolean moved = false;
         boolean groupChanged = false;
         if (objectListDropCell != null) {
@@ -3485,6 +3500,23 @@ public class PlaaniseppApp extends Application {
         if (moved || groupChanged) finishAutoAppliedDetailsChange(before, groupChanged);
         else refreshObjectList();
         event.consume();
+    }
+
+    private void restoreObjectListCellStyle(ListCell<ObjectListEntry> cell) {
+        ObjectListEntry entry = cell.getItem();
+        if (entry == null || entry.isGroup() || entry.isCable()) {
+            cell.setStyle("");
+            return;
+        }
+        ObjectListItem item = entry.objectItem();
+        String visibilityStyle = item.visible()
+                ? "" : "-fx-text-fill: #6b7280; -fx-font-style: italic;";
+        String selectionStyle = isSelected(item.object())
+                ? "-fx-background-color: rgba(37,99,235,0.24);"
+                        + "-fx-border-color: transparent transparent transparent #2563eb;"
+                        + "-fx-border-width: 0 0 0 3;"
+                : "";
+        cell.setStyle(visibilityStyle + selectionStyle);
     }
 
     private void selectObjectRange(PlannerObject target) {
