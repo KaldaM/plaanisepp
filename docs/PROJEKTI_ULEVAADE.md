@@ -176,7 +176,7 @@ Need väärtused on planeerimise praktilised vaikeväärtused, mitte elektriproj
 
 ### 5.5 Salvestusvorming
 
-Plaan salvestatakse ühe `.pplan` failina. Praegune vorminguversioon on `23` ja faili sisemine kuju on ZIP-pakett:
+Plaan salvestatakse ühe `.pplan` failina. Praegune vorminguversioon on `25` ja faili sisemine kuju on ZIP-pakett:
 
 | Paketi kirje | Sisu |
 | --- | --- |
@@ -202,7 +202,7 @@ Versioonita ja versioon 1 `.pplan` failid on tavalised Java properties-failid ni
 
 | Komponent | Vastutus |
 | --- | --- |
-| `PlanFileService` | Praeguse versiooni 23 pakettide kirjutamine, varasemate pakettide valideeritud lugemine ning vanade versioonita ja versioon 1 failide lugemine |
+| `PlanFileService` | Praeguse versiooni 25 pakettide kirjutamine, varasemate pakettide valideeritud lugemine ning vanade versioonita ja versioon 1 failide lugemine |
 | `PlanFactory` | Uue plaani algseisu loomine |
 | `PowerSummaryService` | Elektrikappide koormuse ja vaba võimsuse arvutamine |
 | `GeometryCalculator` | Joonte pikkuse ning kujundite pindala ja ümbermõõdu arvutamine |
@@ -529,7 +529,7 @@ Veebivaade ja organisatsioonid tähendavad tõenäoliselt eraldi serverit, andme
 
 - Automaattestid katavad geomeetriat, seadmemudelit, salvestamise tagasiühilduvust, vooluarvutust, kaabli otspunkte ja tekstiaruannet, kuid kasutajaliidese sündmuste testikate on endiselt piiratud.
 - Peamine JavaFX-i rakendusklass on liiga suur ja koondab veel palju erinevaid vastutusi.
-- Vanemate vormingute lugemine ja migratsioon on automaattestidega kaetud kuni praeguse `.pplan` vorminguni 23. Eri kaardipildivormingute ja platvormide kombinatsioone tuleb regressioonide vältimiseks edaspidi siiski korrata.
+- Vanemate vormingute lugemine ja migratsioon on automaattestidega kaetud kuni praeguse `.pplan` vorminguni 25. Eri kaardipildivormingute ja platvormide kombinatsioone tuleb regressioonide vältimiseks edaspidi siiski korrata.
 - Vanad versioonita ning versioon 1–3 failid võivad viidata algsele kaardifailile absoluutse või platvormipõhise teega; kaart peab vana faili esmakordsel avamisel veel kättesaadav olema, et järgmine salvestamine saaks selle uude paketti lisada.
 - Kõiki keerukate JavaFX-i sündmuste ja kõrge resolutsiooni jõudlusjuhte ei kata automaattest; valitud objektide, kaartide ja ekspordi põhivoogu tuleb kontrollida päris rakenduses.
 - Fedora RPM-i ja Windowsi EXE-paigaldaja paigaldamine, menüüst käivitamine, `.pplan` failiseos, ikoonid ja eemaldamine on kontrollitud. JavaFX-i Linuxi failidialoog ei kuva kohandatud MIME-ikooni, kuigi Dolphin ja süsteemi failiseos seda teevad.

@@ -53,7 +53,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class PlanFileService {
-    public static final int CURRENT_FORMAT_VERSION = 24;
+    public static final int CURRENT_FORMAT_VERSION = 25;
     private static final int LEGACY_FORMAT_VERSION = 1;
     private static final String FORMAT_VERSION_PROPERTY = "formatVersion";
     private static final String PACKAGE_FORMAT = "pannukas-plan-package";
@@ -868,6 +868,7 @@ public class PlanFileService {
         properties.setProperty(prefix + "widthMeters", Double.toString(object.widthMeters()));
         properties.setProperty(prefix + "heightMeters", Double.toString(object.heightMeters()));
         properties.setProperty(prefix + "rotationDegrees", Double.toString(object.rotationDegrees()));
+        writeEquipment(properties, prefix, object);
     }
 
     private void writeTextObject(Properties properties, String prefix, TextObject object) {
@@ -1127,7 +1128,7 @@ public class PlanFileService {
         }
         CustomObject object = new CustomObject(
                 properties.getProperty(prefix + "id", ""),
-                properties.getProperty(prefix + "name", "Objekt"),
+                properties.getProperty(prefix + "name", "Kujund"),
                 readPosition(properties, prefix)
         );
         object.setShape(CustomObjectShape.valueOf(shapeName));
@@ -1138,6 +1139,7 @@ public class PlanFileService {
                 doubleValue(properties, prefix + "heightMeters", 1.0)
         );
         object.setRotationDegrees(doubleValue(properties, prefix + "rotationDegrees", 0));
+        readEquipment(properties, prefix, object);
         return object;
     }
 

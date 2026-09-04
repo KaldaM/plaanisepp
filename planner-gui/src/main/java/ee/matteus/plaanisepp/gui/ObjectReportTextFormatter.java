@@ -174,7 +174,7 @@ final class ObjectReportTextFormatter {
             return "Joon";
         }
         if (object instanceof CustomObject) {
-            return "Objekt";
+            return "Kujund";
         }
         return "Objekt";
     }

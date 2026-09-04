@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class CustomObject extends PlannerObject implements InventoryContainer {
+public class CustomObject extends PlannerObject implements EquipmentContainer, InventoryContainer {
     public static final double DEFAULT_OPACITY = 1.0;
 
     private CustomObjectShape shape;
@@ -13,6 +13,8 @@ public class CustomObject extends PlannerObject implements InventoryContainer {
     private double widthMeters;
     private double heightMeters;
     private double rotationDegrees;
+    private Position powerConnectionOffset = new Position(0, 0);
+    private final List<Equipment> equipment = new ArrayList<>();
     private final List<InventoryItem> inventoryItems = new ArrayList<>();
 
     public CustomObject(String id, String name, Position position) {
@@ -71,6 +73,31 @@ public class CustomObject extends PlannerObject implements InventoryContainer {
 
     public void setRotationDegrees(double rotationDegrees) {
         this.rotationDegrees = rotationDegrees;
+    }
+
+    @Override
+    public Position powerConnectionOffset() {
+        return powerConnectionOffset;
+    }
+
+    @Override
+    public void setPowerConnectionOffset(Position offset) {
+        powerConnectionOffset = offset == null ? new Position(0, 0) : offset;
+    }
+
+    @Override
+    public List<Equipment> equipment() {
+        return Collections.unmodifiableList(equipment);
+    }
+
+    @Override
+    public void addEquipment(Equipment item) {
+        equipment.add(item);
+    }
+
+    @Override
+    public void removeEquipment(int index) {
+        equipment.remove(index);
     }
 
     @Override

@@ -1611,7 +1611,7 @@ public class PlaaniseppApp extends Application {
         showObjectLabelsButton = objectTypeToggle("Nimed", "Naitab voi peidab kaardil objektide nimesildid");
         showTentsButton = objectTypeToggle("Telgid", "Näitab või peidab kaardil telgid");
         showPowerSourcesButton = objectTypeToggle("Kapid", "Näitab või peidab kaardil elektrikapid");
-        showCustomObjectsButton = objectTypeToggle("Objektid", "Näitab või peidab kaardil tavalised objektid");
+        showCustomObjectsButton = objectTypeToggle("Kujundid", "Näitab või peidab kaardil ristkülikud ja ringid");
         showTextObjectsButton = objectTypeToggle("Tekstid", "Näitab või peidab kaardil tekstobjektid");
         showMarkerObjectsButton = objectTypeToggle("Markerid", "Näitab või peidab kaardil markerid");
         showAreaObjectsButton = objectTypeToggle("Alad", "Näitab või peidab kaardil alaobjektid");
@@ -3791,7 +3791,7 @@ public class PlaaniseppApp extends Application {
         customObjectForm.addRow(4, customObjectRotationLabel, customObjectRotationField);
         customObjectForm.addRow(5, new Label("Pindala"), customObjectAreaLabel);
         customObjectForm.addRow(6, new Label("Ümbermõõt"), customObjectPerimeterLabel);
-        customObjectPanel = new VBox(8, sectionLabel("Objekt"), customObjectForm);
+        customObjectPanel = new VBox(8, sectionLabel("Kujund"), customObjectForm);
 
         GridPane textObjectForm = detailGrid();
         textObjectForm.addRow(0, new Label("Värv"), textObjectColorPicker);

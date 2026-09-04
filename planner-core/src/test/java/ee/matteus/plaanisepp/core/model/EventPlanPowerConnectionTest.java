@@ -4,6 +4,8 @@ import ee.matteus.plaanisepp.core.service.PowerSummary;
 import ee.matteus.plaanisepp.core.service.PowerSummaryService;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -58,20 +60,23 @@ class EventPlanPowerConnectionTest {
     }
 
     @Test
-    void refusesConnectionForObjectThatIsNotPowerConsumer() {
+    void connectsCustomObjectToPower() {
         EventPlan plan = new EventPlan("Test");
         PowerSource source = powerSource();
-        CustomObject object = new CustomObject("object", "Objekt", new Position(0, 0));
+        CustomObject object = new CustomObject("object", "Kujund", new Position(0, 0));
+        object.addEquipment(new Equipment("Valgustus", 800));
         plan.addObject(source);
         plan.addObject(object);
 
-        assertTrue(plan.connectToPower(
+        PowerConnection connection = plan.connectToPower(
                 source.id(),
                 object.id(),
                 ConnectorType.SCHUKO_230V,
                 "outlet"
-        ).isEmpty());
-        assertTrue(plan.powerConnections().isEmpty());
+        ).orElseThrow();
+
+        assertEquals(800, plan.powerDemandWatts(connection));
+        assertEquals(List.of(object), plan.powerConsumers());
     }
 
     @Test

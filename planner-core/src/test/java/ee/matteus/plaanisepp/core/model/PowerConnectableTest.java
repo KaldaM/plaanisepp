@@ -8,9 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class PowerConnectableTest {
     @Test
-    void tentAreaAndLineKeepRelativeConnectionOffsetWhenMoved() {
+    void consumersKeepRelativeConnectionOffsetWhenMoved() {
         List<PlannerObject> objects = List.of(
                 new Tent("tent", "Telk", new Position(10, 20)),
+                new CustomObject("shape", "Kujund", new Position(10, 20)),
                 new AreaObject("area", "Ala", new Position(10, 20)),
                 new LineObject("line", "Joon", new Position(10, 20))
         );

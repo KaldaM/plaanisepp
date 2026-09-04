@@ -138,7 +138,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(24, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(25, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -587,8 +587,10 @@ class PlanFileServiceTest {
     @Test
     void savesAndLoadsCustomObjectOpacity() throws IOException {
         EventPlan plan = new EventPlan("Test");
-        CustomObject object = new CustomObject("object-1", "Objekt", new Position(10, 20));
+        CustomObject object = new CustomObject("object-1", "Kujund", new Position(10, 20));
         object.setOpacity(0.45);
+        object.setPowerConnectionOffset(new Position(3, -4));
+        object.addEquipment(new Equipment("Valgustus", 1200));
         plan.addObject(object);
         Path file = tempDirectory.resolve("opacity.pplan");
 
@@ -597,6 +599,10 @@ class PlanFileServiceTest {
 
         CustomObject loadedObject = (CustomObject) loadedPlan.objects().getFirst();
         assertEquals(0.45, loadedObject.opacity(), 0.0001);
+        assertEquals(new Position(3, -4), loadedObject.powerConnectionOffset());
+        assertEquals(1, loadedObject.equipment().size());
+        assertEquals("Valgustus", loadedObject.equipment().getFirst().name());
+        assertEquals(1200, loadedObject.requiredWatts());
     }
 
     @Test
@@ -867,7 +873,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(24, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(25, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

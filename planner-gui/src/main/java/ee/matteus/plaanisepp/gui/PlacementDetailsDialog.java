@@ -675,7 +675,7 @@ record PlacementDetails(
 
 enum PlacementType {
     TENT("Telk", "Uus telk", "#e74c3c", true, 3.0, 3.0),
-    CUSTOM_OBJECT("Objekt", "Uus objekt", "#9ca3af", true, 1.0, 1.0),
+    CUSTOM_OBJECT("Kujund", "Uus kujund", "#9ca3af", true, 1.0, 1.0),
     LINE_OBJECT("Joon", "Uus joon", "#0f766e", true, 1.0, 1.0),
     AREA_OBJECT("Ala", "Uus ala", "#f59e0b", true, 1.0, 1.0),
     FENCE_ROW("Aiarida", "Uus aiarida", "#64748b", true, 1.0, 1.0),
