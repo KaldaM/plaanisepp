@@ -300,6 +300,7 @@ public class PlaaniseppApp extends Application {
     private final Set<String> expandedObjectInventoryKeys = new HashSet<>();
     private final Set<String> selectedObjectIds = new LinkedHashSet<>();
     private String selectionRangeAnchorObjectId;
+    private String temporarilyRevealedObjectId;
     private AnimationTimer layerDragAutoScrollTimer;
     private double layerDragScrollRowsPerSecond;
     private double layerDragScrollRowAccumulator;
@@ -2826,8 +2827,6 @@ public class PlaaniseppApp extends Application {
         });
         layerList = createLayerOrderList();
         setSectionVisible(layerList, false);
-        revealObjectButton = new Button("Näita kaardil");
-        revealObjectButton.setOnAction(event -> revealSelectedObjectOnMap());
         activeSelectionCountLabel = new Label();
         activeSelectionCountLabel.setStyle("-fx-text-fill: #475569; -fx-font-size: 11;");
         updateActiveSelectionCountLabel();
@@ -2840,8 +2839,7 @@ public class PlaaniseppApp extends Application {
                 objectList,
                 layerList,
                 createObjectListResizeHandle(),
-                activeSelectionCountLabel,
-                revealObjectButton
+                activeSelectionCountLabel
         );
     }
 
@@ -9149,6 +9147,12 @@ public class PlaaniseppApp extends Application {
         );
         MenuItem visibilityItem = new MenuItem(allSelectedObjectsHidden() ? "Kuva valitud" : "Peida valitud");
         visibilityItem.setOnAction(event -> toggleSelectedObjectsHidden());
+        MenuItem temporaryRevealItem = new MenuItem("Näita ajutiselt kaardil");
+        temporaryRevealItem.setVisible(!isObjectVisibleOnMap(object));
+        temporaryRevealItem.setOnAction(event -> {
+            temporarilyRevealedObjectId = object.id();
+            redrawMap();
+        });
         MenuItem lockItem = new MenuItem(allSelectedObjectsLocked()
                 ? "Eemalda valitud objektide lukustus"
                 : "Lukusta valitud objektid");
@@ -9177,6 +9181,7 @@ public class PlaaniseppApp extends Application {
             menuItems.addAll(objectSpecificItems);
         }
         menuItems.add(new SeparatorMenuItem());
+        if (temporaryRevealItem.isVisible()) menuItems.add(temporaryRevealItem);
         menuItems.add(visibilityItem);
         menuItems.add(lockItem);
         menuItems.add(deleteItem);
@@ -9358,6 +9363,10 @@ public class PlaaniseppApp extends Application {
 
     private void selectObject(PlannerObject object) {
         selectedMeasurementPaths.clear();
+        if (temporarilyRevealedObjectId != null
+                && (object == null || !logicalObjectIds(object).contains(temporarilyRevealedObjectId))) {
+            temporarilyRevealedObjectId = null;
+        }
         if (rotatingObjectId != null && (object == null || !object.id().equals(rotatingObjectId))) {
             if (selectedObject != null) {
                 syncInteractiveRotationField(selectedObject, selectedObjectRotationDegrees(selectedObject));
@@ -9669,8 +9678,10 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean isObjectVisibleOnMap(PlannerObject object) {
-        return isObjectAvailableInCurrentView(object)
-                && !object.hidden()
+        if (!isObjectAvailableInCurrentView(object)) return false;
+        boolean temporarilyVisible = temporarilyRevealedObjectId != null
+                && logicalObjectIds(object).contains(temporarilyRevealedObjectId);
+        return temporarilyVisible || !object.hidden()
                 && isGroupVisible(object)
                 && isObjectTypeVisible(object);
     }
