@@ -5492,15 +5492,12 @@ public class PlaaniseppApp extends Application {
             drawPowerConnections();
         }
         for (PlannerObject object : plan.objects()) {
-            if (object instanceof AreaObject areaObject && isObjectVisibleOnMap(object)) {
-                drawAreaObject(areaObject);
-            }
-        }
-        for (PlannerObject object : plan.objects()) {
             if (!isObjectVisibleOnMap(object)) {
                 continue;
             }
-            if (object instanceof Tent tent) {
+            if (object instanceof AreaObject areaObject) {
+                drawAreaObject(areaObject);
+            } else if (object instanceof Tent tent) {
                 drawTent(tent);
             } else if (object instanceof PowerSource source) {
                 drawPowerSource(source);
@@ -8472,6 +8469,12 @@ public class PlaaniseppApp extends Application {
         rotateItem.setOnAction(event -> startObjectRotation(object));
         MenuItem copyItem = new MenuItem("Kopeeri");
         copyItem.setOnAction(event -> copySelectedObject());
+        MenuItem moveForwardItem = new MenuItem("Too ühe kihi võrra ettepoole");
+        moveForwardItem.setDisable(selectionCount > 1 || mapLayoutLocked);
+        moveForwardItem.setOnAction(event -> moveObjectLayer(object, 1));
+        MenuItem moveBackwardItem = new MenuItem("Vii ühe kihi võrra tahapoole");
+        moveBackwardItem.setDisable(selectionCount > 1 || mapLayoutLocked);
+        moveBackwardItem.setOnAction(event -> moveObjectLayer(object, -1));
         MenuItem visibilityItem = new MenuItem(allSelectedObjectsHidden() ? "Kuva valitud" : "Peida valitud");
         visibilityItem.setOnAction(event -> toggleSelectedObjectsHidden());
         MenuItem lockItem = new MenuItem(allSelectedObjectsLocked()
@@ -8494,6 +8497,8 @@ public class PlaaniseppApp extends Application {
             menuItems.add(rotateItem);
         }
         menuItems.add(copyItem);
+        menuItems.add(moveForwardItem);
+        menuItems.add(moveBackwardItem);
 
         List<MenuItem> objectSpecificItems = objectSpecificContextMenuItems(object, selectionCount);
         if (!objectSpecificItems.isEmpty()) {
@@ -8510,6 +8515,13 @@ public class PlaaniseppApp extends Application {
                 screenX,
                 screenY
         );
+    }
+
+    private void moveObjectLayer(PlannerObject object, int direction) {
+        PlanSnapshot before = planSnapshotService.create(plan);
+        if (plan.moveObjectsByLayer(logicalObjectIds(object), direction)) {
+            finishAutoAppliedDetailsChange(before, false);
+        }
     }
 
     private List<MenuItem> objectSpecificContextMenuItems(PlannerObject object, int selectionCount) {

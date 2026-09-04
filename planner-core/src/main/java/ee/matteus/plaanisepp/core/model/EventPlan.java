@@ -4,6 +4,7 @@ import ee.matteus.plaanisepp.core.map.BaseMapBounds;
 import ee.matteus.plaanisepp.core.map.BaseMapDownload;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -334,6 +335,30 @@ public class EventPlan {
 
     public List<PlannerObject> objects() {
         return Collections.unmodifiableList(objects);
+    }
+
+    public boolean moveObjectsByLayer(Collection<String> objectIds, int direction) {
+        if (objectIds == null || objectIds.isEmpty() || direction == 0) {
+            return false;
+        }
+        Set<String> ids = Set.copyOf(objectIds);
+        boolean moved = false;
+        if (direction > 0) {
+            for (int index = objects.size() - 2; index >= 0; index--) {
+                if (ids.contains(objects.get(index).id()) && !ids.contains(objects.get(index + 1).id())) {
+                    Collections.swap(objects, index, index + 1);
+                    moved = true;
+                }
+            }
+        } else {
+            for (int index = 1; index < objects.size(); index++) {
+                if (ids.contains(objects.get(index).id()) && !ids.contains(objects.get(index - 1).id())) {
+                    Collections.swap(objects, index, index - 1);
+                    moved = true;
+                }
+            }
+        }
+        return moved;
     }
 
     public List<ChecklistItem> checklistItems() {
