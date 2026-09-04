@@ -3,6 +3,8 @@ package ee.matteus.plaanisepp.gui;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ee.matteus.plaanisepp.core.map.BaseMapBounds;
+import ee.matteus.plaanisepp.core.model.PlannerObject;
+import ee.matteus.plaanisepp.core.model.PowerSource;
 
 import java.io.IOException;
 import java.net.URI;
@@ -15,7 +17,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -120,6 +124,26 @@ final class TartuPowerCabinetImportService {
         } catch (NumberFormatException exception) {
             return OptionalLong.empty();
         }
+    }
+
+    static List<Cabinet> newCabinets(List<Cabinet> cabinets, List<PlannerObject> existingObjects) {
+        Set<Long> importedSourceIds = existingObjects.stream()
+                .filter(PowerSource.class::isInstance)
+                .map(PlannerObject::notes)
+                .map(TartuPowerCabinetImportService::sourceIdFromNotes)
+                .filter(OptionalLong::isPresent)
+                .mapToLong(OptionalLong::getAsLong)
+                .boxed()
+                .collect(java.util.stream.Collectors.toSet());
+        Set<String> namesWithoutSourceId = existingObjects.stream()
+                .filter(PowerSource.class::isInstance)
+                .filter(object -> sourceIdFromNotes(object.notes()).isEmpty())
+                .map(object -> object.name().trim().toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toSet());
+        return cabinets.stream()
+                .filter(cabinet -> !importedSourceIds.contains(cabinet.sourceId()))
+                .filter(cabinet -> !namesWithoutSourceId.contains(cabinet.name().toLowerCase(Locale.ROOT)))
+                .toList();
     }
 
     private static String encode(String value) {

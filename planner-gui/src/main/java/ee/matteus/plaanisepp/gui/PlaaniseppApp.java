@@ -2132,13 +2132,8 @@ public class PlaaniseppApp extends Application {
             stage.getScene().setCursor(Cursor.WAIT);
             List<TartuPowerCabinetImportService.Cabinet> cabinets =
                     tartuPowerCabinetImportService.load(plan.downloadedMapBounds());
-            Set<String> existingNames = plan.objects().stream()
-                    .filter(PowerSource.class::isInstance)
-                    .map(object -> object.name().trim().toLowerCase(Locale.ROOT))
-                    .collect(java.util.stream.Collectors.toSet());
-            List<TartuPowerCabinetImportService.Cabinet> newCabinets = cabinets.stream()
-                    .filter(cabinet -> !existingNames.contains(cabinet.name().toLowerCase(Locale.ROOT)))
-                    .toList();
+            List<TartuPowerCabinetImportService.Cabinet> newCabinets =
+                    TartuPowerCabinetImportService.newCabinets(cabinets, plan.objects());
             if (newCabinets.isEmpty()) {
                 if (interactive) {
                     showInformation("Püsivoolukilpide import", cabinets.isEmpty()
