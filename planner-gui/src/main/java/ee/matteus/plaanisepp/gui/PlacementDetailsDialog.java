@@ -675,16 +675,16 @@ record PlacementDetails(
 
 enum PlacementType {
     TENT("Telk", "Uus telk", "#e74c3c", true, 3.0, 3.0),
-    DJ_TRUCK("Red Bull DJ Truck", "Red Bull DJ Truck", "#dc2626", true, 6.0, 2.2),
-    POWER_SOURCE("Elektrikapp", "Uus kapp", "#2563eb", false, 1.0, 1.0),
-    DISTRIBUTION_PANEL("Alajaotuskilp", "Uus alajaotuskilp", "#2563eb", false, 1.0, 1.0),
     CUSTOM_OBJECT("Objekt", "Uus objekt", "#9ca3af", true, 1.0, 1.0),
-    TEXT_OBJECT("Tekst", "Uus tekst", "#111827", true, 1.0, 1.0),
-    MARKER_OBJECT("Marker", "Uus marker", MarkerType.WC.defaultColorHex(), true, 1.0, 1.0),
     LINE_OBJECT("Joon", "Uus joon", "#0f766e", true, 1.0, 1.0),
+    AREA_OBJECT("Ala", "Uus ala", "#f59e0b", true, 1.0, 1.0),
     FENCE_ROW("Aiarida", "Uus aiarida", "#64748b", true, 1.0, 1.0),
     FENCE_RING("Aiaring", "Uus aiaring", "#64748b", true, 1.0, 1.0),
-    AREA_OBJECT("Ala", "Uus ala", "#f59e0b", true, 1.0, 1.0);
+    TEXT_OBJECT("Tekst", "Uus tekst", "#111827", true, 1.0, 1.0),
+    MARKER_OBJECT("Marker", "Uus marker", MarkerType.WC.defaultColorHex(), true, 1.0, 1.0),
+    POWER_SOURCE("Elektrikapp", "Uus kapp", "#2563eb", false, 1.0, 1.0),
+    DISTRIBUTION_PANEL("Alajaotuskilp", "Uus alajaotuskilp", "#2563eb", false, 1.0, 1.0),
+    DJ_TRUCK("Red Bull DJ Truck", "Red Bull DJ Truck", "#dc2626", true, 6.0, 2.2);
 
     private final String label;
     private final String defaultName;

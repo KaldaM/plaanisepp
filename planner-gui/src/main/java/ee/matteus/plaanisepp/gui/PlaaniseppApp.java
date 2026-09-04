@@ -782,7 +782,10 @@ public class PlaaniseppApp extends Application {
                 || measuringActive) {
             return;
         }
-        PlacementType placementType = placementTypeForShortcut(event.getCode());
+        PlacementType placementType = placementTypeForShortcut(
+                event.getCode(),
+                placementTypeComboBox.getItems()
+        );
         if (placementType == null) {
             return;
         }
@@ -790,18 +793,23 @@ public class PlaaniseppApp extends Application {
         event.consume();
     }
 
-    private PlacementType placementTypeForShortcut(KeyCode keyCode) {
-        return switch (keyCode) {
-            case DIGIT1, NUMPAD1 -> PlacementType.TENT;
-            case DIGIT2, NUMPAD2 -> PlacementType.POWER_SOURCE;
-            case DIGIT3, NUMPAD3 -> PlacementType.DISTRIBUTION_PANEL;
-            case DIGIT4, NUMPAD4 -> PlacementType.CUSTOM_OBJECT;
-            case DIGIT5, NUMPAD5 -> PlacementType.TEXT_OBJECT;
-            case DIGIT6, NUMPAD6 -> PlacementType.MARKER_OBJECT;
-            case DIGIT7, NUMPAD7 -> PlacementType.LINE_OBJECT;
-            case DIGIT8, NUMPAD8 -> PlacementType.AREA_OBJECT;
-            default -> null;
+    static PlacementType placementTypeForShortcut(KeyCode keyCode, List<PlacementType> availableTypes) {
+        int menuIndex = switch (keyCode) {
+            case DIGIT1, NUMPAD1 -> 0;
+            case DIGIT2, NUMPAD2 -> 1;
+            case DIGIT3, NUMPAD3 -> 2;
+            case DIGIT4, NUMPAD4 -> 3;
+            case DIGIT5, NUMPAD5 -> 4;
+            case DIGIT6, NUMPAD6 -> 5;
+            case DIGIT7, NUMPAD7 -> 6;
+            case DIGIT8, NUMPAD8 -> 7;
+            case DIGIT9, NUMPAD9 -> 8;
+            case DIGIT0, NUMPAD0 -> 9;
+            default -> -1;
         };
+        return menuIndex >= 0 && menuIndex < availableTypes.size()
+                ? availableTypes.get(menuIndex)
+                : null;
     }
 
     private void undoPlanChange() {
@@ -1250,13 +1258,28 @@ public class PlaaniseppApp extends Application {
                 Ctrl+H                 peida või kuva objekt
                 Delete                 kustuta objekt
 
+                Lisamine (menüü järjestuses)
+                %s
                 Kaart
-                Ctrl+Shift+1…8         lisa valitud tüüpi objekt
                 kaks korda Shift       otsi objekti
                 Alt+hiirerull          suumi kursori asukoha järgi
                 Escape                 lõpeta aktiivne tööriist või otsing
-                """);
+                """.formatted(placementShortcutHelp(placementTypeComboBox.getItems())));
         dialog.showAndWait();
+    }
+
+    static String placementShortcutHelp(List<PlacementType> availableTypes) {
+        StringBuilder help = new StringBuilder();
+        int shortcutCount = Math.min(availableTypes.size(), 10);
+        for (int index = 0; index < shortcutCount; index++) {
+            String key = index == 9 ? "0" : Integer.toString(index + 1);
+            help.append("Ctrl+Shift+")
+                    .append(key)
+                    .append("           ")
+                    .append(availableTypes.get(index))
+                    .append(System.lineSeparator());
+        }
+        return help.toString().stripTrailing();
     }
 
     private void showAboutDialog() {
@@ -1719,14 +1742,14 @@ public class PlaaniseppApp extends Application {
             List<PlacementType> availableTypes = organizerView
                     ? List.of(
                             PlacementType.TENT,
-                            PlacementType.DJ_TRUCK,
                             PlacementType.CUSTOM_OBJECT,
-                            PlacementType.TEXT_OBJECT,
-                            PlacementType.MARKER_OBJECT,
                             PlacementType.LINE_OBJECT,
+                            PlacementType.AREA_OBJECT,
                             PlacementType.FENCE_ROW,
                             PlacementType.FENCE_RING,
-                            PlacementType.AREA_OBJECT
+                            PlacementType.TEXT_OBJECT,
+                            PlacementType.MARKER_OBJECT,
+                            PlacementType.DJ_TRUCK
                     )
                     : List.of(PlacementType.values());
             placementTypeComboBox.getItems().setAll(availableTypes);
