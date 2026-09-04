@@ -2774,7 +2774,7 @@ public class PlaaniseppApp extends Application {
             if (entry.isGroup()) {
                 selectObjectGroup(entry.groupName());
             } else if (entry.isCable()) {
-                selectPowerConnection(entry.connectionId());
+                selectCable(entry.connectionId());
             } else if (event.isShiftDown()) {
                 selectObjectRange(entry.objectItem().object());
             } else {
@@ -2798,11 +2798,11 @@ public class PlaaniseppApp extends Application {
             if (newValue.isGroup()) {
                 return;
             }
-            if (newValue.isCable()) {
-                selectPowerConnection(newValue.connectionId());
+            if (quickObjectSearchActive) {
                 return;
             }
-            if (quickObjectSearchActive) {
+            if (newValue.isCable()) {
+                selectCable(newValue.connectionId());
                 return;
             }
             PlannerObject object = newValue.objectItem().object();
@@ -2819,13 +2819,14 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             if (selectedEntry.isCable()) {
-                plan.findPowerConnection(selectedEntry.connectionId()).ifPresent(connection -> {
-                    plan.findObject(connection.consumerId()).ifPresent(consumer -> {
-                        selectObject(consumer);
-                        if (event.getClickCount() == 2) centerMapOnObject(consumer);
-                    });
-                    selectPowerConnection(connection.id());
-                });
+                if (quickObjectSearchActive) {
+                    activateQuickObjectSearchResult(selectedEntry);
+                } else {
+                    selectCable(selectedEntry.connectionId());
+                }
+                if (!quickObjectSearchActive && event.getClickCount() == 2) {
+                    centerMapOnCable(selectedEntry.connectionId());
+                }
                 event.consume();
                 return;
             }
@@ -2929,13 +2930,8 @@ public class PlaaniseppApp extends Application {
                         if (event.getClickCount() == 2) centerMapOnObject(object);
                     });
                 } else {
-                    plan.findPowerConnection(entry.id()).ifPresent(connection -> {
-                        plan.findObject(connection.consumerId()).ifPresent(consumer -> {
-                            selectObject(consumer);
-                            if (event.getClickCount() == 2) centerMapOnObject(consumer);
-                        });
-                        selectPowerConnection(connection.id());
-                    });
+                    selectCable(entry.id());
+                    if (event.getClickCount() == 2) centerMapOnCable(entry.id());
                 }
             });
             return cell;
@@ -3843,10 +3839,8 @@ public class PlaaniseppApp extends Application {
     private void activateQuickObjectSearchResult(ObjectListEntry entry) {
         if (entry.isCable()) {
             finishQuickObjectSearch();
-            plan.findPowerConnection(entry.connectionId()).ifPresent(connection -> {
-                plan.findObject(connection.consumerId()).ifPresent(this::selectObject);
-                selectPowerConnection(connection.id());
-            });
+            selectCable(entry.connectionId());
+            centerMapOnCable(entry.connectionId());
             return;
         }
         PlannerObject object = entry.objectItem().object();
@@ -3858,14 +3852,14 @@ public class PlaaniseppApp extends Application {
 
     private void selectFirstQuickSearchResult() {
         objectList.getItems().stream()
-                .filter(entry -> !entry.isGroup() && !entry.isCable())
+                .filter(entry -> !entry.isGroup())
                 .findFirst()
                 .ifPresent(entry -> selectSidebarItem(objectList, entry, objectListSection));
     }
 
     private void moveQuickSearchSelection(int offset) {
         List<ObjectListEntry> results = objectList.getItems().stream()
-                .filter(entry -> !entry.isGroup() && !entry.isCable())
+                .filter(entry -> !entry.isGroup())
                 .toList();
         if (results.isEmpty()) {
             return;
@@ -4050,7 +4044,11 @@ public class PlaaniseppApp extends Application {
                     .filter(this::isLayerEntryAvailableInCurrentView)
                     .toList());
         }
-        revealObjectInObjectList(selectedObject);
+        if (selectedCableConnectionId == null) {
+            revealObjectInObjectList(selectedObject);
+        } else {
+            revealCableInObjectList(selectedCableConnectionId);
+        }
         updateRevealObjectButton();
     }
 
@@ -4192,8 +4190,33 @@ public class PlaaniseppApp extends Application {
         if (mapScrollPane == null || object == null) {
             return;
         }
+        centerMapOnPosition(CablePathHelper.objectCenter(object, pixelsPerMeter()));
+    }
+
+    private void centerMapOnCable(String connectionId) {
+        plan.findPowerConnection(connectionId).ifPresent(connection -> {
+            PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
+            PowerSource source = plan.findObject(connection.sourceId())
+                    .filter(PowerSource.class::isInstance)
+                    .map(PowerSource.class::cast)
+                    .orElse(null);
+            if (consumer == null || source == null) {
+                return;
+            }
+            List<Position> path = cablePath(consumer, source, connection);
+            double minX = path.stream().mapToDouble(Position::x).min().orElse(consumer.position().x());
+            double maxX = path.stream().mapToDouble(Position::x).max().orElse(consumer.position().x());
+            double minY = path.stream().mapToDouble(Position::y).min().orElse(consumer.position().y());
+            double maxY = path.stream().mapToDouble(Position::y).max().orElse(consumer.position().y());
+            centerMapOnPosition(new Position((minX + maxX) / 2, (minY + maxY) / 2));
+        });
+    }
+
+    private void centerMapOnPosition(Position center) {
+        if (mapScrollPane == null || center == null) {
+            return;
+        }
         Platform.runLater(() -> {
-            Position center = CablePathHelper.objectCenter(object, pixelsPerMeter());
             Bounds viewportBounds = mapScrollPane.getViewportBounds();
             double contentWidth = Math.max(mapWidth * zoomLevel, viewportBounds.getWidth());
             double contentHeight = Math.max(mapHeight * zoomLevel, viewportBounds.getHeight());
@@ -6770,9 +6793,10 @@ public class PlaaniseppApp extends Application {
                 event.consume();
                 return;
             }
-            selectObject(consumer);
             if (cable.connection() != null) {
-                selectPowerConnection(cable.connection().id());
+                selectCable(cable.connection().id());
+            } else {
+                selectObject(consumer);
             }
             event.consume();
         });
@@ -12589,6 +12613,37 @@ public class PlaaniseppApp extends Application {
     private PowerConnection selectedPowerConnection() {
         String connectionId = selectedPowerConnectionId();
         return connectionId.isBlank() ? null : plan.findPowerConnection(connectionId).orElse(null);
+    }
+
+    private void selectCable(String connectionId) {
+        PowerConnection connection = plan.findPowerConnection(connectionId).orElse(null);
+        PlannerObject consumer = connection == null
+                ? null
+                : plan.findObject(connection.consumerId()).orElse(null);
+        if (connection == null || consumer == null) {
+            return;
+        }
+        if (selectedObject != null
+                && !selectedObject.id().equals(consumer.id())
+                && !updatingDetailControls) {
+            commitPendingDetailFieldsBeforeSelectionChange();
+        }
+        selectedMeasurementPaths.clear();
+        selectedObject = consumer;
+        selectedObjectIds.clear();
+        selectedObjectIds.addAll(logicalObjectIds(consumer));
+        selectionRangeAnchorObjectId = null;
+        selectedCableConnectionId = connectionId;
+        clearObjectSearchIfItHides(consumer);
+
+        refreshDetails();
+        powerConnectionComboBox.getItems().stream()
+                .filter(choice -> choice.connectionId().equals(connectionId))
+                .findFirst()
+                .ifPresent(choice -> powerConnectionComboBox.getSelectionModel().select(choice));
+        refreshDetails();
+        refreshObjectList();
+        redrawMap();
     }
 
     private void selectPowerConnection(String connectionId) {
