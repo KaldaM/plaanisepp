@@ -3322,11 +3322,13 @@ public class PlaaniseppApp extends Application {
             if (!(source instanceof PowerSource powerSource) || consumer == null) return "Puuduv kaabel";
             double length = CableDisplayHelper.lengthMeters(
                     cablePath(consumer, powerSource, connection), pixelsPerMeter());
-            return "Kaabel %s · %.1f m · %s → %s%s".formatted(
+            String pieces = connection.cableLengthNotes().isBlank()
+                    ? "kaablitükid määramata"
+                    : "tükid " + connection.cableLengthNotes();
+            return "Kaabel %s · %.1f m · %s%s".formatted(
                     CableDisplayHelper.shortTypeName(connection.connectorType()),
                     length,
-                    groupNameForFilter(source),
-                    groupNameForFilter(consumer),
+                    pieces,
                     plan.isCableHidden(connection.id()) ? " · peidetud" : ""
             );
         }).orElse("Puuduv kaabel");
@@ -6614,9 +6616,14 @@ public class PlaaniseppApp extends Application {
         piecesItem.setOnAction(event -> showCableLengthNotesDialog(
                 cable.connection(), cableInventoryHeader(cable.connection())
         ));
+        MenuItem visibilityItem = new MenuItem(plan.isCableHidden(cable.connection().id())
+                ? "Kuva kaabel" : "Peida kaabel");
+        visibilityItem.setOnAction(event -> setCableHidden(
+                cable.connection().id(), !plan.isCableHidden(cable.connection().id())));
         Menu layerMenu = cableLayerMenu(cable.connection());
         showContextMenu(
-                new ContextMenu(noteItem, piecesItem, new SeparatorMenuItem(), routeItem, layerMenu),
+                new ContextMenu(noteItem, piecesItem, new SeparatorMenuItem(), routeItem, layerMenu,
+                        new SeparatorMenuItem(), visibilityItem),
                 mapPane,
                 screenX,
                 screenY
