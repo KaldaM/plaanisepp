@@ -458,6 +458,8 @@ public class PlaaniseppApp extends Application {
     private Button addPlacementButton;
     private PlannerObject selectedObject;
     private PlannerObject pendingPowerSourceConsumer;
+    private Dialog<ButtonType> objectEditDialog;
+    private boolean objectEditDialogHiddenForPowerSourceSelection;
     private boolean loadingTartuCabinetAttachments;
     private String pendingPlacementName;
     private String pendingPlacementGroupName;
@@ -631,6 +633,9 @@ public class PlaaniseppApp extends Application {
                 event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && rotatingObjectId != null) {
                 finishObjectRotation();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE && pendingPowerSourceConsumer != null) {
+                cancelPlacement();
                 event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && isPlacementPending()) {
                 cancelPlacement();
@@ -8593,18 +8598,22 @@ public class PlaaniseppApp extends Application {
         dialog.getDialogPane().getButtonTypes().add(new ButtonType(
                 "Sulge", ButtonBar.ButtonData.CANCEL_CLOSE
         ));
+        objectEditDialog = dialog;
         objectEditDialogOpen = true;
-        try {
-            dialog.showAndWait();
-        } finally {
+        dialog.setOnHidden(event -> {
+            if (objectEditDialogHiddenForPowerSourceSelection) {
+                return;
+            }
             objectEditDialogOpen = false;
+            objectEditDialog = null;
             dialogScrollPane.setContent(null);
             detailContent.setVisible(detailContentVisible);
             detailContent.setManaged(detailContentManaged);
             selectedObjectSection.setContent(detailContent);
             selectedObjectSection.setExpanded(sectionExpanded);
             refreshDetails();
-        }
+        });
+        dialog.show();
     }
 
     private void deleteObject(PlannerObject object) {
@@ -9670,11 +9679,30 @@ public class PlaaniseppApp extends Application {
             pendingPowerSourceConsumer = null;
             updateMapToolStatus();
             refreshDetails();
+            restoreObjectEditDialogAfterPowerSourceSelection();
             return;
         }
         pendingPowerSourceConsumer = consumer;
+        hideObjectEditDialogForPowerSourceSelection();
         updateMapToolStatus();
         refreshDetails();
+    }
+
+    private void hideObjectEditDialogForPowerSourceSelection() {
+        if (objectEditDialog == null || !objectEditDialog.isShowing()) {
+            return;
+        }
+        objectEditDialogHiddenForPowerSourceSelection = true;
+        objectEditDialog.hide();
+    }
+
+    private void restoreObjectEditDialogAfterPowerSourceSelection() {
+        if (!objectEditDialogHiddenForPowerSourceSelection || objectEditDialog == null) {
+            return;
+        }
+        objectEditDialogHiddenForPowerSourceSelection = false;
+        refreshDetails();
+        objectEditDialog.show();
     }
 
     private void connectPowerSourceFromMap(PowerSource source) {
@@ -9723,6 +9751,7 @@ public class PlaaniseppApp extends Application {
         redrawMap();
         refreshSummary();
         markDirty();
+        restoreObjectEditDialogAfterPowerSourceSelection();
     }
 
     private void updateSelectedLock() {
@@ -10752,6 +10781,7 @@ public class PlaaniseppApp extends Application {
         refreshPlacementButtons();
         updateMapToolStatus();
         redrawMap();
+        restoreObjectEditDialogAfterPowerSourceSelection();
     }
 
     private void addMeasurementPoint(Position point) {
