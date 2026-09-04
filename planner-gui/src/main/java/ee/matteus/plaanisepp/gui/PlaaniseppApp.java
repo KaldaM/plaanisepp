@@ -9210,7 +9210,7 @@ public class PlaaniseppApp extends Application {
         setSectionVisible(powerSourcePanel, powerSourceSelected);
         setSectionVisible(powerSourceAttachmentsButton, tartuCabinetSelected && !organizerView);
         setSectionVisible(powerConnectionPanel, powerConsumerSelected && !organizerView);
-        setSectionVisible(equipmentSection, equipmentContainerSelected && !organizerView);
+        setSectionVisible(equipmentSection, equipmentContainerSelected);
         setSectionVisible(objectInventorySection, inventoryContainerSelected);
         setSectionVisible(outletSection, powerSourceSelected && !organizerView);
         setSectionVisible(choosePowerSourceButton, powerConsumerSelected && !organizerView);
@@ -11736,31 +11736,35 @@ public class PlaaniseppApp extends Application {
                     return;
                 }
                 Label equipmentLabel = new Label(item);
-                equipmentAt(getIndex())
-                        .flatMap(PlaaniseppApp.this::equipmentPowerConnection)
-                        .flatMap(connection -> plan.findObject(connection.sourceId())
-                                .filter(PowerSource.class::isInstance)
-                                .map(PowerSource.class::cast)
-                                .flatMap(source -> source.outlets().stream()
-                                        .filter(outlet -> outlet.id().equals(connection.outletId()))
-                                        .findFirst()
-                                        .map(outlet -> new EquipmentSupplyView(
-                                                powerConnectionDisplayName(connection),
-                                                usedWatts(outlet.id()),
-                                                outlet.capacityWatts()
-                                        ))))
-                        .ifPresentOrElse(supply -> {
-                            PowerLoadLevel loadLevel = PowerLoadLevel.from(
-                                    supply.usedWatts(), supply.capacityWatts());
-                            Label supplyLabel = new Label(supply.displayText());
-                            supplyLabel.setStyle(loadLevel == PowerLoadLevel.OVERLOADED
-                                    ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
-                                    : "-fx-text-fill: #4b5563;");
-                            ProgressBar bar = new ProgressBar(supply.progress());
-                            bar.setMaxWidth(Double.MAX_VALUE);
-                            bar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
-                            setGraphic(new VBox(3, equipmentLabel, supplyLabel, bar));
-                        }, () -> setGraphic(equipmentLabel));
+                if (organizerView) {
+                    setGraphic(equipmentLabel);
+                } else {
+                    equipmentAt(getIndex())
+                            .flatMap(PlaaniseppApp.this::equipmentPowerConnection)
+                            .flatMap(connection -> plan.findObject(connection.sourceId())
+                                    .filter(PowerSource.class::isInstance)
+                                    .map(PowerSource.class::cast)
+                                    .flatMap(source -> source.outlets().stream()
+                                            .filter(outlet -> outlet.id().equals(connection.outletId()))
+                                            .findFirst()
+                                            .map(outlet -> new EquipmentSupplyView(
+                                                    powerConnectionDisplayName(connection),
+                                                    usedWatts(outlet.id()),
+                                                    outlet.capacityWatts()
+                                            ))))
+                            .ifPresentOrElse(supply -> {
+                                PowerLoadLevel loadLevel = PowerLoadLevel.from(
+                                        supply.usedWatts(), supply.capacityWatts());
+                                Label supplyLabel = new Label(supply.displayText());
+                                supplyLabel.setStyle(loadLevel == PowerLoadLevel.OVERLOADED
+                                        ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
+                                        : "-fx-text-fill: #4b5563;");
+                                ProgressBar bar = new ProgressBar(supply.progress());
+                                bar.setMaxWidth(Double.MAX_VALUE);
+                                bar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
+                                setGraphic(new VBox(3, equipmentLabel, supplyLabel, bar));
+                            }, () -> setGraphic(equipmentLabel));
+                }
                 MenuItem editItem = new MenuItem("Muuda");
                 editItem.setOnAction(event -> equipmentAt(getIndex()).ifPresent(equipment -> {
                     equipmentList.getSelectionModel().select(getIndex());
@@ -11808,22 +11812,26 @@ public class PlaaniseppApp extends Application {
         powerChoiceBox.setMaxWidth(Double.MAX_VALUE);
         powerChoiceBox.setCellFactory(list -> createEquipmentPowerChoiceCell());
         powerChoiceBox.setButtonCell(createEquipmentPowerChoiceCell());
-        List<EquipmentPowerChoice> powerChoices = equipmentPowerChoices();
-        powerChoiceBox.getItems().addAll(powerChoices);
-        powerChoices.stream()
-                .filter(choice -> equipment == null || equipment.usesDefaultPower()
-                        ? choice.isDefault()
-                        : choice.connectionId().equals(equipment.powerConnectionId()))
-                .findFirst()
-                .ifPresentOrElse(
-                        choice -> powerChoiceBox.getSelectionModel().select(choice),
-                        () -> powerChoiceBox.getSelectionModel().selectFirst()
-                );
+        if (!organizerView) {
+            List<EquipmentPowerChoice> powerChoices = equipmentPowerChoices();
+            powerChoiceBox.getItems().addAll(powerChoices);
+            powerChoices.stream()
+                    .filter(choice -> equipment == null || equipment.usesDefaultPower()
+                            ? choice.isDefault()
+                            : choice.connectionId().equals(equipment.powerConnectionId()))
+                    .findFirst()
+                    .ifPresentOrElse(
+                            choice -> powerChoiceBox.getSelectionModel().select(choice),
+                            () -> powerChoiceBox.getSelectionModel().selectFirst()
+                    );
+        }
 
         GridPane form = detailGrid();
         form.addRow(0, new Label("Nimi"), nameField);
         form.addRow(1, new Label("Võimsus W"), wattsField);
-        form.addRow(2, new Label("Toide"), powerChoiceBox);
+        if (!organizerView) {
+            form.addRow(2, new Label("Toide"), powerChoiceBox);
+        }
         dialog.getDialogPane().setContent(form);
 
         while (dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
@@ -11851,7 +11859,9 @@ public class PlaaniseppApp extends Application {
                 savedEquipment.rename(name);
                 savedEquipment.setRequiredWatts(watts);
             }
-            applyEquipmentPower(savedEquipment, powerChoiceBox.getSelectionModel().getSelectedItem());
+            if (!organizerView) {
+                applyEquipmentPower(savedEquipment, powerChoiceBox.getSelectionModel().getSelectedItem());
+            }
             refreshEquipmentList();
             redrawMap();
             refreshSummary();
@@ -12223,15 +12233,20 @@ public class PlaaniseppApp extends Application {
         }
 
         for (Equipment item : container.equipment()) {
-            equipmentList.getItems().add("%s - %d W · %s".formatted(
-                    item.name(),
-                    item.requiredWatts(),
+            equipmentList.getItems().add(equipmentListText(
+                    item,
+                    organizerView,
                     equipmentPowerDisplayName(item)
             ));
         }
         if (!container.equipment().isEmpty() && selectedIndex >= 0) {
             equipmentList.getSelectionModel().select(Math.min(selectedIndex, container.equipment().size() - 1));
         }
+    }
+
+    static String equipmentListText(Equipment equipment, boolean organizerView, String powerDisplayName) {
+        String equipmentText = "%s - %d W".formatted(equipment.name(), equipment.requiredWatts());
+        return organizerView ? equipmentText : equipmentText + " · " + powerDisplayName;
     }
 
     private List<EquipmentPowerChoice> equipmentPowerChoices() {
