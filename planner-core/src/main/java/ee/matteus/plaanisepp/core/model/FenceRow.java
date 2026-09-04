@@ -17,6 +17,7 @@ public class FenceRow extends PlannerObject {
     private boolean showInventoryLabel = true;
     private Position inventoryLabelOffset;
     private int gardenStoneAdjustment;
+    private boolean highFence;
 
     public FenceRow(String id, String name, Position position) {
         super(id, name, position);
@@ -161,6 +162,14 @@ public class FenceRow extends PlannerObject {
 
     public void setGardenStoneAdjustment(int gardenStoneAdjustment) {
         this.gardenStoneAdjustment = gardenStoneAdjustment;
+    }
+
+    public boolean highFence() {
+        return highFence;
+    }
+
+    public void setHighFence(boolean highFence) {
+        this.highFence = highFence;
     }
 
     void alignToEndpoints(Position start, Position end, double pixelsPerMeter) {

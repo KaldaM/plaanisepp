@@ -1,6 +1,7 @@
 package ee.matteus.plaanisepp.gui;
 
 import ee.matteus.plaanisepp.core.model.EventPlan;
+import ee.matteus.plaanisepp.core.model.FenceRow;
 import ee.matteus.plaanisepp.core.model.InventoryItemNames;
 import ee.matteus.plaanisepp.core.service.FenceInventoryService;
 import ee.matteus.plaanisepp.core.service.InventorySummaryService;
@@ -38,6 +39,12 @@ final class FenceReportTextFormatter {
             }
             builder.append(formatMeters(network.totalLengthMeters()))
                     .append(" m")
+                    .append(plan.findObject(network.representativeId())
+                            .filter(FenceRow.class::isInstance)
+                            .map(FenceRow.class::cast)
+                            .filter(FenceRow::highFence)
+                            .map(ignored -> " · kõrge 2 m")
+                            .orElse(""))
                     .append(lineSeparator);
             builder.append("    Aiakivid: ")
                     .append(stones.automaticCount())

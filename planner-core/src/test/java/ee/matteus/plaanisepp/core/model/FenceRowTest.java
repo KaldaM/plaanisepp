@@ -249,6 +249,7 @@ class FenceRowTest {
         FenceRow row = new FenceRow("first", "Peasissepääs", new Position(10, 20));
         row.setSegmentCount(5);
         row.setRotationDegrees(30);
+        row.setHighFence(true);
         plan.addObject(row);
         String originalStartJointId = row.startJointId();
         String originalEndJointId = row.endJointId();
@@ -257,6 +258,7 @@ class FenceRowTest {
 
         assertEquals(2, row.segmentCount());
         assertEquals(3, continuation.segmentCount());
+        assertEquals(true, continuation.highFence());
         assertEquals(row.endJointId(), continuation.startJointId());
         assertEquals(originalStartJointId, row.startJointId());
         assertEquals(originalEndJointId, continuation.endJointId());

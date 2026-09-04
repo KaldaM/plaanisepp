@@ -122,6 +122,21 @@ class ReportTextExporterTest {
     }
 
     @Test
+    void identifiesHighFencesInInventoryReport() {
+        EventPlan plan = new EventPlan("Test");
+        FenceRow fence = new FenceRow("fence-high", "Lava turvaaed", new Position(0, 0));
+        fence.setHighFence(true);
+        fence.setSegmentCount(4);
+        plan.addObject(fence);
+
+        String report = new ReportTextExporter().export(
+                plan, ReportExportScope.COMPACT, false, false, false
+        );
+
+        assertTrue(report.contains("Lava turvaaed: 4 × 3.50 m = 14 m · kõrge 2 m"), report);
+    }
+
+    @Test
     void listsConnectedFenceNetworkOnlyOnce() {
         EventPlan plan = new EventPlan("Test");
         FenceRow first = new FenceRow("fence-1", "Aiaring", new Position(0, 0));

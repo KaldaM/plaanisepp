@@ -737,6 +737,7 @@ public class EventPlan {
         continuation.setHidden(row.hidden());
         continuation.setShowMapLabel(row.showMapLabel());
         continuation.setShowInventoryLabel(row.showInventoryLabel());
+        continuation.setHighFence(row.highFence());
         if (row.customInventoryLabelPosition()) {
             continuation.setInventoryLabelOffset(row.inventoryLabelOffset());
         }

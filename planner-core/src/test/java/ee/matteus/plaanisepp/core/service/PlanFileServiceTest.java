@@ -112,6 +112,21 @@ class PlanFileServiceTest {
     }
 
     @Test
+    void savesAndLoadsHighFenceType() throws IOException {
+        EventPlan plan = new EventPlan("Kõrged aiad");
+        FenceRow fence = new FenceRow("fence-1", "Lava turvaaed", new Position(10, 20));
+        fence.setHighFence(true);
+        plan.addObject(fence);
+        Path file = tempDirectory.resolve("high-fence.pplan");
+
+        service.save(plan, file);
+        EventPlan loadedPlan = service.load(file);
+
+        FenceRow loadedFence = (FenceRow) loadedPlan.findObject("fence-1").orElseThrow();
+        assertTrue(loadedFence.highFence());
+    }
+
+    @Test
     void savesAndLoadsChecklistItemsInTheirCurrentOrder() throws IOException {
         EventPlan plan = new EventPlan("Checklist");
         ChecklistItem first = plan.addChecklistItem("Telli aiad");
@@ -123,7 +138,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(23, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(24, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(List.of(second.id(), first.id()), loadedPlan.checklistItems().stream()
                 .map(ChecklistItem::id)
                 .toList());
@@ -852,7 +867,7 @@ class PlanFileServiceTest {
         service.save(plan, file);
         EventPlan loadedPlan = service.load(file);
 
-        assertEquals(23, PlanFileService.CURRENT_FORMAT_VERSION);
+        assertEquals(24, PlanFileService.CURRENT_FORMAT_VERSION);
         assertEquals(2, loadedPlan.findPowerConnectionsForConsumer(tent.id()).size());
         PowerConnection loadedDefault = loadedPlan.findPowerConnectionForConsumer(tent.id()).orElseThrow();
         PowerConnection loadedAlternative = loadedPlan.powerConnections().stream()

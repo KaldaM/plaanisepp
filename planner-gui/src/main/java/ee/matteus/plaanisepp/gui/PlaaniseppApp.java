@@ -381,6 +381,7 @@ public class PlaaniseppApp extends Application {
     private Button decreaseFenceNetworkStonesButton;
     private Button increaseFenceNetworkStonesButton;
     private CheckBox showFenceInventoryLabelCheckBox;
+    private CheckBox highFenceCheckBox;
     private ColorPicker fenceColorPicker;
     private Slider fenceWidthSlider;
     private Button resetFenceInventoryLabelButton;
@@ -3268,7 +3269,7 @@ public class PlaaniseppApp extends Application {
         int gardenStoneCount = fenceStoneNetworkSummary(representative).totalCount();
         return "%d aeda · %.1f m · %d aiakivi · %d osa".formatted(
                 fenceCount, totalLength, gardenStoneCount, rows.size()
-        );
+        ) + (rows.stream().allMatch(FenceRow::highFence) ? " · kõrge 2 m" : "");
     }
 
     private InventorySummaryService.FenceStoneNetwork fenceStoneNetworkSummary(FenceRow representative) {
@@ -3824,6 +3825,8 @@ public class PlaaniseppApp extends Application {
         fenceStoneControl.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         showFenceInventoryLabelCheckBox = new CheckBox("Näita kogusesilti");
         showFenceInventoryLabelCheckBox.setOnAction(event -> updateSelectedFenceInventoryLabelVisibility());
+        highFenceCheckBox = new CheckBox("Kõrge aed (2 m)");
+        highFenceCheckBox.setOnAction(event -> updateSelectedFenceHeight());
         fenceColorPicker = new ColorPicker();
         fenceColorPicker.setOnAction(event -> autoApplySelectedColor());
         fenceWidthSlider = createPixelSlider(1, 50, FenceRow.DEFAULT_WIDTH_PIXELS);
@@ -3837,13 +3840,14 @@ public class PlaaniseppApp extends Application {
         fenceRowForm.addRow(0, new Label("Kogumik"), fenceNetworkSummaryLabel);
         fenceRowForm.addRow(1, new Label("Aiakivid"), fenceStoneControl);
         fenceRowForm.addRow(2, new Label("Kogusesilt"), showFenceInventoryLabelCheckBox);
-        fenceRowForm.addRow(3, new Label("Valitud rea aedu"), fenceSegmentCountField);
-        fenceRowForm.addRow(4, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
-        fenceRowForm.addRow(5, new Label("Suund °"), fenceRotationField);
-        fenceRowForm.addRow(6, new Label("Rea kogupikkus"), fenceTotalLengthLabel);
-        fenceRowForm.addRow(7, new Label("Värv"), fenceColorPicker);
-        fenceRowForm.addRow(8, new Label("Paksus"), pixelControl(fenceWidthSlider));
-        fenceRowForm.addRow(9, new Label("Sildi asukoht"), resetFenceInventoryLabelButton);
+        fenceRowForm.addRow(3, new Label("Aia tüüp"), highFenceCheckBox);
+        fenceRowForm.addRow(4, new Label("Valitud rea aedu"), fenceSegmentCountField);
+        fenceRowForm.addRow(5, new Label("Ühe aia pikkus m"), fenceSegmentLengthField);
+        fenceRowForm.addRow(6, new Label("Suund °"), fenceRotationField);
+        fenceRowForm.addRow(7, new Label("Rea kogupikkus"), fenceTotalLengthLabel);
+        fenceRowForm.addRow(8, new Label("Värv"), fenceColorPicker);
+        fenceRowForm.addRow(9, new Label("Paksus"), pixelControl(fenceWidthSlider));
+        fenceRowForm.addRow(10, new Label("Sildi asukoht"), resetFenceInventoryLabelButton);
         fenceRowPanel = new VBox(8, sectionLabel("Aiarida"), fenceRowForm);
 
         GridPane tentForm = detailGrid();
@@ -9339,6 +9343,7 @@ public class PlaaniseppApp extends Application {
             showFenceInventoryLabelCheckBox.setSelected(
                     plan.showFenceNetworkInventoryLabel(fenceRow.id())
             );
+            highFenceCheckBox.setSelected(networkRows.stream().allMatch(FenceRow::highFence));
             fenceSegmentCountField.setText(Integer.toString(fenceRow.segmentCount()));
             fenceSegmentLengthField.setText(formatMeters(fenceRow.segmentLengthMeters()));
             fenceRotationField.setText(formatDegrees(fenceRow.rotationDegrees()));
@@ -10108,6 +10113,7 @@ public class PlaaniseppApp extends Application {
                         row.widthPixels(),
                         row.opacity(),
                         row.gardenStoneAdjustment(),
+                        row.highFence(),
                         row.showInventoryLabel(),
                         row.customInventoryLabelPosition() ? row.inventoryLabelOffset() : null,
                         row.startJointId(),
@@ -10200,6 +10206,7 @@ public class PlaaniseppApp extends Application {
             pastedRow.setWidthPixels(copiedRow.widthPixels());
             pastedRow.setOpacity(copiedRow.opacity());
             pastedRow.setGardenStoneAdjustment(copiedRow.gardenStoneAdjustment());
+            pastedRow.setHighFence(copiedRow.highFence());
             pastedRow.setShowInventoryLabel(copiedRow.showInventoryLabel());
             if (copiedRow.inventoryLabelOffset() != null) {
                 pastedRow.setInventoryLabelOffset(copiedRow.inventoryLabelOffset());
@@ -10316,6 +10323,7 @@ public class PlaaniseppApp extends Application {
             fenceCopy.setRotationDegrees(fenceRow.rotationDegrees());
             fenceCopy.setColorHex(fenceRow.colorHex());
             fenceCopy.setWidthPixels(fenceRow.widthPixels());
+            fenceCopy.setHighFence(fenceRow.highFence());
             fenceCopy.setShowInventoryLabel(fenceRow.showInventoryLabel());
             if (fenceRow.customInventoryLabelPosition()) {
                 fenceCopy.setInventoryLabelOffset(fenceRow.inventoryLabelOffset());
@@ -12330,16 +12338,24 @@ public class PlaaniseppApp extends Application {
             Label networkLabel = inventoryDetailLabel("%s%s: %d aeda · %s m".formatted(
                     network.name(), row != null && fenceNetworkHidden(row) ? " (peidetud)" : "",
                     network.count(), formatMeters(network.totalLengthMeters())
-            ) + inventoryNotesSuffix(row == null ? "" : row.notes()));
+            ) + (row != null && row.highFence() ? " · kõrge 2 m" : "")
+                    + inventoryNotesSuffix(row == null ? "" : row.notes()));
             if (row != null) {
                 attachInventoryContextMenu(networkLabel, inventoryFenceContextMenu(row));
             }
             details.getChildren().add(networkLabel);
         }
         standaloneFences.forEach(item -> details.getChildren().add(standaloneInventoryRow(item)));
+        int highFenceCount = plan.objects().stream()
+                .filter(FenceRow.class::isInstance)
+                .map(FenceRow.class::cast)
+                .filter(FenceRow::highFence)
+                .mapToInt(FenceRow::segmentCount)
+                .sum();
         inventoryContent.getChildren().add(inventoryPane(
-                "Aiad: %d tk · %s m kaardil".formatted(
-                        inventory.totalFenceCount(),
+                "Aiad: %d tavalist · %d kõrget (2 m) · %s m kaardil".formatted(
+                        inventory.totalFenceCount() - highFenceCount,
+                        highFenceCount,
                         formatMeters(inventory.fences().totalLengthMeters())
                 ),
                 details,
@@ -12907,6 +12923,16 @@ public class PlaaniseppApp extends Application {
                 fenceRow.id(), showFenceInventoryLabelCheckBox.isSelected()
         );
         redrawMap();
+        markDirty();
+    }
+
+    private void updateSelectedFenceHeight() {
+        if (updatingDetailControls || !(selectedObject instanceof FenceRow fenceRow)) {
+            return;
+        }
+        plan.fenceNetworkRows(fenceRow.id()).forEach(row -> row.setHighFence(highFenceCheckBox.isSelected()));
+        refreshInventory();
+        refreshObjectList();
         markDirty();
     }
 
@@ -13696,6 +13722,7 @@ public class PlaaniseppApp extends Application {
             double widthPixels,
             double opacity,
             int gardenStoneAdjustment,
+            boolean highFence,
             boolean showInventoryLabel,
             Position inventoryLabelOffset,
             String startJointId,
