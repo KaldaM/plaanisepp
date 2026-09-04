@@ -307,6 +307,10 @@ public class PlaaniseppApp extends Application {
     private double layerDragScrollRowsPerSecond;
     private double layerDragScrollRowAccumulator;
     private long layerDragScrollPreviousNanos;
+    private double layerDragPointerSceneX;
+    private double layerDragPointerSceneY;
+    private ListCell<PlanLayerEntry> layerDropIndicatorCell;
+    private boolean layerDropInsertAbove;
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private final Set<String> hiddenSidebarSections = new HashSet<>();
@@ -2621,6 +2625,17 @@ public class PlaaniseppApp extends Application {
                             ? "Otsingu ajal kuvatakse kõik sobivad objektid"
                             : entry.expanded() ? "Peida grupi objektid" : "Näita grupi objekte"));
                     toggleButton.setOnAction(event -> toggleObjectGroup(entry.groupName()));
+                    if (entry.groupName().equals("Kaablid")) {
+                        Label groupLabel = new Label("Kaablid (%d)".formatted(entry.objectCount()));
+                        groupLabel.setStyle("-fx-font-weight: bold;");
+                        HBox groupRow = new HBox(6, toggleButton, groupLabel);
+                        groupRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                        setText(null);
+                        setGraphic(groupRow);
+                        setStyle("-fx-background-color: rgba(148,163,184,0.12);");
+                        setOnContextMenuRequested(null);
+                        return;
+                    }
                     boolean groupVisible = visibleGroups.contains(entry.groupName());
                     Button visibilityButton = objectStateIconButton(
                             "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
@@ -2643,6 +2658,12 @@ public class PlaaniseppApp extends Application {
                     setGraphic(groupRow);
                     setStyle("-fx-background-color: rgba(148,163,184,0.12);");
                     setOnContextMenuRequested(null);
+                    return;
+                }
+
+                if (entry.isCable()) {
+                    plan.findPowerConnection(entry.connectionId())
+                            .ifPresent(connection -> renderObjectListCableCell(this, connection));
                     return;
                 }
 
@@ -2711,6 +2732,7 @@ public class PlaaniseppApp extends Application {
             if (event.getButton() == MouseButton.SECONDARY
                     && entry != null
                     && !entry.isGroup()
+                    && !entry.isCable()
                     && isSelected(entry.objectItem().object())
                     && selectedLogicalObjects().size() > 1) {
                 preservingSidebarMultiSelection = true;
@@ -2725,6 +2747,8 @@ public class PlaaniseppApp extends Application {
             }
             if (entry.isGroup()) {
                 selectObjectGroup(entry.groupName());
+            } else if (entry.isCable()) {
+                selectPowerConnection(entry.connectionId());
             } else if (event.isShiftDown()) {
                 selectObjectRange(entry.objectItem().object());
             } else {
@@ -2743,6 +2767,10 @@ public class PlaaniseppApp extends Application {
             if (newValue.isGroup()) {
                 return;
             }
+            if (newValue.isCable()) {
+                selectPowerConnection(newValue.connectionId());
+                return;
+            }
             if (quickObjectSearchActive) {
                 return;
             }
@@ -2756,6 +2784,14 @@ public class PlaaniseppApp extends Application {
         objectList.setOnMouseClicked(event -> {
             ObjectListEntry selectedEntry = objectList.getSelectionModel().getSelectedItem();
             if (selectedEntry == null || selectedEntry.isGroup() || event.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            if (selectedEntry.isCable()) {
+                plan.findPowerConnection(selectedEntry.connectionId()).ifPresent(connection -> {
+                    plan.findObject(connection.consumerId()).ifPresent(this::selectObject);
+                    selectPowerConnection(connection.id());
+                });
+                event.consume();
                 return;
             }
             if (quickObjectSearchActive) {
@@ -2848,26 +2884,36 @@ public class PlaaniseppApp extends Application {
                         .collect(java.util.stream.Collectors.joining(",")));
                 dragboard.setContent(content);
                 startLayerDragAutoScroll(list);
+                if (cell.getItem().type() == PlanLayerEntry.Type.OBJECT) {
+                    plan.findObject(cell.getItem().id())
+                            .filter(object -> !isSelected(object))
+                            .ifPresent(this::selectObject);
+                }
                 event.consume();
             });
             cell.setOnDragOver(event -> {
                 if (cell.getItem() != null && event.getDragboard().hasString()) {
                     event.acceptTransferModes(TransferMode.MOVE);
                     boolean insertAbove = event.getY() < cell.getHeight() / 2.0;
-                    cell.setStyle(layerDropIndicatorStyle(insertAbove));
+                    updateLayerDropIndicator(cell, insertAbove);
+                    Point2D scenePointer = cell.localToScene(event.getX(), event.getY());
+                    layerDragPointerSceneX = scenePointer.getX();
+                    layerDragPointerSceneY = scenePointer.getY();
                     updateLayerDragScrollSpeed(list, cell, event.getX(), event.getY());
                 }
                 event.consume();
             });
-            cell.setOnDragExited(event -> restoreLayerCellStyle(cell));
+            cell.setOnDragExited(event -> clearLayerDropIndicator(cell));
             cell.setOnDragDropped(event -> {
                 List<PlanLayerEntry> dragged = layerEntriesFromStorageKeys(
                         event.getDragboard().getString());
-                boolean insertAbove = event.getY() < cell.getHeight() / 2.0;
-                int layerIndex = layerDropTargetIndex(dragged, cell.getItem(), insertAbove);
+                ListCell<PlanLayerEntry> targetCell = layerDropIndicatorCell == null
+                        ? cell : layerDropIndicatorCell;
+                boolean insertAbove = layerDropIndicatorCell == null
+                        ? event.getY() < cell.getHeight() / 2.0 : layerDropInsertAbove;
+                int layerIndex = layerDropTargetIndex(dragged, targetCell.getItem(), insertAbove);
                 boolean moved = layerIndex >= 0 && moveLayerEntriesToIndex(dragged, layerIndex);
                 stopLayerDragAutoScroll();
-                restoreLayerCellStyle(cell);
                 event.setDropCompleted(moved);
                 event.consume();
             });
@@ -2903,6 +2949,25 @@ public class PlaaniseppApp extends Application {
         return list;
     }
 
+    private void renderObjectListCableCell(
+            ListCell<ObjectListEntry> cell,
+            PowerConnection connection
+    ) {
+        PlanLayerEntry entry = PlanLayerEntry.cable(connection.id());
+        Label nameLabel = new Label(layerEntryName(entry));
+        nameLabel.setStyle("-fx-font-weight: bold;");
+        Label detailLabel = new Label(layerEntryDetailText(entry));
+        detailLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 11;");
+        VBox textBox = new VBox(2, nameLabel, detailLabel);
+        HBox row = new HBox(6, objectListColorSwatch(layerEntryColorHex(entry), true), textBox);
+        row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        row.setPadding(new Insets(0, 0, 0, 102));
+        cell.setText(null);
+        cell.setGraphic(row);
+        cell.setStyle("");
+        cell.setOnContextMenuRequested(null);
+    }
+
     private int layerDropTargetIndex(
             List<PlanLayerEntry> dragged,
             PlanLayerEntry target,
@@ -2934,6 +2999,7 @@ public class PlaaniseppApp extends Application {
                 layerDragScrollRowAccumulator += elapsedSeconds * Math.abs(layerDragScrollRowsPerSecond);
                 while (layerDragScrollRowAccumulator >= 1.0) {
                     scrollLayerListOneRow(list, layerDragScrollRowsPerSecond > 0 ? 1 : -1);
+                    Platform.runLater(() -> refreshLayerDropIndicatorAtPointer(list));
                     layerDragScrollRowAccumulator -= 1.0;
                 }
             }
@@ -2985,10 +3051,42 @@ public class PlaaniseppApp extends Application {
 
     private void stopLayerDragAutoScroll() {
         layerDragScrollRowsPerSecond = 0;
+        clearLayerDropIndicator(layerDropIndicatorCell);
         if (layerDragAutoScrollTimer != null) {
             layerDragAutoScrollTimer.stop();
             layerDragAutoScrollTimer = null;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void refreshLayerDropIndicatorAtPointer(ListView<PlanLayerEntry> list) {
+        ListCell<PlanLayerEntry> cellAtPointer = list.lookupAll(".list-cell").stream()
+                .filter(ListCell.class::isInstance)
+                .map(node -> (ListCell<PlanLayerEntry>) node)
+                .filter(cell -> cell.getItem() != null && cell.isVisible())
+                .filter(cell -> cell.localToScene(cell.getBoundsInLocal())
+                        .contains(layerDragPointerSceneX, layerDragPointerSceneY))
+                .findFirst()
+                .orElse(null);
+        if (cellAtPointer == null) return;
+        Point2D pointer = cellAtPointer.sceneToLocal(
+                layerDragPointerSceneX, layerDragPointerSceneY);
+        updateLayerDropIndicator(cellAtPointer, pointer.getY() < cellAtPointer.getHeight() / 2.0);
+    }
+
+    private void updateLayerDropIndicator(ListCell<PlanLayerEntry> cell, boolean insertAbove) {
+        if (layerDropIndicatorCell != null && layerDropIndicatorCell != cell) {
+            restoreLayerCellStyle(layerDropIndicatorCell);
+        }
+        layerDropIndicatorCell = cell;
+        layerDropInsertAbove = insertAbove;
+        cell.setStyle(layerDropIndicatorStyle(insertAbove));
+    }
+
+    private void clearLayerDropIndicator(ListCell<PlanLayerEntry> cell) {
+        if (cell == null || layerDropIndicatorCell != cell) return;
+        restoreLayerCellStyle(cell);
+        layerDropIndicatorCell = null;
     }
 
     private void selectLayerObjectRange(PlannerObject target) {
@@ -3209,7 +3307,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
         List<PlannerObject> visibleObjects = objectList.getItems().stream()
-                .filter(entry -> !entry.isGroup())
+                .filter(entry -> !entry.isGroup() && !entry.isCable())
                 .map(entry -> entry.objectItem().object())
                 .toList();
         int targetIndex = indexOfVisibleObject(visibleObjects, target);
@@ -3522,6 +3620,14 @@ public class PlaaniseppApp extends Application {
     }
 
     private void activateQuickObjectSearchResult(ObjectListEntry entry) {
+        if (entry.isCable()) {
+            finishQuickObjectSearch();
+            plan.findPowerConnection(entry.connectionId()).ifPresent(connection -> {
+                plan.findObject(connection.consumerId()).ifPresent(this::selectObject);
+                selectPowerConnection(connection.id());
+            });
+            return;
+        }
         PlannerObject object = entry.objectItem().object();
         finishQuickObjectSearch();
         selectObject(object);
@@ -3531,14 +3637,14 @@ public class PlaaniseppApp extends Application {
 
     private void selectFirstQuickSearchResult() {
         objectList.getItems().stream()
-                .filter(entry -> !entry.isGroup())
+                .filter(entry -> !entry.isGroup() && !entry.isCable())
                 .findFirst()
                 .ifPresent(entry -> selectSidebarItem(objectList, entry, objectListSection));
     }
 
     private void moveQuickSearchSelection(int offset) {
         List<ObjectListEntry> results = objectList.getItems().stream()
-                .filter(entry -> !entry.isGroup())
+                .filter(entry -> !entry.isGroup() && !entry.isCable())
                 .toList();
         if (results.isEmpty()) {
             return;
@@ -3704,6 +3810,16 @@ public class PlaaniseppApp extends Application {
                         .forEach(entries::add);
             }
         }
+        if (!organizerView) {
+            List<PowerConnection> cables = plan.powerConnections().stream()
+                    .filter(connection -> cableListItemMatches(connection, query))
+                    .toList();
+            if (!cables.isEmpty()) {
+                boolean expanded = !query.isBlank() || !collapsedObjectGroups.contains("Kaablid");
+                entries.add(ObjectListEntry.group("Kaablid", cables.size(), expanded));
+                if (expanded) cables.stream().map(ObjectListEntry::cable).forEach(entries::add);
+            }
+        }
 
         objectList.getItems().setAll(entries);
         if (layerList != null) {
@@ -3784,6 +3900,14 @@ public class PlaaniseppApp extends Application {
                 || item.type().toLowerCase().contains(query)
                 || item.groupName().toLowerCase().contains(query)
                 || (!item.visible() && "peidetud".contains(query));
+    }
+
+    private boolean cableListItemMatches(PowerConnection connection, String query) {
+        if (query.isBlank()) return true;
+        PlanLayerEntry entry = PlanLayerEntry.cable(connection.id());
+        return layerEntryName(entry).toLowerCase().contains(query)
+                || layerEntryDetailText(entry).toLowerCase().contains(query)
+                || "kaabel kaablid".contains(query);
     }
 
     private String objectListColorHex(PlannerObject object) {
@@ -9397,7 +9521,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
         ObjectListEntry target = objectList.getItems().stream()
-                .filter(entry -> !entry.isGroup())
+                .filter(entry -> !entry.isGroup() && !entry.isCable())
                 .filter(entry -> objectListEntryRepresents(entry, object))
                 .findFirst()
                 .orElseGet(() -> objectList.getItems().stream()
@@ -14420,19 +14544,28 @@ public class PlaaniseppApp extends Application {
     private record ObjectListEntry(
             String groupName,
             ObjectListItem objectItem,
+            String connectionId,
             int objectCount,
             boolean expanded
     ) {
         private static ObjectListEntry group(String groupName, int objectCount, boolean expanded) {
-            return new ObjectListEntry(groupName, null, objectCount, expanded);
+            return new ObjectListEntry(groupName, null, null, objectCount, expanded);
         }
 
         private static ObjectListEntry object(ObjectListItem objectItem) {
-            return new ObjectListEntry(objectItem.groupName(), objectItem, 0, false);
+            return new ObjectListEntry(objectItem.groupName(), objectItem, null, 0, false);
+        }
+
+        private static ObjectListEntry cable(PowerConnection connection) {
+            return new ObjectListEntry("Kaablid", null, connection.id(), 0, false);
         }
 
         private boolean isGroup() {
-            return objectItem == null;
+            return objectItem == null && connectionId == null;
+        }
+
+        private boolean isCable() {
+            return connectionId != null;
         }
     }
 
