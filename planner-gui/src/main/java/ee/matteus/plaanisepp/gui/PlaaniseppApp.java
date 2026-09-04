@@ -108,12 +108,9 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.input.ClipboardContent;
-import javafx.scene.input.Dragboard;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
-import javafx.scene.input.TransferMode;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
@@ -311,6 +308,13 @@ public class PlaaniseppApp extends Application {
     private double layerDragPointerSceneY;
     private ListCell<PlanLayerEntry> layerDropIndicatorCell;
     private boolean layerDropInsertAbove;
+    private List<PlanLayerEntry> layerMouseDraggedEntries = List.of();
+    private PlanLayerEntry layerMouseDragCandidate;
+    private double layerMouseDragStartX;
+    private double layerMouseDragStartY;
+    private boolean layerMouseDragActive;
+    private Scene layerMouseDragScene;
+    private javafx.event.EventHandler<MouseEvent> layerMouseReleaseFilter;
     private final Map<String, Boolean> sidebarSectionStates = new HashMap<>();
     private final Map<String, TitledPane> sidebarSections = new HashMap<>();
     private final Set<String> hiddenSidebarSections = new HashSet<>();
@@ -2858,8 +2862,10 @@ public class PlaaniseppApp extends Application {
                         setGraphic(null);
                         setStyle("");
                         setOnContextMenuRequested(null);
+                        setCursor(Cursor.DEFAULT);
                         return;
                     }
+                    setCursor(mapLayoutLocked ? Cursor.DEFAULT : Cursor.OPEN_HAND);
                     if (entry.type() == PlanLayerEntry.Type.OBJECT) {
                         plan.findObject(entry.id()).ifPresentOrElse(
                                 object -> renderLayerObjectCell(this, object),
@@ -2875,49 +2881,8 @@ public class PlaaniseppApp extends Application {
                     }
                 }
             };
-            cell.setOnDragDetected(event -> {
-                if (cell.getItem() == null || mapLayoutLocked) return;
-                Dragboard dragboard = cell.startDragAndDrop(TransferMode.MOVE);
-                ClipboardContent content = new ClipboardContent();
-                content.putString(layerEntriesForDrag(cell.getItem()).stream()
-                        .map(this::layerEntryStorageKey)
-                        .collect(java.util.stream.Collectors.joining(",")));
-                dragboard.setContent(content);
-                startLayerDragAutoScroll(list);
-                if (cell.getItem().type() == PlanLayerEntry.Type.OBJECT) {
-                    plan.findObject(cell.getItem().id())
-                            .filter(object -> !isSelected(object))
-                            .ifPresent(this::selectObject);
-                }
-                event.consume();
-            });
-            cell.setOnDragOver(event -> {
-                if (cell.getItem() != null && event.getDragboard().hasString()) {
-                    event.acceptTransferModes(TransferMode.MOVE);
-                    boolean insertAbove = event.getY() < cell.getHeight() / 2.0;
-                    updateLayerDropIndicator(cell, insertAbove);
-                    Point2D scenePointer = cell.localToScene(event.getX(), event.getY());
-                    layerDragPointerSceneX = scenePointer.getX();
-                    layerDragPointerSceneY = scenePointer.getY();
-                    updateLayerDragScrollSpeed(list, cell, event.getX(), event.getY());
-                }
-                event.consume();
-            });
-            cell.setOnDragExited(event -> clearLayerDropIndicator(cell));
-            cell.setOnDragDropped(event -> {
-                List<PlanLayerEntry> dragged = layerEntriesFromStorageKeys(
-                        event.getDragboard().getString());
-                ListCell<PlanLayerEntry> targetCell = layerDropIndicatorCell == null
-                        ? cell : layerDropIndicatorCell;
-                boolean insertAbove = layerDropIndicatorCell == null
-                        ? event.getY() < cell.getHeight() / 2.0 : layerDropInsertAbove;
-                int layerIndex = layerDropTargetIndex(dragged, targetCell.getItem(), insertAbove);
-                boolean moved = layerIndex >= 0 && moveLayerEntriesToIndex(dragged, layerIndex);
-                stopLayerDragAutoScroll();
-                event.setDropCompleted(moved);
-                event.consume();
-            });
-            cell.setOnDragDone(event -> stopLayerDragAutoScroll());
+            cell.setOnMousePressed(event -> beginLayerMouseDrag(cell, event));
+            cell.setOnMouseDragged(event -> continueLayerMouseDrag(list, event));
             cell.setOnMouseClicked(event -> {
                 if (event.getButton() != MouseButton.PRIMARY || cell.getItem() == null) return;
                 PlanLayerEntry entry = cell.getItem();
@@ -2941,12 +2906,112 @@ public class PlaaniseppApp extends Application {
             });
             return cell;
         });
-        list.setOnDragExited(event -> {
-            if (!list.getBoundsInLocal().contains(list.sceneToLocal(event.getSceneX(), event.getSceneY()))) {
-                layerDragScrollRowsPerSecond = 0;
-            }
-        });
         return list;
+    }
+
+    private void beginLayerMouseDrag(ListCell<PlanLayerEntry> cell, MouseEvent event) {
+        if (event.getButton() != MouseButton.PRIMARY
+                || cell.getItem() == null
+                || mapLayoutLocked
+                || eventTargetIsButton(event, cell)) {
+            layerMouseDraggedEntries = List.of();
+            layerMouseDragCandidate = null;
+            return;
+        }
+        layerMouseDragCandidate = cell.getItem();
+        layerMouseDraggedEntries = List.of();
+        layerMouseDragStartX = event.getSceneX();
+        layerMouseDragStartY = event.getSceneY();
+        layerMouseDragActive = false;
+    }
+
+    private boolean eventTargetIsButton(MouseEvent event, ListCell<PlanLayerEntry> cell) {
+        Node node = event.getPickResult().getIntersectedNode();
+        while (node != null && node != cell) {
+            if (node instanceof Button) return true;
+            node = node.getParent();
+        }
+        return false;
+    }
+
+    private void continueLayerMouseDrag(ListView<PlanLayerEntry> list, MouseEvent event) {
+        if (layerMouseDragCandidate == null) return;
+        if (!layerMouseDragActive) {
+            if (Math.hypot(
+                    event.getSceneX() - layerMouseDragStartX,
+                    event.getSceneY() - layerMouseDragStartY) < 5) return;
+            if (layerMouseDragCandidate.type() == PlanLayerEntry.Type.OBJECT) {
+                plan.findObject(layerMouseDragCandidate.id())
+                        .filter(object -> !isSelected(object))
+                        .ifPresent(this::selectObjectForLayerDrag);
+            }
+            layerMouseDraggedEntries = layerEntriesForDrag(layerMouseDragCandidate);
+            layerMouseDragActive = true;
+            list.setCursor(Cursor.CLOSED_HAND);
+            startLayerDragAutoScroll(list);
+            installLayerMouseReleaseFilter(list);
+        }
+        layerDragPointerSceneX = event.getSceneX();
+        layerDragPointerSceneY = event.getSceneY();
+        refreshLayerDropIndicatorAtPointer(list);
+        updateLayerDragScrollSpeed(list);
+        event.consume();
+    }
+
+    private void finishLayerMouseDrag(ListView<PlanLayerEntry> list, MouseEvent event) {
+        if (!layerMouseDragActive) {
+            layerMouseDraggedEntries = List.of();
+            layerMouseDragCandidate = null;
+            return;
+        }
+        PlanSnapshot before = planSnapshotService.create(plan);
+        removeLayerMouseReleaseFilter();
+        boolean moved = false;
+        if (layerDropIndicatorCell != null) {
+            int layerIndex = layerDropTargetIndex(
+                    layerMouseDraggedEntries,
+                    layerDropIndicatorCell.getItem(),
+                    layerDropInsertAbove);
+            moved = layerIndex >= 0
+                    && plan.moveLayerEntriesToIndex(layerMouseDraggedEntries, layerIndex);
+        }
+        stopLayerDragAutoScroll();
+        list.setCursor(Cursor.DEFAULT);
+        layerMouseDraggedEntries = List.of();
+        layerMouseDragCandidate = null;
+        layerMouseDragActive = false;
+        if (moved) finishAutoAppliedDetailsChange(before, false);
+        else refreshObjectList();
+        event.consume();
+    }
+
+    private void installLayerMouseReleaseFilter(ListView<PlanLayerEntry> list) {
+        removeLayerMouseReleaseFilter();
+        layerMouseDragScene = list.getScene();
+        if (layerMouseDragScene == null) return;
+        layerMouseReleaseFilter = event -> finishLayerMouseDrag(list, event);
+        layerMouseDragScene.addEventFilter(MouseEvent.MOUSE_RELEASED, layerMouseReleaseFilter);
+    }
+
+    private void removeLayerMouseReleaseFilter() {
+        if (layerMouseDragScene != null && layerMouseReleaseFilter != null) {
+            layerMouseDragScene.removeEventFilter(MouseEvent.MOUSE_RELEASED, layerMouseReleaseFilter);
+        }
+        layerMouseDragScene = null;
+        layerMouseReleaseFilter = null;
+    }
+
+    private void selectObjectForLayerDrag(PlannerObject object) {
+        if (selectedObject != null && !updatingDetailControls) {
+            commitPendingDetailFieldsBeforeSelectionChange();
+        }
+        selectedObject = object;
+        selectedObjectIds.clear();
+        selectedObjectIds.addAll(logicalObjectIds(object));
+        selectionRangeAnchorObjectId = object.id();
+        refreshDetails();
+        revealObjectInPowerSummary(object);
+        redrawMap();
     }
 
     private void renderObjectListCableCell(
@@ -3007,13 +3072,8 @@ public class PlaaniseppApp extends Application {
         layerDragAutoScrollTimer.start();
     }
 
-    private void updateLayerDragScrollSpeed(
-            ListView<PlanLayerEntry> list,
-            ListCell<PlanLayerEntry> cell,
-            double cellX,
-            double cellY
-    ) {
-        Point2D pointer = list.sceneToLocal(cell.localToScene(cellX, cellY));
+    private void updateLayerDragScrollSpeed(ListView<PlanLayerEntry> list) {
+        Point2D pointer = list.sceneToLocal(layerDragPointerSceneX, layerDragPointerSceneY);
         double edgeZone = Math.min(64, list.getHeight() / 3.0);
         double edgeDistance;
         int direction;
@@ -3226,38 +3286,6 @@ public class PlaaniseppApp extends Application {
         colorSwatch.setStrokeWidth(0.7);
         colorSwatch.setOpacity(visible ? 1.0 : 0.45);
         return colorSwatch;
-    }
-
-    private boolean moveLayerEntriesToIndex(List<PlanLayerEntry> entries, int targetIndex) {
-        PlanSnapshot before = planSnapshotService.create(plan);
-        if (!plan.moveLayerEntriesToIndex(entries, targetIndex)) return false;
-        finishAutoAppliedDetailsChange(before, false);
-        return true;
-    }
-
-    private String layerEntryStorageKey(PlanLayerEntry entry) {
-        return entry.type().name() + ":" + entry.id();
-    }
-
-    private PlanLayerEntry layerEntryFromStorageKey(String key) {
-        if (key == null || !key.contains(":")) return null;
-        int separator = key.indexOf(':');
-        try {
-            return new PlanLayerEntry(
-                    PlanLayerEntry.Type.valueOf(key.substring(0, separator)),
-                    key.substring(separator + 1)
-            );
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
-    }
-
-    private List<PlanLayerEntry> layerEntriesFromStorageKeys(String keys) {
-        if (keys == null || keys.isBlank()) return List.of();
-        return java.util.Arrays.stream(keys.split(","))
-                .map(this::layerEntryFromStorageKey)
-                .filter(java.util.Objects::nonNull)
-                .toList();
     }
 
     private String layerEntryName(PlanLayerEntry entry) {
