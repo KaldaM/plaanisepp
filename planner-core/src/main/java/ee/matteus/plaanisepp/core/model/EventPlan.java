@@ -361,6 +361,35 @@ public class EventPlan {
         return moved;
     }
 
+    public boolean moveObjectsToLayerBoundary(Collection<String> objectIds, boolean front) {
+        if (objectIds == null || objectIds.isEmpty()) {
+            return false;
+        }
+        Set<String> ids = Set.copyOf(objectIds);
+        List<PlannerObject> selected = objects.stream()
+                .filter(object -> ids.contains(object.id()))
+                .toList();
+        if (selected.isEmpty()) {
+            return false;
+        }
+        List<PlannerObject> reordered = new ArrayList<>(objects.size());
+        if (!front) {
+            reordered.addAll(selected);
+        }
+        objects.stream()
+                .filter(object -> !ids.contains(object.id()))
+                .forEach(reordered::add);
+        if (front) {
+            reordered.addAll(selected);
+        }
+        if (reordered.equals(objects)) {
+            return false;
+        }
+        objects.clear();
+        objects.addAll(reordered);
+        return true;
+    }
+
     public List<ChecklistItem> checklistItems() {
         return Collections.unmodifiableList(checklistItems);
     }

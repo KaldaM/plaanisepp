@@ -32,6 +32,20 @@ class EventPlanObjectLayerTest {
         assertEquals(List.of("tent", "fence-1", "fence-2"), ids(plan));
     }
 
+    @Test
+    void movesMultipleObjectsToFrontAndBackWithoutChangingTheirOrder() {
+        EventPlan plan = planWithObjects("first", "selected-1", "middle", "selected-2", "last");
+        Set<String> selected = Set.of("selected-1", "selected-2");
+
+        assertTrue(plan.moveObjectsToLayerBoundary(selected, true));
+        assertEquals(List.of("first", "middle", "last", "selected-1", "selected-2"), ids(plan));
+        assertFalse(plan.moveObjectsToLayerBoundary(selected, true));
+
+        assertTrue(plan.moveObjectsToLayerBoundary(selected, false));
+        assertEquals(List.of("selected-1", "selected-2", "first", "middle", "last"), ids(plan));
+        assertFalse(plan.moveObjectsToLayerBoundary(selected, false));
+    }
+
     private EventPlan planWithObjects(String... ids) {
         EventPlan plan = new EventPlan("Kihid");
         for (String id : ids) {
