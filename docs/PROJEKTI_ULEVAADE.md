@@ -1,8 +1,8 @@
 # Plaanisepp: eesmärgid, areng ja hetkeseis
 
-- Dokumendi viimane sisuline uuendus: 4. september 2026
-- Koodi viimane dokumenteeritud commit: `a435174` (`Prepare v0.7.1 release`, 3. september 2026)
-- Projekti versioon: `0.7.1`
+- Dokumendi viimane sisuline uuendus: 5. september 2026
+- Koodi viimane dokumenteeritud commit: `d3efb47` (`Reuse object group controls for cables`, 5. september 2026)
+- Projekti versioon: `0.7.2`
 
 ## 1. Dokumendi eesmärk
 
@@ -332,7 +332,7 @@ Jooned ja alad kasutavad telgiga sama seadmete ning vooluühenduste mudelit. Nen
 - Salvestamata muudatuste nähtav olek.
 - Enne uue plaani loomist, teise plaani avamist või rakenduse sulgemist pakutakse muudatuste salvestamist.
 - Varem loodud plaanifailid on püsinud uute versioonidega avatavad.
-- Uued failid salvestatakse `formatVersion=2` ZIP-pakettidena; versioonita vanad failid loetakse versiooniks 1 ning uuema tundmatu versiooni avamine lõpetatakse selge veateatega.
+- Uued failid salvestatakse `formatVersion=28` ZIP-pakettidena; versioonita vanad failid loetakse versiooniks 1, toetatud vanemad vormingud teisendatakse lugemisel ning uuema tundmatu versiooni avamine lõpetatakse selge veateatega.
 - Tekstiraporti eksport.
 - Kaardipildi eksport PNG-na valitava ulatusega.
 - PDF-eksport koos ühes dialoogis valitavate sisu- ja kompaktsusvalikutega.
@@ -492,7 +492,7 @@ Need tähelepanekud sobivad bakalaureusetöös kasutajakeskse iteratiivse arendu
 
 ### 9.1 Vahetu jätkamiskoht
 
-`v0.7.1` seisus on teostatud `.pplan` versioon 23 paketivorming, Windowsi ja Fedora paigaldajad, kaardipõhine sündmuseplaneerimine, elektri- ja kaablivõrk, inventari kokkuvõte, korraldajavaade ning mitmikvaliku põhilised ühistoimingud. Rakenduse uueks nimeks valiti **Plaanisepp** ning kasutajale nähtav nimi ja pakendid nimetati ümber; ajaloolised ühilduvusidentifikaatorid säilivad. Praegune arendus keskendub korraldajate põhivoo päriskasutuses stabiliseerimisele. Täpsem tööjärjekord ja vastuvõtukriteeriumid on failis `docs/ARENDUSPLAAN.md`.
+`v0.7.2` seisus on kasutusel `.pplan` versioon 28; kõigi varasemate toetatud vormingute lugemine säilib. Lisaks Windowsi ja Fedora pakenditele, kaardipõhisele sündmuseplaneerimisele, elektri- ja kaablivõrgule, inventari kokkuvõttele ning korraldajavaatele on täiendatud aedade järjestikust loomist, objektide loendi kihistusrežiimi ja kaablite käsitlemist iseseisvalt valitavate kihtidena. Kaableid saab otsida, kihistada, peita, lukustada ja mitmikvalikuna muuta ilma ühendatud telki valimata. Rakenduse nimi on **Plaanisepp** ning ajaloolised ühilduvusidentifikaatorid säilivad. Täpsem tööjärjekord ja vastuvõtukriteeriumid on failis `docs/ARENDUSPLAAN.md`.
 
 ### 9.2 Kvaliteet ja arhitektuur
 

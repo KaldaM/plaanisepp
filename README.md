@@ -114,4 +114,4 @@ Lähim praktiline eesmärk on stabiliseerida korraldajate põhiteekond päriskas
 
 ## Avaldamine
 
-Uus GitHub Release luuakse versiooniga samanimelise tag'i push'imisel. Näiteks `v0.7.1` puhul peab Gradle'i versioon olema `0.7.1` ja tag `v0.7.1`. Release-workflow kontrollib versiooni, ehitab platvormipaketid ning lisab kontrollsummad.
+Uus GitHub Release luuakse versiooniga samanimelise tag'i push'imisel. Näiteks `v0.7.2` puhul peab Gradle'i versioon olema `0.7.2` ja tag `v0.7.2`. Release-workflow kontrollib versiooni, ehitab platvormipaketid ning lisab kontrollsummad.

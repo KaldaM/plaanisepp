@@ -1,7 +1,7 @@
 # Rakenduse edasine arendusplaan
 
-- Viimati üle vaadatud: 4. september 2026
-- Funktsionaalse koodi seis: commit `a435174` (`Prepare v0.7.1 release`), versioon `v0.7.1`
+- Viimati üle vaadatud: 5. september 2026
+- Funktsionaalse koodi seis: commit `d3efb47` (`Reuse object group controls for cables`), ettevalmistatav versioon `v0.7.2`
 
 ## Eesmärk
 
@@ -26,7 +26,7 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 15. **Tehtud:** kõrglahutusega ja georefereeritud aluskaartide hankimise töövoog, tavakaardi/ortofoto vahetamine, kaardiala hilisem muutmine ning Tartu püsivoolukilpide automaatne import.
 16. **Tehtud (esimene etapp):** tehnikakihita korraldajavaade käivitub esmakordsel kasutamisel vaikimisi ning jätab lokaalselt meelde viimati kasutatud korraldaja-/tehnikuvaate. PDF-eksport kasutab aktiivset kaardivaadet; korraldajavaates jäetakse välja voolu- ja kaabliinfo ning kilpidest loodud tekstobjektid. Valitav objektide legend sisaldab kõiki kaardil nähtavaid objekte samas grupijaotuses nagu külgpaneel, koos joondatud värvinäidise, tüübi, nime ja mõõdu-/koguseinfoga. Aiavõrgud kuvatakse raporti grupiloendis ühe tervikobjektina ning voolu kokkuvõttes on kilbi plokid ja koormustaseme värvilised ribad. Kuvaprofiilid ja kommentaarid on lisamata ning jäävad hilisemasse etappi.
 17. **Tegemata:** terviklik visuaalse keele uuendus.
-18. **Tehtud (põhifunktsioonid):** interaktiivne pööramine, mitmikvalik, valikukast ja põhilised ühistoimingud töötavad. Ühise grupi, nimesildi nähtavuse, värvi ja läbipaistvuse hulgi muutmine on teostatud; ainult elektrikappidest koosneva valiku suurust saab samuti korraga muuta. Ühe objekti põhised väljad on mitmikvaliku ajal lukus. Alles jääb tavapärane käsitsi regressioonikontroll eri objektitüüpide ja suure valiku korral.
+18. **Tehtud (põhifunktsioonid):** interaktiivne pööramine, mitmikvalik, valikukast ja põhilised ühistoimingud töötavad. Ühise grupi, nimesildi nähtavuse, värvi ja läbipaistvuse hulgi muutmine on teostatud; ainult elektrikappidest koosneva valiku suurust saab samuti korraga muuta. Kaablid osalevad kihistuses, kiirotsingus ja eraldi mitmikvalikus ning nende nähtavust, lukustust ja läbipaistvust saab hulgi muuta. Ühe elemendi põhised väljad on mitmikvaliku ajal lukus. Alles jääb tavapärane käsitsi regressioonikontroll eri objektitüüpide ja suure valiku korral.
 19. **Jätkuv töö:** `PlaaniseppApp` refaktoreerimine väikeste funktsioonipõhiste sammudena; seda ei alustata enne, kui korraldajate põhivoos on päris kasutusest leitud probleemid fikseeritud.
 
 ### Praegune põhifookus: korraldajate kasutuselevõtt
@@ -45,7 +45,7 @@ Külgpaneeli jaotise saab selle paremklõpsumenüüst peita ning menüüst „Va
 
 Mitmikvaliku korral rakenduvad „Valitud objekt” jaotise läbipaistvus ja värv kõigile valitud objektidele. Kui valitud on ainult elektrikilbid, saab ka nende suurust korraga muuta. Ainult ühele objektile rakenduvad väljad, näiteks nimi, märkmed, mõõdud, pööre, inventar ja vooluühenduse seaded, on mitmikvaliku ajal lukustatud; grupp, lukustus ja nimesildi nähtavus jäävad ühismuudatustena kasutatavaks.
 
-**Release:** külgpaneeli kohandamise, imporditud kilpide nimesiltide ja mitmikvaliku omaduste parandused moodustavad parandusversiooni `v0.7.1`.
+**Release:** korraldaja põhivoo, aedade loomise, objektide kihistuse ning kaablite valiku ja hulgitöötluse parandused moodustavad parandusversiooni `v0.7.2`.
 
 Uue plaani ja „Plaani andmed” dialoogi põhivaates kuvatakse ainult plaani nimi, festival/sündmus ja kaardi valik. Mõõtkava ning objekti- ja kaablisiltide suurused asuvad vaikimisi suletud „Täpsemad seaded” jaotises, et korraldaja ei peaks plaani alustamisel tegema tarbetuid tehnilisi valikuid.
 
