@@ -1,7 +1,7 @@
 # Plaanisepp: eesmärgid, areng ja hetkeseis
 
 - Dokumendi viimane sisuline uuendus: 5. september 2026
-- Koodi viimane dokumenteeritud commit: `d3efb47` (`Reuse object group controls for cables`, 5. september 2026)
+- Koodi viimane dokumenteeritud release-commit: `09c261a` (`Prepare v0.7.2 release`); visuaalse teema esimene etapp on tööpuus
 - Projekti versioon: `0.7.2`
 
 ## 1. Dokumendi eesmärk
@@ -176,7 +176,7 @@ Need väärtused on planeerimise praktilised vaikeväärtused, mitte elektriproj
 
 ### 5.5 Salvestusvorming
 
-Plaan salvestatakse ühe `.pplan` failina. Praegune vorminguversioon on `26` ja faili sisemine kuju on ZIP-pakett:
+Plaan salvestatakse ühe `.pplan` failina. Praegune vorminguversioon on `28` ja faili sisemine kuju on ZIP-pakett:
 
 | Paketi kirje | Sisu |
 | --- | --- |
@@ -202,7 +202,7 @@ Versioonita ja versioon 1 `.pplan` failid on tavalised Java properties-failid ni
 
 | Komponent | Vastutus |
 | --- | --- |
-| `PlanFileService` | Praeguse versiooni 26 pakettide kirjutamine, varasemate pakettide valideeritud lugemine ning vanade versioonita ja versioon 1 failide lugemine |
+| `PlanFileService` | Praeguse versiooni 28 pakettide kirjutamine, varasemate pakettide valideeritud lugemine ning vanade versioonita ja versioon 1 failide lugemine |
 | `PlanFactory` | Uue plaani algseisu loomine |
 | `PowerSummaryService` | Elektrikappide koormuse ja vaba võimsuse arvutamine |
 | `GeometryCalculator` | Joonte pikkuse ning kujundite pindala ja ümbermõõdu arvutamine |
@@ -494,6 +494,8 @@ Need tähelepanekud sobivad bakalaureusetöös kasutajakeskse iteratiivse arendu
 
 `v0.7.2` seisus on kasutusel `.pplan` versioon 28; kõigi varasemate toetatud vormingute lugemine säilib. Lisaks Windowsi ja Fedora pakenditele, kaardipõhisele sündmuseplaneerimisele, elektri- ja kaablivõrgule, inventari kokkuvõttele ning korraldajavaatele on täiendatud aedade järjestikust loomist, objektide loendi kihistusrežiimi ja kaablite käsitlemist iseseisvalt valitavate kihtidena. Kaableid saab otsida, kihistada, peita, lukustada ja mitmikvalikuna muuta ilma ühendatud telki valimata. Rakenduse nimi on **Plaanisepp** ning ajaloolised ühilduvusidentifikaatorid säilivad. Täpsem tööjärjekord ja vastuvõtukriteeriumid on failis `docs/ARENDUSPLAAN.md`.
 
+Põhiakna visuaalse keele esimene etapp on rakendatud ühises `plaanisepp.css` failis ja väikeses `UiTheme` abiklassis. Teema katab tööriistariba, vasakpoolse külgpaneeli ja vormid, ühise objektide/kaablite reapaigutuse ning alumise olekuriba. Stiil on piiratud nende piirkondadega, et kaart ja PDF-i kaardipilt säilitaksid senise kujunduse. Olemasolevate ikoonide kõrval näitavad olekut tekstid „peidetud”, „lukus” ja „grupilukk”. JavaFX-vaated on ajutise testplaaniga visuaalselt läbi vaadatud; täielik interaktsioonide ning Windowsi/DPI regressioon jääb kasutaja kontrolliks. Kontrollnimekiri on arengukava jaotises „Visuaalse teema esimene etapp”.
+
 ### 9.2 Kvaliteet ja arhitektuur
 
 - Hoida `.pplan` paketi lugemine ja kirjutamine `planner-core` teenuses; JavaFX-i pildikuvamine jääb `planner-gui` vastutuseks.
@@ -529,7 +531,7 @@ Veebivaade ja organisatsioonid tähendavad tõenäoliselt eraldi serverit, andme
 
 - Automaattestid katavad geomeetriat, seadmemudelit, salvestamise tagasiühilduvust, vooluarvutust, kaabli otspunkte ja tekstiaruannet, kuid kasutajaliidese sündmuste testikate on endiselt piiratud.
 - Peamine JavaFX-i rakendusklass on liiga suur ja koondab veel palju erinevaid vastutusi.
-- Vanemate vormingute lugemine ja migratsioon on automaattestidega kaetud kuni praeguse `.pplan` vorminguni 26. Eri kaardipildivormingute ja platvormide kombinatsioone tuleb regressioonide vältimiseks edaspidi siiski korrata.
+- Vanemate vormingute lugemine ja migratsioon on automaattestidega kaetud kuni praeguse `.pplan` vorminguni 28. Eri kaardipildivormingute ja platvormide kombinatsioone tuleb regressioonide vältimiseks edaspidi siiski korrata.
 - Vanad versioonita ning versioon 1–3 failid võivad viidata algsele kaardifailile absoluutse või platvormipõhise teega; kaart peab vana faili esmakordsel avamisel veel kättesaadav olema, et järgmine salvestamine saaks selle uude paketti lisada.
 - Kõiki keerukate JavaFX-i sündmuste ja kõrge resolutsiooni jõudlusjuhte ei kata automaattest; valitud objektide, kaartide ja ekspordi põhivoogu tuleb kontrollida päris rakenduses.
 - Fedora RPM-i ja Windowsi EXE-paigaldaja paigaldamine, menüüst käivitamine, `.pplan` failiseos, ikoonid ja eemaldamine on kontrollitud. JavaFX-i Linuxi failidialoog ei kuva kohandatud MIME-ikooni, kuigi Dolphin ja süsteemi failiseos seda teevad.
@@ -556,7 +558,7 @@ Uue vestluse alguses kasuta võimalikult täpset lähteinfot, et pikk ajalugu ei
 >
 > Loe esmalt `README.md`, `docs/ARENDUSPLAAN.md` ja `docs/PROJEKTI_ULEVAADE.md`. Kontrolli tegelikku seisu käsuga `git status --short`, viimaseid committe ja tage ning vaata Gradle'i tegelikku versiooni. Ära eelda dokumentide põhjal, et vana või juba tehtud funktsioon on veel tegemata; kui dokument ja kood erinevad, uuenda dokumenti või käsitle koodi tegeliku allikana.
 >
-> Projekt kasutab Java 25 ja JavaFX 26.0.2 ning on jaotatud mooduliteks `planner-core` ja `planner-gui`. Hoia domeeniloogika ja `.pplan` faili lugemine/kirjutamine core'is ning JavaFX-i vaated GUI-s. Praegune failivorming on 23 ja vanemate vormingute lugemine peab säilima. Ära kustuta, lähtesta ega kirjuta üle minu olemasolevaid muudatusi.
+> Projekt kasutab Java 25 ja JavaFX 26.0.2 ning on jaotatud mooduliteks `planner-core` ja `planner-gui`. Hoia domeeniloogika ja `.pplan` faili lugemine/kirjutamine core'is ning JavaFX-i vaated GUI-s. Praegune failivorming on 28 ja vanemate vormingute lugemine peab säilima. Ära kustuta, lähtesta ega kirjuta üle minu olemasolevaid muudatusi.
 >
 > Töömeetod: tee üks kasutaja poolt kontrollitav muudatus korraga, kasuta failide muutmiseks `apply_patch`-i, säilita eestikeelne kasutajaliides ning ütle enne suuremat muudatust lühidalt, mida kontrollid. Ära paku uuesti juba tehtud arengukava punkte. Kui probleem on piisavalt selge, rakenda parandust kohe, mitte ära piirdu ainult plaaniga.
 >

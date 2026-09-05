@@ -1,0 +1,151 @@
+/* Scoped desktop chrome. Never attach to the scene or the map snapshot root.
+ * Spacing: 2 / 4 / 8 / 12 px; controls: 4 px radius; flat surfaces, no shadows. */
+.ui-surface {
+    -ui-paper: #ffffff;
+    -ui-panel: #f3f5f7;
+    -ui-hover: #e8edf2;
+    -ui-pressed: #d5dee8;
+    -ui-border: #bdc7d2;
+    -ui-text: #243343;
+    -ui-muted: #596878;
+    -ui-accent: #245f99;
+    -ui-selection: #dceaf7;
+    -ui-success: #276342;
+    -ui-warning: #8a530d;
+    -ui-group-lock: #89560d;
+    -ui-both-lock: #70459b;
+    -fx-base: -ui-panel;
+    -fx-background: -ui-panel;
+    -fx-control-inner-background: -ui-paper;
+    -fx-accent: -ui-accent;
+    -fx-focus-color: -ui-accent;
+    -fx-faint-focus-color: transparent;
+    -fx-text-base-color: -ui-text;
+    -fx-text-background-color: -ui-text;
+    -fx-background-color: -ui-panel;
+}
+.ui-surface .label { -fx-text-fill: -ui-text; }
+.ui-surface .row-title, .ui-surface .plan-title { -fx-font-weight: bold; }
+.ui-surface .plan-row { -fx-spacing: 6; -fx-padding: 0 0 0 34; }
+.ui-surface .row-detail, .ui-surface .muted { -fx-text-fill: -ui-muted; -fx-font-size: 0.92em; }
+.ui-surface .muted:multiple { -fx-text-fill: -ui-accent; -fx-font-weight: bold; }
+.ui-surface .detail-grid > .label { -fx-min-width: 100; -fx-pref-width: 100; -fx-wrap-text: true; }
+.ui-surface .label:disabled { -fx-opacity: 1; }
+.ui-surface .section-label { -fx-font-weight: bold; -fx-padding: 8 0 0 0; }
+.ui-surface .button, .ui-surface .toggle-button, .ui-surface .combo-box-base {
+    -fx-background-color: -ui-paper;
+    -fx-background-insets: 0;
+    -fx-border-color: -ui-border;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 4 8;
+    -fx-text-fill: -ui-text;
+    -fx-effect: null;
+}
+.ui-surface .button:hover, .ui-surface .toggle-button:hover, .ui-surface .combo-box-base:hover {
+    -fx-background-color: -ui-hover;
+}
+.ui-surface .toggle-button:selected {
+    -fx-background-color: -ui-selection;
+    -fx-border-color: -ui-accent;
+    -fx-text-fill: -ui-accent;
+    -fx-font-weight: bold;
+}
+.ui-surface .button:pressed, .ui-surface .toggle-button:pressed, .ui-surface .combo-box-base:showing {
+    -fx-background-color: -ui-pressed;
+}
+.ui-surface .text-input {
+    -fx-background-color: -ui-paper;
+    -fx-background-insets: 0;
+    -fx-border-color: -ui-border;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-padding: 4 6;
+    -fx-text-fill: -ui-text;
+    -fx-prompt-text-fill: -ui-muted;
+    -fx-highlight-fill: -ui-selection;
+    -fx-highlight-text-fill: -ui-text;
+}
+.ui-surface .text-area .content { -fx-background-color: -ui-paper; -fx-background-radius: 3; }
+.ui-surface .combo-box-base > .arrow-button { -fx-background-color: transparent; }
+.ui-surface .slider .track { -fx-background-color: -ui-border; -fx-background-insets: 0; -fx-pref-height: 3; }
+.ui-surface .slider .thumb { -fx-background-color: -ui-paper; -fx-background-insets: 0; -fx-border-color: -ui-muted; -fx-border-radius: 8; -fx-effect: null; }
+.ui-surface .slider .thumb:hover { -fx-background-color: -ui-hover; }
+.ui-surface .slider .thumb:pressed { -fx-background-color: -ui-pressed; }
+.ui-surface .slider:focused .thumb { -fx-border-color: -ui-accent; -fx-border-width: 2; }
+.ui-surface .check-box > .box {
+    -fx-background-color: -ui-paper;
+    -fx-background-insets: 0;
+    -fx-border-color: -ui-border;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-padding: 3;
+}
+.ui-surface .check-box:hover > .box { -fx-background-color: -ui-hover; }
+.ui-surface .check-box:pressed > .box { -fx-background-color: -ui-pressed; }
+.ui-surface .check-box:selected > .box, .ui-surface .check-box:indeterminate > .box {
+    -fx-background-color: -ui-accent; -fx-border-color: -ui-accent;
+}
+.ui-surface .check-box:selected > .box > .mark,
+.ui-surface .check-box:indeterminate > .box > .mark { -fx-background-color: white; }
+.ui-surface .button:focused, .ui-surface .toggle-button:focused,
+.ui-surface .combo-box-base:focused, .ui-surface .text-input:focused,
+.ui-surface .check-box:focused > .box {
+    -fx-border-color: -ui-accent;
+    -fx-border-style: segments(2, 2);
+}
+.ui-surface .button:disabled, .ui-surface .toggle-button:disabled,
+.ui-surface .combo-box-base:disabled, .ui-surface .text-input:disabled,
+.ui-surface .check-box:disabled, .ui-surface .slider:disabled {
+    -fx-opacity: 0.58;
+}
+.ui-surface.tool-bar { -fx-padding: 6 8; -fx-spacing: 6; -fx-border-color: transparent transparent -ui-border transparent; }
+.ui-surface.sidebar { -fx-spacing: 8; -fx-padding: 10; }
+.ui-surface .titled-pane { -fx-text-fill: -ui-text; }
+.ui-surface .titled-pane > .title {
+    -fx-background-color: -ui-hover;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4 4 0 0;
+    -fx-padding: 7 8;
+    -fx-font-weight: bold;
+}
+.ui-surface .titled-pane > .title:hover { -fx-background-color: -ui-pressed; }
+.ui-surface .titled-pane:focused > .title { -fx-border-color: -ui-accent; -fx-border-style: segments(2, 2); }
+.ui-surface .titled-pane > .content {
+    -fx-background-color: -ui-paper;
+    -fx-border-color: -ui-border;
+    -fx-padding: 8;
+}
+.ui-surface .list-view { -fx-background-color: -ui-paper; -fx-background-insets: 0; -fx-border-color: -ui-border; -fx-padding: 1; }
+.ui-surface .list-view:focused { -fx-border-color: -ui-accent; }
+.ui-surface .list-cell { -fx-background-color: -ui-paper; -fx-text-fill: -ui-text; -fx-padding: 4 6; }
+.ui-surface .list-cell:filled:hover { -fx-background-color: -ui-hover; }
+.ui-surface .list-cell:filled:selected { -fx-background-color: -ui-selection; -fx-text-fill: -ui-text; }
+/* Native ListView selection is a navigation cursor; plan selection can contain many rows. */
+.ui-surface .plan-list .list-cell { -fx-border-color: transparent; -fx-border-width: 1 1 1 3; -fx-pref-width: 0; }
+.ui-surface .plan-list .list-cell:filled:selected { -fx-background-color: -ui-paper; }
+.ui-surface .plan-list .list-cell:filled:selected:hover { -fx-background-color: -ui-hover; }
+.ui-surface .plan-list .list-cell:filled:plan-group { -fx-background-color: -ui-panel; }
+.ui-surface .plan-list .list-cell:plan-hidden .row-title,
+.ui-surface .plan-list .list-cell:plan-hidden .row-detail { -fx-text-fill: -ui-muted; -fx-font-style: italic; }
+.ui-surface .plan-list .list-cell:filled:plan-selected {
+    -fx-background-color: -ui-selection;
+    -fx-border-color: transparent transparent transparent -ui-accent;
+}
+.ui-surface .plan-list:focused .list-cell:filled:focused { -fx-border-color: -ui-accent; -fx-border-width: 1 1 1 3; }
+.ui-surface .plan-list .list-cell:drop-above { -fx-border-color: -ui-accent transparent transparent transparent; -fx-border-width: 3 0 0 3; }
+.ui-surface .plan-list .list-cell:drop-below { -fx-border-color: transparent transparent -ui-accent transparent; -fx-border-width: 0 0 3 3; }
+.ui-surface .icon-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 2; }
+.ui-surface .disclosure-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 2 5; }
+.ui-surface .state-icon { -fx-fill: -ui-muted; }
+.ui-surface .icon-button:state-active .state-icon { -fx-fill: -ui-accent; }
+.ui-surface .icon-button:group-lock .state-icon { -fx-fill: -ui-group-lock; }
+.ui-surface .icon-button:both-lock .state-icon { -fx-fill: -ui-both-lock; }
+.ui-surface .icon-button:state-active { -fx-background-color: -ui-selection; }
+.ui-surface .icon-button:hover, .ui-surface .disclosure-button:hover { -fx-background-color: -ui-hover; }
+.ui-surface .icon-button:pressed, .ui-surface .disclosure-button:pressed { -fx-background-color: -ui-pressed; }
+.ui-surface .resize-handle { -fx-background-color: -ui-hover; -fx-text-fill: -ui-muted; -fx-font-size: 9; -fx-padding: 1 0; }
+.ui-surface.status-bar { -fx-padding: 5 10; -fx-spacing: 12; -fx-border-color: -ui-border transparent transparent transparent; }
+.ui-surface .save-status { -fx-font-weight: bold; -fx-text-fill: -ui-success; }
+.ui-surface .save-status:unsaved { -fx-text-fill: -ui-warning; }
+.ui-surface .empty-state { -fx-text-fill: -ui-muted; -fx-padding: 12; -fx-wrap-text: true; }

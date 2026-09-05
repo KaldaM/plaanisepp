@@ -556,6 +556,7 @@ public class PlaaniseppApp extends Application {
         BorderPane root = new BorderPane();
         root.setTop(new VBox(createMenuBar(), createToolbar()));
         root.setCenter(createContent());
+        root.setBottom(createStatusBar());
 
         refreshOrganizerViewControls();
         refreshGroupFilters();
@@ -1686,16 +1687,17 @@ public class PlaaniseppApp extends Application {
         mapLayoutLocked = preferences.getBoolean(MAP_LAYOUT_LOCKED_PREFERENCE, false);
 
         mapToolStatusLabel = new Label();
-        mapToolStatusLabel.setStyle("-fx-text-fill: #374151;");
+        mapToolStatusLabel.getStyleClass().add("muted");
         updateMapToolStatus();
 
         saveStatusLabel = new Label("Salvestatud");
-        saveStatusLabel.setStyle("-fx-text-fill: #166534; -fx-font-weight: bold;");
+        saveStatusLabel.getStyleClass().add("save-status");
+        UiTheme.state(saveStatusLabel, "unsaved", false);
         planTitleLabel = new Label();
-        planTitleLabel.setStyle("-fx-font-weight: bold;");
+        planTitleLabel.getStyleClass().add("plan-title");
         updatePlanTitleLabel();
 
-        return new ToolBar(
+        ToolBar toolbar = new ToolBar(
                 undoButton,
                 redoButton,
                 new Separator(),
@@ -1706,13 +1708,20 @@ public class PlaaniseppApp extends Application {
                 zoomSlider,
                 zoomPercentButton,
                 measureButton,
-                clearMeasurementsButton,
-                new Separator(),
-                mapToolStatusLabel,
-                new Separator(),
-                planTitleLabel,
-                saveStatusLabel
+                clearMeasurementsButton
         );
+        UiTheme.install(toolbar);
+        return toolbar;
+    }
+
+    private HBox createStatusBar() {
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox bar = new HBox(mapToolStatusLabel, spacer, planTitleLabel, saveStatusLabel);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("status-bar");
+        UiTheme.install(bar);
+        return bar;
     }
 
     private ToggleButton cableTypeToggle(String text, ConnectorType connectorType) {
@@ -2016,7 +2025,8 @@ public class PlaaniseppApp extends Application {
         StackPane.setMargin(baseMapSwitcher, new Insets(12));
 
         sidebar = new VBox(10);
-        sidebar.setPadding(new Insets(12));
+        sidebar.getStyleClass().add("sidebar");
+        UiTheme.install(sidebar);
         objectListSection = collapsibleSection(OBJECT_LIST_SECTION, "Objektid", createObjectListPanel(), true);
         TitledPane checklistSection = collapsibleSection(
                 CHECKLIST_SECTION, "Checklist", createChecklistPanel(), false
@@ -2137,8 +2147,8 @@ public class PlaaniseppApp extends Application {
         ScrollPane sidebarScrollPane = new ScrollPane(sidebar);
         sidebarScrollPane.setFitToWidth(true);
 
-        SplitPane splitPane = new SplitPane(mapView, sidebarScrollPane);
-        splitPane.setDividerPositions(0.72);
+        SplitPane splitPane = new SplitPane(sidebarScrollPane, mapView);
+        splitPane.setDividerPositions(0.32);
         return splitPane;
     }
 
@@ -2474,7 +2484,7 @@ public class PlaaniseppApp extends Application {
         Button toggleButton = new Button(item.expanded() ? "▾" : "▸");
         toggleButton.setFocusTraversable(false);
         toggleButton.setMinWidth(28);
-        toggleButton.setStyle("-fx-background-color: transparent; -fx-padding: 2 5 2 5;");
+        toggleButton.getStyleClass().add("disclosure-button");
         toggleButton.setTooltip(new Tooltip(item.expanded() ? "Peida alamread" : "Näita alamridu"));
         toggleButton.setOnAction(event -> toggleSummaryItem(item.hierarchyKey()));
         return toggleButton;
@@ -2486,7 +2496,7 @@ public class PlaaniseppApp extends Application {
             String tooltipText,
             Runnable action
     ) {
-        return objectStateIconButton(svgContent, active, tooltipText, action, "#2563eb");
+        return objectStateIconButton(svgContent, active, tooltipText, action, UiTheme.LockTone.INDIVIDUAL);
     }
 
     private Button objectStateIconButton(
@@ -2494,11 +2504,11 @@ public class PlaaniseppApp extends Application {
             boolean active,
             String tooltipText,
             Runnable action,
-            String activeColor
+            UiTheme.LockTone lockTone
     ) {
         SVGPath icon = new SVGPath();
         icon.setContent(svgContent);
-        icon.setFill(Color.web(active ? activeColor : "#9ca3af"));
+        icon.getStyleClass().add("state-icon");
         icon.setScaleX(0.65);
         icon.setScaleY(0.65);
 
@@ -2508,7 +2518,10 @@ public class PlaaniseppApp extends Application {
         button.setMinSize(27, 27);
         button.setPrefSize(27, 27);
         button.setMaxSize(27, 27);
-        button.setStyle("-fx-background-color: transparent; -fx-padding: 2;");
+        button.getStyleClass().add("icon-button");
+        UiTheme.state(button, "state-active", active);
+        UiTheme.state(button, "group-lock", active && lockTone == UiTheme.LockTone.GROUP);
+        UiTheme.state(button, "both-lock", active && lockTone == UiTheme.LockTone.BOTH);
         button.setTooltip(new Tooltip(tooltipText));
         button.setAccessibleText(tooltipText);
         button.setOnAction(event -> action.run());
@@ -2530,6 +2543,10 @@ public class PlaaniseppApp extends Application {
                 groupLocked ? "Eemalda grupi lukustus" : "Lukusta grupp",
                 () -> setGroupLocked(groupStateKey, !groupLocked)
         );
+        groupLabel.setText(groupLabel.getText()
+                + (!groupVisible ? " · peidetud" : "")
+                + (groupLocked ? " · grupilukk" : ""));
+        groupLabel.setTooltip(new Tooltip(groupLabel.getText()));
         HBox groupRow = new HBox(6, toggleButton, visibilityButton, lockButton, groupLabel);
         groupRow.setAlignment(Pos.CENTER_LEFT);
         return groupRow;
@@ -2637,7 +2654,8 @@ public class PlaaniseppApp extends Application {
         });
         objectList = new ListView<>();
         objectList.setPrefHeight(objectListHeight);
-        objectList.setStyle("-fx-selection-bar: transparent; -fx-selection-bar-non-focused: transparent;");
+        objectList.getStyleClass().add("plan-list");
+        objectList.setPlaceholder(emptyState("Loend on tühi. Lisa objekte või muuda otsingut."));
         objectList.setTooltip(new Tooltip(
                 "Topeltklõps viib kaardil objektini\n"
                         + "Ctrl+klõps lisab või eemaldab objekti valikust\n"
@@ -2651,7 +2669,7 @@ public class PlaaniseppApp extends Application {
                 if (empty || entry == null) {
                     setText(null);
                     setGraphic(null);
-                    setStyle("");
+                    UiTheme.row(this, false, false, false);
                     setOnContextMenuRequested(null);
                     setCursor(Cursor.DEFAULT);
                     return;
@@ -2661,7 +2679,7 @@ public class PlaaniseppApp extends Application {
                     Button toggleButton = new Button(entry.expanded() ? "▾" : "▸");
                     toggleButton.setFocusTraversable(false);
                     toggleButton.setMinWidth(28);
-                    toggleButton.setStyle("-fx-background-color: transparent; -fx-padding: 2 5 2 5;");
+                    toggleButton.getStyleClass().add("disclosure-button");
                     boolean searchActive = objectSearchField != null && !objectSearchField.getText().isBlank();
                     toggleButton.setDisable(searchActive);
                     toggleButton.setTooltip(new Tooltip(searchActive
@@ -2672,10 +2690,10 @@ public class PlaaniseppApp extends Application {
                             ? CABLE_GROUP_STATE_KEY
                             : entry.groupName();
                     Label groupLabel = new Label("%s (%d)".formatted(entry.groupName(), entry.objectCount()));
-                    groupLabel.setStyle("-fx-font-weight: bold;");
+                    groupLabel.getStyleClass().add("row-title");
                     setText(null);
                     setGraphic(createObjectGroupRow(toggleButton, groupStateKey, groupLabel));
-                    setStyle("-fx-background-color: rgba(148,163,184,0.12);");
+                    UiTheme.row(this, false, false, true);
                     setOnContextMenuRequested(null);
                     return;
                 }
@@ -2690,22 +2708,12 @@ public class PlaaniseppApp extends Application {
                 ObjectListItem item = entry.objectItem();
                 setCursor(mapLayoutLocked ? Cursor.DEFAULT : Cursor.OPEN_HAND);
                 Label nameLabel = new Label(item.object().name());
-                nameLabel.setStyle(item.visible()
-                        ? "-fx-font-weight: bold;"
-                        : "-fx-font-weight: bold; -fx-text-fill: #6b7280; -fx-font-style: italic;");
+                nameLabel.getStyleClass().add("row-title");
                 boolean lockedByGroup = plan.isGroupLocked(item.groupName());
                 Label detailLabel = new Label(item.detailText()
                         + (lockedByGroup ? " · grupilukk" : ""));
-                detailLabel.setStyle(item.visible()
-                        ? "-fx-text-fill: #6b7280; -fx-font-size: 11;"
-                        : "-fx-text-fill: #6b7280; -fx-font-size: 11; -fx-font-style: italic;");
-                Rectangle colorSwatch = new Rectangle(12, 12);
-                colorSwatch.setArcWidth(3);
-                colorSwatch.setArcHeight(3);
-                colorSwatch.setFill(Color.web(objectListColorHex(item.object())));
-                colorSwatch.setStroke(Color.web("#111827"));
-                colorSwatch.setStrokeWidth(0.7);
-                colorSwatch.setOpacity(item.visible() ? 1.0 : 0.45);
+                detailLabel.getStyleClass().add("row-detail");
+                Rectangle colorSwatch = objectListColorSwatch(objectListColorHex(item.object()), item.visible());
                 Button visibilityButton = objectStateIconButton(
                         "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
                         !item.object().hidden(),
@@ -2723,23 +2731,12 @@ public class PlaaniseppApp extends Application {
                         individuallyLocked || lockedByGroup,
                         lockTooltip,
                         () -> setObjectLocked(item.object(), !item.object().locked()),
-                        lockedByGroup ? individuallyLocked ? "#7c3aed" : "#b45309" : "#2563eb"
+                        UiTheme.lockTone(individuallyLocked, lockedByGroup)
                 );
-                VBox textBox = new VBox(2, nameLabel, detailLabel);
-                HBox row = new HBox(6, visibilityButton, lockButton, colorSwatch, textBox);
-                row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-                row.setPadding(new Insets(0, 0, 0, 34));
+                HBox row = UiTheme.listRow(visibilityButton, lockButton, colorSwatch, nameLabel, detailLabel);
                 setText(null);
                 setGraphic(row);
-                String visibilityStyle = item.visible()
-                        ? ""
-                        : "-fx-text-fill: #6b7280; -fx-font-style: italic;";
-                String selectionStyle = PlaaniseppApp.this.isSelected(item.object())
-                        ? "-fx-background-color: rgba(37,99,235,0.24);"
-                                + "-fx-border-color: transparent transparent transparent #2563eb;"
-                                + "-fx-border-width: 0 0 0 3;"
-                        : "";
-                setStyle(visibilityStyle + selectionStyle);
+                UiTheme.row(this, PlaaniseppApp.this.isSelected(item.object()), !item.visible(), false);
                 setOnContextMenuRequested(event -> {
                     showObjectContextMenu(
                             item.object(), event.getScreenX(), event.getScreenY()
@@ -2858,7 +2855,7 @@ public class PlaaniseppApp extends Application {
         layerList = createLayerOrderList();
         setSectionVisible(layerList, false);
         activeSelectionCountLabel = new Label();
-        activeSelectionCountLabel.setStyle("-fx-text-fill: #475569; -fx-font-size: 11;");
+        activeSelectionCountLabel.getStyleClass().add("muted");
         updateActiveSelectionCountLabel();
         updateRevealObjectButton();
         refreshObjectList();
@@ -2876,7 +2873,8 @@ public class PlaaniseppApp extends Application {
     private ListView<PlanLayerEntry> createLayerOrderList() {
         ListView<PlanLayerEntry> list = new ListView<>();
         list.setPrefHeight(objectListHeight);
-        list.setStyle("-fx-selection-bar: transparent; -fx-selection-bar-non-focused: transparent;");
+        list.getStyleClass().add("plan-list");
+        list.setPlaceholder(emptyState("Loend on tühi. Lisa objekte või muuda otsingut."));
         list.setTooltip(new Tooltip(
                 "Ülemised read joonistatakse kaardil alumiste peale. Lohista järjestuse muutmiseks."
         ));
@@ -2888,7 +2886,7 @@ public class PlaaniseppApp extends Application {
                     if (empty || entry == null) {
                         setText(null);
                         setGraphic(null);
-                        setStyle("");
+                        UiTheme.row(this, false, false, false);
                         setOnContextMenuRequested(null);
                         setCursor(Cursor.DEFAULT);
                         return;
@@ -2903,7 +2901,8 @@ public class PlaaniseppApp extends Application {
                         plan.findPowerConnection(entry.id()).ifPresent(connection -> {
                             setText(null);
                             setGraphic(createCableListRow(connection));
-                            setStyle(cableListSelectionStyle(connection));
+                            UiTheme.row(this, selectedCableConnectionIds.contains(connection.id()),
+                                    isCableHidden(connection.id()), false);
                             setOnContextMenuRequested(event -> {
                                 showCableContextMenu(connection, event.getScreenX(), event.getScreenY());
                                 event.consume();
@@ -3051,7 +3050,8 @@ public class PlaaniseppApp extends Application {
         PlanLayerEntry entry = PlanLayerEntry.cable(connection.id());
         cell.setText(null);
         cell.setGraphic(createCableListRow(connection));
-        cell.setStyle(cableListSelectionStyle(connection));
+        UiTheme.row(cell, selectedCableConnectionIds.contains(connection.id()),
+                isCableHidden(connection.id()), false);
         cell.setOnContextMenuRequested(event -> {
             showCableContextMenu(connection, event.getScreenX(), event.getScreenY());
             event.consume();
@@ -3064,10 +3064,9 @@ public class PlaaniseppApp extends Application {
         boolean locked = plan.isCableLocked(connection.id());
         boolean lockedByGroup = plan.isGroupLocked(CABLE_GROUP_STATE_KEY);
         Label nameLabel = new Label(layerEntryName(entry));
-        nameLabel.setStyle("-fx-font-weight: bold;");
+        nameLabel.getStyleClass().add("row-title");
         Label detailLabel = new Label(layerEntryDetailText(entry));
-        detailLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 11;");
-        VBox textBox = new VBox(2, nameLabel, detailLabel);
+        detailLabel.getStyleClass().add("row-detail");
         Button visibilityButton = objectStateIconButton(
                 "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
                 !hidden,
@@ -3078,20 +3077,10 @@ public class PlaaniseppApp extends Application {
                 locked || lockedByGroup,
                 locked ? "Eemalda kaabli lukustus" : "Lukusta kaabel",
                 () -> setCableLocked(connection.id(), !locked),
-                lockedByGroup ? locked ? "#7c3aed" : "#b45309" : "#2563eb");
-        HBox row = new HBox(6, visibilityButton, lockButton,
-                objectListColorSwatch(layerEntryColorHex(entry), !hidden), textBox);
-        row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        row.setPadding(new Insets(0, 0, 0, 34));
-        return row;
-    }
-
-    private String cableListSelectionStyle(PowerConnection connection) {
-        return selectedCableConnectionIds.contains(connection.id())
-                ? "-fx-background-color: rgba(37,99,235,0.24);"
-                        + "-fx-border-color: transparent transparent transparent #2563eb;"
-                        + "-fx-border-width: 0 0 0 3;"
-                : "";
+                UiTheme.lockTone(locked, lockedByGroup));
+        return UiTheme.listRow(visibilityButton, lockButton,
+                objectListColorSwatch(layerEntryColorHex(entry), !isCableHidden(connection.id())),
+                nameLabel, detailLabel);
     }
 
     private void setCableHidden(String connectionId, boolean hidden) {
@@ -3241,7 +3230,7 @@ public class PlaaniseppApp extends Application {
         }
         layerDropIndicatorCell = cell;
         layerDropInsertAbove = insertAbove;
-        cell.setStyle(layerDropIndicatorStyle(insertAbove));
+        UiTheme.drop(cell, insertAbove);
     }
 
     private void clearLayerDropIndicator(ListCell<PlanLayerEntry> cell) {
@@ -3288,27 +3277,18 @@ public class PlaaniseppApp extends Application {
                 .toList();
     }
 
-    private String layerDropIndicatorStyle(boolean insertAbove) {
-        return (insertAbove
-                ? "-fx-border-color: #2563eb transparent transparent transparent;"
-                        + "-fx-border-width: 3 0 0 0;"
-                : "-fx-border-color: transparent transparent #2563eb transparent;"
-                        + "-fx-border-width: 0 0 3 0;")
-                + "-fx-background-color: rgba(37,99,235,0.10);";
-    }
-
     private void restoreLayerCellStyle(ListCell<PlanLayerEntry> cell) {
-        cell.setStyle(cell.getItem() == null ? "" : layerCellSelectionStyle(cell.getItem()));
-    }
-
-    private String layerCellSelectionStyle(PlanLayerEntry entry) {
-        if (entry.type() != PlanLayerEntry.Type.OBJECT) return "";
-        return plan.findObject(entry.id())
-                .filter(this::isSelected)
-                .map(ignored -> "-fx-background-color: rgba(37,99,235,0.24);"
-                        + "-fx-border-color: transparent transparent transparent #2563eb;"
-                        + "-fx-border-width: 0 0 0 3;")
-                .orElse("");
+        PlanLayerEntry entry = cell.getItem();
+        UiTheme.row(cell, false, false, false);
+        if (entry == null) return;
+        if (entry.type() == PlanLayerEntry.Type.OBJECT) {
+            plan.findObject(entry.id()).ifPresent(object ->
+                    UiTheme.row(cell, isSelected(object), !isObjectVisibleOnMap(object), false));
+        } else {
+            plan.findPowerConnection(entry.id()).ifPresent(connection ->
+                    UiTheme.row(cell, selectedCableConnectionIds.contains(connection.id()),
+                            isCableHidden(connection.id()), false));
+        }
     }
 
     private void renderLayerObjectCell(ListCell<PlanLayerEntry> cell, PlannerObject object) {
@@ -3322,14 +3302,10 @@ public class PlaaniseppApp extends Application {
                 isObjectVisibleOnMap(object)
         );
         Label nameLabel = new Label(object.name());
-        nameLabel.setStyle(item.visible()
-                ? "-fx-font-weight: bold;"
-                : "-fx-font-weight: bold; -fx-text-fill: #6b7280; -fx-font-style: italic;");
+        nameLabel.getStyleClass().add("row-title");
         boolean lockedByGroup = plan.isGroupLocked(item.groupName());
         Label detailLabel = new Label(item.detailText() + (lockedByGroup ? " · grupilukk" : ""));
-        detailLabel.setStyle(item.visible()
-                ? "-fx-text-fill: #6b7280; -fx-font-size: 11;"
-                : "-fx-text-fill: #6b7280; -fx-font-size: 11; -fx-font-style: italic;");
+        detailLabel.getStyleClass().add("row-detail");
         Rectangle colorSwatch = objectListColorSwatch(objectListColorHex(object), item.visible());
         Button visibilityButton = objectStateIconButton(
                 "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
@@ -3343,15 +3319,12 @@ public class PlaaniseppApp extends Application {
                 individuallyLocked || lockedByGroup,
                 individuallyLocked ? "Eemalda objekti lukustus" : "Lukusta objekt",
                 () -> setObjectLocked(object, !object.locked()),
-                lockedByGroup ? individuallyLocked ? "#7c3aed" : "#b45309" : "#2563eb"
+                UiTheme.lockTone(individuallyLocked, lockedByGroup)
         );
-        VBox textBox = new VBox(2, nameLabel, detailLabel);
-        HBox row = new HBox(6, visibilityButton, lockButton, colorSwatch, textBox);
-        row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        row.setPadding(new Insets(0, 0, 0, 34));
+        HBox row = UiTheme.listRow(visibilityButton, lockButton, colorSwatch, nameLabel, detailLabel);
         cell.setText(null);
         cell.setGraphic(row);
-        cell.setStyle(layerCellSelectionStyle(PlanLayerEntry.object(object.id())));
+        UiTheme.row(cell, isSelected(object), !item.visible(), false);
         cell.setOnContextMenuRequested(event -> {
             showObjectContextMenu(object, event.getScreenX(), event.getScreenY());
             event.consume();
@@ -3365,16 +3338,16 @@ public class PlaaniseppApp extends Application {
             String colorHex
     ) {
         Label nameLabel = new Label(name);
-        nameLabel.setStyle("-fx-font-weight: bold;");
+        nameLabel.getStyleClass().add("row-title");
         Label detailLabel = new Label(detail);
-        detailLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 11;");
+        detailLabel.getStyleClass().add("row-detail");
         VBox textBox = new VBox(2, nameLabel, detailLabel);
         HBox row = new HBox(6, objectListColorSwatch(colorHex, true), textBox);
         row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         row.setPadding(new Insets(0, 0, 0, 102));
         cell.setText(null);
         cell.setGraphic(row);
-        cell.setStyle("");
+        UiTheme.row(cell, false, false, false);
         cell.setOnContextMenuRequested(null);
     }
 
@@ -3413,7 +3386,8 @@ public class PlaaniseppApp extends Application {
                     length,
                     pieces,
                     (isCableHidden(connection.id()) ? " · peidetud" : "")
-                            + (isCableLocked(connection.id()) ? " · lukus" : "")
+                            + (plan.isCableLocked(connection.id()) ? " · lukus" : "")
+                            + (plan.isGroupLocked(CABLE_GROUP_STATE_KEY) ? " · grupilukk" : "")
             );
         }).orElse("Puuduv kaabel");
     }
@@ -3491,7 +3465,7 @@ public class PlaaniseppApp extends Application {
         }
         objectListDropCell = target;
         objectListDropAbove = target.sceneToLocal(sceneX, sceneY).getY() < target.getHeight() / 2.0;
-        target.setStyle(layerDropIndicatorStyle(objectListDropAbove));
+        UiTheme.drop(target, objectListDropAbove);
     }
 
     private void finishObjectListDrag(MouseEvent event) {
@@ -3530,19 +3504,16 @@ public class PlaaniseppApp extends Application {
 
     private void restoreObjectListCellStyle(ListCell<ObjectListEntry> cell) {
         ObjectListEntry entry = cell.getItem();
-        if (entry == null || entry.isGroup() || entry.isCable()) {
-            cell.setStyle("");
-            return;
+        UiTheme.row(cell, false, false, entry != null && entry.isGroup());
+        if (entry == null || entry.isGroup()) return;
+        if (entry.isCable()) {
+            plan.findPowerConnection(entry.connectionId()).ifPresent(connection ->
+                    UiTheme.row(cell, selectedCableConnectionIds.contains(connection.id()),
+                            isCableHidden(connection.id()), false));
+        } else {
+            ObjectListItem item = entry.objectItem();
+            UiTheme.row(cell, isSelected(item.object()), !item.visible(), false);
         }
-        ObjectListItem item = entry.objectItem();
-        String visibilityStyle = item.visible()
-                ? "" : "-fx-text-fill: #6b7280; -fx-font-style: italic;";
-        String selectionStyle = isSelected(item.object())
-                ? "-fx-background-color: rgba(37,99,235,0.24);"
-                        + "-fx-border-color: transparent transparent transparent #2563eb;"
-                        + "-fx-border-width: 0 0 0 3;"
-                : "";
-        cell.setStyle(visibilityStyle + selectionStyle);
     }
 
     private void selectObjectRange(PlannerObject target) {
@@ -3902,12 +3873,7 @@ public class PlaaniseppApp extends Application {
         handle.setAlignment(javafx.geometry.Pos.CENTER);
         handle.setCursor(Cursor.V_RESIZE);
         handle.setTooltip(new Tooltip("Lohista objektide nimekirja kõrguse muutmiseks"));
-        handle.setStyle("""
-                -fx-background-color: #e5e7eb;
-                -fx-text-fill: #6b7280;
-                -fx-font-size: 9;
-                -fx-padding: 1 0 1 0;
-                """);
+        handle.getStyleClass().add("resize-handle");
         Delta dragStart = new Delta();
         handle.setOnMousePressed(event -> {
             dragStart.x = event.getSceneY();
@@ -4777,7 +4743,7 @@ public class PlaaniseppApp extends Application {
         );
         selectedCableSummaryLabel = new Label();
         selectedCableSummaryLabel.setWrapText(true);
-        selectedCableSummaryLabel.setStyle("-fx-font-weight: bold;");
+        selectedCableSummaryLabel.getStyleClass().add("row-title");
         powerConnectionPanel = new VBox(
                 8,
                 sectionLabel("Vool"),
@@ -4840,14 +4806,21 @@ public class PlaaniseppApp extends Application {
         return detailPanel;
     }
 
+    private Label emptyState(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("empty-state");
+        return label;
+    }
+
     private Label sectionLabel(String text) {
         Label label = new Label(text);
-        label.setStyle("-fx-font-weight: bold; -fx-padding: 8 0 0 0;");
+        label.getStyleClass().add("section-label");
         return label;
     }
 
     private GridPane detailGrid() {
         GridPane grid = new GridPane();
+        grid.getStyleClass().add("detail-grid");
         grid.setHgap(8);
         grid.setVgap(8);
         return grid;
@@ -4866,6 +4839,8 @@ public class PlaaniseppApp extends Application {
     }
 
     private HBox opacityControl(Slider slider) {
+        slider.setMinWidth(70);
+        HBox.setHgrow(slider, Priority.ALWAYS);
         Label valueLabel = new Label(opacityPercentageText(slider.getValue()));
         valueLabel.setMinWidth(42);
         slider.valueProperty().addListener((observable, oldValue, newValue) ->
@@ -6263,9 +6238,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
         saveStatusLabel.setText(planDocumentState.saveStatusText());
-        saveStatusLabel.setStyle(planDocumentState.hasUnsavedChanges()
-                ? "-fx-text-fill: #b45309; -fx-font-weight: bold;"
-                : "-fx-text-fill: #166534; -fx-font-weight: bold;");
+        UiTheme.state(saveStatusLabel, "unsaved", planDocumentState.hasUnsavedChanges());
     }
 
     private void updateMapToolStatus() {
@@ -9622,6 +9595,7 @@ public class PlaaniseppApp extends Application {
         detailContent.setVisible(true);
         detailContent.setManaged(true);
         ScrollPane dialogScrollPane = new ScrollPane(detailContent);
+        UiTheme.install(dialogScrollPane);
         dialogScrollPane.setFitToWidth(true);
         dialogScrollPane.setPrefViewportWidth(620);
         dialogScrollPane.setPrefViewportHeight(680);
@@ -9796,9 +9770,7 @@ public class PlaaniseppApp extends Application {
             case 1 -> cableCount == 1 ? "1 aktiivne kaabel" : "1 aktiivne objekt";
             default -> "%d aktiivset elementi".formatted(count);
         });
-        activeSelectionCountLabel.setStyle(count > 1
-                ? "-fx-text-fill: #1d4ed8; -fx-font-size: 11; -fx-font-weight: bold;"
-                : "-fx-text-fill: #475569; -fx-font-size: 11;");
+        UiTheme.state(activeSelectionCountLabel, "multiple", count > 1);
     }
 
     private boolean allSelectedObjectsHidden() {
@@ -14685,7 +14657,7 @@ public class PlaaniseppApp extends Application {
             ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
             planFileSession.rememberDirectory(file);
             saveStatusLabel.setText("Pilt eksporditud");
-            saveStatusLabel.setStyle("-fx-text-fill: #166534; -fx-font-weight: bold;");
+            UiTheme.state(saveStatusLabel, "unsaved", false);
         } catch (IOException exception) {
             showError("Pildi eksportimine ebaõnnestus", exception.getMessage());
         }
@@ -14725,7 +14697,7 @@ public class PlaaniseppApp extends Application {
 
             planFileSession.rememberDirectory(file);
             saveStatusLabel.setText("PDF eksporditud");
-            saveStatusLabel.setStyle("-fx-text-fill: #166534; -fx-font-weight: bold;");
+            UiTheme.state(saveStatusLabel, "unsaved", false);
         } catch (IOException exception) {
             showError("PDF eksportimine ebaõnnestus", exception.getMessage());
         }
@@ -15075,7 +15047,7 @@ public class PlaaniseppApp extends Application {
     ) {
         private String detailText() {
             String measurement = measurementText.isBlank() ? "" : " · " + measurementText;
-            String visibilityText = visible ? "" : " · peidetud";
+            String visibilityText = (visible ? "" : " · peidetud") + (object.locked() ? " · lukus" : "");
             return "%s%s%s".formatted(type, measurement, visibilityText);
         }
 
