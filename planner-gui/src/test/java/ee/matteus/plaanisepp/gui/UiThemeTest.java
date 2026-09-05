@@ -8,6 +8,17 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class UiThemeTest {
     @Test
+    void workspaceFrameDoesNotBecomeAChromeAncestorOfTheMap() {
+        VBox map = new VBox();
+        VBox frame = new VBox(map);
+        UiTheme.installWorkspaceFrame(frame);
+        assertTrue(frame.getStyleClass().contains("workspace-frame"));
+        assertFalse(frame.getStyleClass().contains("ui-surface"));
+        assertFalse(map.getStyleClass().contains("ui-surface"));
+        assertTrue(map.getStylesheets().isEmpty());
+    }
+
+    @Test
     void recycledRowClearsSelectionVisibilityGroupAndDropStates() {
         VBox cell = new VBox();
         UiTheme.row(cell, true, true, true);

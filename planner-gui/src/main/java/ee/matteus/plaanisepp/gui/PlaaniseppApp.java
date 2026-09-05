@@ -346,6 +346,20 @@ public class PlaaniseppApp extends Application {
     private Label mapToolStatusLabel;
     private Label planTitleLabel;
     private Label saveStatusLabel;
+    private HBox selectionToolbar;
+    private TextField toolbarName;
+    private String toolbarObjectId;
+    private Button toolbarLock;
+    private Button toolbarVisibility;
+    private Slider toolbarOpacity;
+    private Label toolbarOpacityValue;
+    private Label toolbarSelectionCount;
+
+    private SplitPane workspaceSplit;
+    private ScrollPane workspaceSidebar;
+    private Button sidebarToggle;
+    private double sidebarWidth = 360;
+
     private TextField objectSearchField;
     private ListView<ObjectListEntry> objectList;
     private ListView<PlanLayerEntry> layerList;
@@ -1172,7 +1186,32 @@ public class PlaaniseppApp extends Application {
         organizerViewItem.setOnAction(event -> setOrganizerView(organizerViewItem.isSelected()));
         Menu sidebarSectionsMenu = createSidebarSectionsMenu();
         Menu viewMenu = new Menu("Vaade");
+        CheckMenuItem darkModeItem = new CheckMenuItem("Tume teema");
+        darkModeItem.setSelected(UiTheme.isDark());
+        darkModeItem.setOnAction(event -> UiTheme.setDark(darkModeItem.isSelected()));
+        MenuItem legendItem = new MenuItem("Objektitüüpide legend");
+        legendItem.setOnAction(event -> {
+            Dialog<Void> dialog = UiTheme.dialog(new Dialog<>());
+            dialog.initOwner(stage);
+            dialog.setTitle("Objektitüüpide legend");
+            dialog.setHeaderText("Kuju tähistab tüüpi, värv on lisainfo");
+            VBox rows = new VBox(10);
+            for (ObjectTypeIcon icon : ObjectTypeIcon.values()) {
+                HBox row = new HBox(10, icon.graphic(), new Label(icon.title));
+                row.setAlignment(Pos.CENTER_LEFT);
+                rows.getChildren().add(row);
+            }
+            dialog.getDialogPane().setContent(rows);
+            dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+            dialog.showAndWait();
+        });
+        MenuItem toggleSidebarItem = new MenuItem("Peida / näita külgpaneeli");
+        toggleSidebarItem.setAccelerator(new KeyCodeCombination(KeyCode.B, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN));
+        toggleSidebarItem.setOnAction(event -> toggleSidebar());
         viewMenu.getItems().addAll(
+                toggleSidebarItem,
+                darkModeItem,
+                legendItem,
                 resetZoomItem,
                 layoutLockItem,
                 organizerViewItem,
@@ -1605,6 +1644,76 @@ public class PlaaniseppApp extends Application {
         }
     }
 
+    private HBox createSelectionToolbar() {
+        toolbarName = new TextField();
+        toolbarName.setPrefColumnCount(10);
+        toolbarName.setAccessibleText("Valitud objekti nimi");
+        toolbarName.setTooltip(new Tooltip("Valitud objekti nimi · kinnita Enteriga"));
+        configureTextCommit(toolbarName, () -> {
+            if (selectedLogicalObjects().size() != 1 || selectedObject == null) return;
+            nameField.setText(toolbarName.getText());
+            autoApplySelectedName();
+        });
+        toolbarSelectionCount = new Label();
+        toolbarLock = new Button();
+        toolbarLock.setOnAction(event -> {
+            lockedCheckBox.setSelected(!allSelectedObjectsLocked());
+            updateSelectedLock();
+            refreshDetails();
+        });
+        toolbarVisibility = new Button();
+        toolbarVisibility.setOnAction(event -> toggleSelectedObjectsHidden());
+        toolbarOpacity = new Slider(0, 100, 100);
+        toolbarOpacity.setPrefWidth(85);
+        toolbarOpacity.setMinWidth(65);
+        toolbarOpacity.setAccessibleText("Valitud objektide läbipaistvus");
+        toolbarOpacity.setTooltip(new Tooltip("Valitud objektide läbipaistvus"));
+        toolbarOpacityValue = new Label("100%");
+        toolbarOpacityValue.setMinWidth(40);
+        toolbarOpacity.valueProperty().addListener((observable, oldValue, newValue) ->
+                toolbarOpacityValue.setText(opacityPercentageText(newValue.doubleValue())));
+        configureOpacityPreview(toolbarOpacity);
+        selectionToolbar = new HBox(6, toolbarSelectionCount, toolbarName, toolbarLock, toolbarVisibility,
+                new Label("Läbipaistvus"), toolbarOpacity, toolbarOpacityValue);
+        selectionToolbar.setAlignment(Pos.CENTER_LEFT);
+        setSectionVisible(selectionToolbar, false);
+        return selectionToolbar;
+    }
+
+    private void refreshSelectionToolbar() {
+        if (selectionToolbar == null) return;
+        boolean visible = selectedObject != null && !selectedObjectIds.isEmpty() && selectedCableConnectionIds.isEmpty();
+        setSectionVisible(selectionToolbar, visible);
+        if (!visible) return;
+        int count = selectedLogicalObjects().size();
+        setSectionVisible(toolbarName, count == 1);
+        setSectionVisible(toolbarSelectionCount, count > 1);
+        toolbarSelectionCount.setText(count + " objekti");
+        if (!toolbarName.isFocused() || !selectedObject.id().equals(toolbarObjectId)) toolbarName.setText(selectedObject.name());
+        toolbarObjectId = selectedObject.id();
+        toolbarLock.setText(allSelectedObjectsLocked() ? "Ava lukk" : "Lukusta");
+        toolbarLock.setTooltip(new Tooltip("Muuda objekti enda lukku; grupilukk jääb kehtima · Ctrl+L"));
+        toolbarVisibility.setText(allSelectedObjectsHidden() ? "Näita" : "Peida");
+        toolbarVisibility.setTooltip(new Tooltip("Muuda objektide nähtavust · Ctrl+H"));
+        if (!toolbarOpacity.isValueChanging()) setOpacitySliderValue(toolbarOpacity, selectedObject.opacity() * 100);
+        boolean mixedOpacity = selectedObjects().stream().mapToDouble(PlannerObject::opacity).distinct().count() > 1;
+        toolbarOpacityValue.setText(mixedOpacity ? "Erinev" : opacityPercentageText(toolbarOpacity.getValue()));
+    }
+
+    private void toggleSidebar() {
+        if (workspaceSplit == null) return;
+        if (workspaceSplit.getItems().contains(workspaceSidebar)) {
+            sidebarWidth = workspaceSidebar.getWidth();
+            workspaceSplit.getItems().remove(workspaceSidebar);
+            sidebarToggle.setText("Näita külgpaneeli");
+        } else {
+            workspaceSplit.getItems().addFirst(workspaceSidebar);
+            workspaceSplit.setDividerPositions(sidebarWidth / workspaceSplit.getWidth());
+            sidebarToggle.setText("Peida külgpaneel");
+        }
+        sidebarToggle.requestFocus();
+    }
+
     private ToolBar createToolbar() {
         undoButton = new Button("↶");
         undoButton.setTooltip(new Tooltip("Võta viimane plaanimuudatus tagasi (Ctrl+Z)"));
@@ -1700,13 +1809,18 @@ public class PlaaniseppApp extends Application {
         planTitleLabel.getStyleClass().add("plan-title");
         updatePlanTitleLabel();
 
+        sidebarToggle = new Button("Peida külgpaneel");
+        sidebarToggle.setTooltip(new Tooltip("Peida / näita külgpaneeli · Ctrl+Shift+B"));
+        sidebarToggle.setOnAction(event -> toggleSidebar());
         ToolBar toolbar = new ToolBar(
+                sidebarToggle,
                 undoButton,
                 redoButton,
                 new Separator(),
                 new Label("Lisa"),
                 placementTypeComboBox,
                 addPlacementButton,
+                createSelectionToolbar(),
                 new Separator(),
                 zoomSlider,
                 zoomPercentButton,
@@ -2062,7 +2176,7 @@ public class PlaaniseppApp extends Application {
                     if (!item.isExpandable()) {
                         setText(item.text());
                         setStyle(item.text().contains("ÜLEKOORMUS")
-                                ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
+                                ? "-fx-text-fill: -ui-error; -fx-font-weight: bold;"
                                 : "");
                         return;
                     }
@@ -2078,7 +2192,7 @@ public class PlaaniseppApp extends Application {
                 PowerLoadLevel loadLevel = PowerLoadLevel.from(item.usedWatts(), item.capacityWatts());
                 Label loadLabel = new Label(item.displayText());
                 if (loadLevel == PowerLoadLevel.OVERLOADED) {
-                    loadLabel.setStyle("-fx-text-fill: #b91c1c; -fx-font-weight: bold;");
+                    loadLabel.setStyle("-fx-text-fill: -ui-error; -fx-font-weight: bold;");
                 }
                 ProgressBar loadBar = new ProgressBar(item.progress());
                 loadBar.setMaxWidth(Double.MAX_VALUE);
@@ -2148,9 +2262,13 @@ public class PlaaniseppApp extends Application {
         DEFAULT_SIDEBAR_SECTION_ORDER.forEach(this::applySidebarSectionVisibility);
         applySidebarSectionOrder(loadSidebarSectionOrder());
         ScrollPane sidebarScrollPane = new ScrollPane(sidebar);
+        UiTheme.install(sidebarScrollPane);
         sidebarScrollPane.setFitToWidth(true);
 
         SplitPane splitPane = new SplitPane(sidebarScrollPane, mapView);
+        UiTheme.installWorkspaceFrame(splitPane);
+        workspaceSplit = splitPane;
+        workspaceSidebar = sidebarScrollPane;
         UiTheme.configureSidebarWidth(splitPane, sidebarScrollPane);
         return splitPane;
     }
@@ -2712,7 +2830,7 @@ public class PlaaniseppApp extends Application {
                 Label detailLabel = new Label(item.detailText()
                         + (lockedByGroup ? " · grupilukk" : ""));
                 detailLabel.getStyleClass().add("row-detail");
-                Rectangle colorSwatch = objectListColorSwatch(objectListColorHex(item.object()), item.visible());
+                Node colorSwatch = objectTypeSwatch(item.object(), item.visible());
                 Button visibilityButton = objectStateIconButton(
                         "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
                         !item.object().hidden(),
@@ -3305,7 +3423,7 @@ public class PlaaniseppApp extends Application {
         boolean lockedByGroup = plan.isGroupLocked(item.groupName());
         Label detailLabel = new Label(item.detailText() + (lockedByGroup ? " · grupilukk" : ""));
         detailLabel.getStyleClass().add("row-detail");
-        Rectangle colorSwatch = objectListColorSwatch(objectListColorHex(object), item.visible());
+        Node colorSwatch = objectTypeSwatch(object, item.visible());
         Button visibilityButton = objectStateIconButton(
                 "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
                 !object.hidden(),
@@ -3359,6 +3477,13 @@ public class PlaaniseppApp extends Application {
         colorSwatch.setStrokeWidth(0.7);
         colorSwatch.setOpacity(visible ? 1.0 : 0.45);
         return colorSwatch;
+    }
+
+    private Node objectTypeSwatch(PlannerObject object, boolean visible) {
+        HBox symbol = new HBox(4, ObjectTypeIcon.forType(objectTypeName(object)).graphic(),
+                objectListColorSwatch(objectListColorHex(object), visible));
+        symbol.setAlignment(Pos.CENTER_LEFT);
+        return symbol;
     }
 
     private String layerEntryName(PlanLayerEntry entry) {
@@ -3613,9 +3738,7 @@ public class PlaaniseppApp extends Application {
                 completedCheckBox.setTooltip(new Tooltip(item.completed() ? "Märgi tegemata" : "Märgi tehtuks"));
                 Label textLabel = new Label(item.text());
                 textLabel.setWrapText(true);
-                textLabel.setStyle(item.completed()
-                        ? "-fx-text-fill: #6b7280; -fx-strikethrough: true;"
-                        : "");
+                if (item.completed()) textLabel.getStyleClass().add("completed-text");
                 HBox row = new HBox(8, completedCheckBox, textLabel);
                 row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 HBox.setHgrow(textLabel, Priority.ALWAYS);
@@ -3671,11 +3794,11 @@ public class PlaaniseppApp extends Application {
                 Label statusLabel = new Label(status == ChecklistSuggestionStatus.IRRELEVANT
                         ? "Ebaoluline"
                         : status == ChecklistSuggestionStatus.COMPLETED ? "Tehtud" : "");
-                statusLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 11;");
+                statusLabel.getStyleClass().add("muted");
                 if (status == ChecklistSuggestionStatus.COMPLETED) {
-                    textLabel.setStyle("-fx-text-fill: #6b7280; -fx-strikethrough: true;");
+                    textLabel.getStyleClass().add("completed-text");
                 } else if (status == ChecklistSuggestionStatus.IRRELEVANT) {
-                    textLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-style: italic;");
+                    textLabel.getStyleClass().add("irrelevant-text");
                 }
                 VBox labels = new VBox(1, textLabel, statusLabel);
                 HBox row = new HBox(8, completedCheckBox, labels);
@@ -4453,6 +4576,9 @@ public class PlaaniseppApp extends Application {
 
         selectedTypeLabel = new Label("Vali kaardilt objekt");
         nameField = new TextField();
+        // Share pending text too, so selection changes and Save use the existing
+        // detail-field commit path even before the toolbar editor loses focus.
+        toolbarName.textProperty().bindBidirectional(nameField.textProperty());
         groupField = new ComboBox<>();
         groupField.setEditable(true);
         groupField.setMaxWidth(Double.MAX_VALUE);
@@ -4912,8 +5038,9 @@ public class PlaaniseppApp extends Application {
 
     private boolean previewSelectedObjectOpacity(Slider slider, double percentage) {
         double opacity = percentage / 100.0;
-        if (slider == selectedObjectOpacitySlider && selectedObject != null) {
+        if ((slider == selectedObjectOpacitySlider || slider == toolbarOpacity) && selectedObject != null) {
             selectedObjects().forEach(object -> object.setOpacity(opacity));
+            setOpacitySliderValue(slider == toolbarOpacity ? selectedObjectOpacitySlider : toolbarOpacity, percentage);
             return true;
         }
         if (slider == textObjectTextOpacitySlider && selectedObject instanceof TextObject textObject) {
@@ -5372,8 +5499,13 @@ public class PlaaniseppApp extends Application {
         }
         groupNames.add("Määramata");
         return groupNames.stream()
+                .filter(PlaaniseppApp::isUserGroupName)
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
+    }
+
+    static boolean isUserGroupName(String name) {
+        return !CABLE_GROUP_STATE_KEY.equals(name) && !"plaanisepp_cables".equals(name);
     }
 
     private void refreshGroupChoices(String groupName) {
@@ -6172,6 +6304,7 @@ public class PlaaniseppApp extends Application {
         planDragRecorded = false;
         planHistory.record(planSnapshotService.create(plan));
         planDocumentState.markDirty();
+        refreshSelectionToolbar();
         updateWindowTitle();
         updatePlanHistoryButtons();
     }
@@ -6205,6 +6338,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void resetPlanHistory() {
+        planDocumentState.resetSaveInfo();
         PlanSnapshot snapshot = planSnapshotService.create(plan);
         planHistory.reset(snapshot);
         savedPlanSnapshot = snapshot;
@@ -6234,6 +6368,8 @@ public class PlaaniseppApp extends Application {
             return;
         }
         saveStatusLabel.setText(planDocumentState.saveStatusText());
+        saveStatusLabel.setTooltip(new Tooltip(planDocumentState.saveDetails()));
+        UiTheme.state(saveStatusLabel, "save-error", planDocumentState.hasSaveError());
         UiTheme.state(saveStatusLabel, "unsaved", planDocumentState.hasUnsavedChanges());
     }
 
@@ -10135,6 +10271,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void refreshDetails() {
+        refreshSelectionToolbar();
         updateActiveSelectionCountLabel();
         updatingDetailControls = true;
         try {
@@ -10871,6 +11008,7 @@ public class PlaaniseppApp extends Application {
             return;
         }
         selectedObjects().forEach(object -> object.setLocked(lockedCheckBox.isSelected()));
+        refreshSelectionToolbar();
         redrawMap();
         refreshObjectList();
         markDirty();
@@ -12504,8 +12642,8 @@ public class PlaaniseppApp extends Application {
                 PowerLoadLevel loadLevel = PowerLoadLevel.from(choice.usedWatts(), choice.capacityWatts());
                 Label label = new Label(choice.displayText());
                 label.setStyle(loadLevel == PowerLoadLevel.OVERLOADED
-                        ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
-                        : "-fx-text-fill: #1f2937;");
+                        ? "-fx-text-fill: -ui-error; -fx-font-weight: bold;"
+                        : "-fx-text-fill: -ui-text;");
                 ProgressBar bar = new ProgressBar(choice.progress());
                 bar.setMaxWidth(Double.MAX_VALUE);
                 bar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
@@ -12617,8 +12755,8 @@ public class PlaaniseppApp extends Application {
                 PowerLoadLevel loadLevel = PowerLoadLevel.from(choice.usedWatts(), choice.capacityWatts());
                 Label loadLabel = new Label(choice.displayText());
                 loadLabel.setStyle(loadLevel == PowerLoadLevel.OVERLOADED
-                        ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
-                        : "-fx-text-fill: #1f2937;");
+                        ? "-fx-text-fill: -ui-error; -fx-font-weight: bold;"
+                        : "-fx-text-fill: -ui-text;");
                 ProgressBar loadBar = new ProgressBar(choice.progress());
                 loadBar.setMaxWidth(Double.MAX_VALUE);
                 loadBar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
@@ -12976,8 +13114,8 @@ public class PlaaniseppApp extends Application {
                                         supply.usedWatts(), supply.capacityWatts());
                                 Label supplyLabel = new Label(supply.displayText());
                                 supplyLabel.setStyle(loadLevel == PowerLoadLevel.OVERLOADED
-                                        ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
-                                        : "-fx-text-fill: #4b5563;");
+                                        ? "-fx-text-fill: -ui-error; -fx-font-weight: bold;"
+                                        : "-fx-text-fill: -ui-muted;");
                                 ProgressBar bar = new ProgressBar(supply.progress());
                                 bar.setMaxWidth(Double.MAX_VALUE);
                                 bar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
@@ -13526,8 +13664,8 @@ public class PlaaniseppApp extends Application {
                 PowerLoadLevel loadLevel = PowerLoadLevel.from(choice.usedWatts(), choice.capacityWatts());
                 Label label = new Label(choice.displayText());
                 label.setStyle(loadLevel == PowerLoadLevel.OVERLOADED
-                        ? "-fx-text-fill: #b91c1c; -fx-font-weight: bold;"
-                        : "-fx-text-fill: #1f2937;");
+                        ? "-fx-text-fill: -ui-error; -fx-font-weight: bold;"
+                        : "-fx-text-fill: -ui-text;");
                 ProgressBar bar = new ProgressBar(choice.progress());
                 bar.setMaxWidth(Double.MAX_VALUE);
                 bar.setStyle("-fx-accent: %s;".formatted(loadLevel.colorHex()));
@@ -14601,12 +14739,37 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean savePlanToFile(File file) {
+        planDocumentState.beginSave();
+        updateSaveStatusLabel();
+        Dialog<Void> progress = UiTheme.dialog(new Dialog<>());
+        progress.initOwner(stage);
+        progress.setTitle("Salvestamine");
+        progress.setHeaderText("Salvestan kohalikku faili…");
+        progress.getDialogPane().setContent(new ProgressBar());
+        progress.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+        progress.getDialogPane().lookupButton(ButtonType.CANCEL).setDisable(true);
+        javafx.concurrent.Task<Void> saveTask = new javafx.concurrent.Task<>() {
+            @Override protected Void call() throws IOException {
+                planFileSession.save(plan, file);
+                return null;
+            }
+        };
+        progress.setOnCloseRequest(event -> { if (!saveTask.isDone()) event.consume(); });
+        saveTask.setOnSucceeded(event -> progress.close());
+        saveTask.setOnFailed(event -> progress.close());
+        // The modal owner prevents edits while the existing save service writes.
+        // Running I/O off the FX thread lets the in-progress state actually paint.
+        progress.setOnShown(event -> Thread.ofVirtual().start(saveTask));
+        progress.showAndWait();
         try {
-            planFileSession.save(plan, file);
+            if (saveTask.getException() != null) throw new IOException(saveTask.getException());
+            planDocumentState.saveSucceeded();
             recentPlanFiles.remember(file);
             markClean();
             return true;
         } catch (IOException exception) {
+            planDocumentState.saveFailed();
+            updateSaveStatusLabel();
             showError("Salvestamine ebaõnnestus", exception.getMessage());
             return false;
         }
@@ -14664,8 +14827,7 @@ public class PlaaniseppApp extends Application {
             WritableImage image = snapshotMapImage(selectedScope.get());
             ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
             planFileSession.rememberDirectory(file);
-            saveStatusLabel.setText("Pilt eksporditud");
-            UiTheme.state(saveStatusLabel, "unsaved", false);
+            mapToolStatusLabel.setText("Pilt eksporditud");
         } catch (IOException exception) {
             showError("Pildi eksportimine ebaõnnestus", exception.getMessage());
         }
@@ -14704,8 +14866,7 @@ public class PlaaniseppApp extends Application {
             );
 
             planFileSession.rememberDirectory(file);
-            saveStatusLabel.setText("PDF eksporditud");
-            UiTheme.state(saveStatusLabel, "unsaved", false);
+            mapToolStatusLabel.setText("PDF eksporditud");
         } catch (IOException exception) {
             showError("PDF eksportimine ebaõnnestus", exception.getMessage());
         }

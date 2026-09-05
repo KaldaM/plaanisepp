@@ -26,9 +26,39 @@
     -fx-background-color: -ui-panel;
 }
 .ui-surface .label { -fx-text-fill: -ui-text; }
+.ui-surface.dark-mode, .context-menu.dark-mode, .dark-mode .context-menu, .workspace-frame.dark-mode {
+    -ui-paper: #202832;
+    -ui-panel: #18212a;
+    -ui-hover: #303e4c;
+    -ui-pressed: #3c4f61;
+    -ui-border: #607184;
+    -ui-text: #edf2f7;
+    -ui-muted: #b2bfcd;
+    -ui-accent: #83bbef;
+    -ui-selection: #294966;
+    -ui-success: #8ed8aa;
+    -ui-warning: #f2c078;
+    -ui-error: #ff9ca2;
+    -ui-group-lock: #f2c078;
+    -ui-both-lock: #d1b0f4;
+}
+.ui-surface.dark-mode .button:default { -fx-background-color: -ui-selection; -fx-border-color: -ui-accent; }
+.ui-surface.dark-mode .check-box:selected > .box > .mark,
+.ui-surface.dark-mode .check-box:indeterminate > .box > .mark { -fx-background-color: -ui-paper; }
+.ui-surface.dark-mode.tooltip { -fx-background-color: -ui-paper; -fx-text-fill: -ui-text; -fx-border-color: -ui-border; }
+.ui-surface .check-box, .ui-surface .radio-button { -fx-text-fill: -ui-text; }
+.workspace-frame { -ui-border: #bdc7d2; -fx-background-color: transparent; -fx-padding: 0; }
+.workspace-frame > .split-pane-divider { -fx-background-color: -ui-border; -fx-background-insets: 0; }
+.ui-surface .combo-box .list-cell { -fx-background-color: transparent; }
+.ui-surface .titled-pane > .title > .arrow-button > .arrow { -fx-background-color: -ui-muted; }
+.ui-surface .scroll-bar { -fx-background-color: -ui-panel; }
+.ui-surface .scroll-bar .thumb { -fx-background-color: -ui-border; -fx-background-insets: 2; }
 .ui-surface .row-title, .ui-surface .plan-title { -fx-font-weight: bold; }
 .ui-surface .plan-row { -fx-spacing: 6; -fx-padding: 0 0 0 34; }
 .ui-surface .row-detail, .ui-surface .muted { -fx-text-fill: -ui-muted; -fx-font-size: 0.92em; }
+.ui-surface .completed-text { -fx-text-fill: -ui-muted; }
+.ui-surface .completed-text .text { -fx-strikethrough: true; }
+.ui-surface .irrelevant-text { -fx-text-fill: -ui-muted; -fx-font-style: italic; }
 .ui-surface .muted:multiple { -fx-text-fill: -ui-accent; -fx-font-weight: bold; }
 .ui-surface .detail-grid > .label { -fx-min-width: 100; -fx-pref-width: 100; -fx-wrap-text: true; }
 .ui-surface .label:disabled { -fx-opacity: 1; }
@@ -70,6 +100,7 @@
 .ui-surface .text-area .content { -fx-background-color: -ui-paper; -fx-background-radius: 3; }
 .ui-surface .combo-box-base > .arrow-button { -fx-background-color: transparent; }
 .ui-surface .slider .track { -fx-background-color: -ui-border; -fx-background-insets: 0; -fx-pref-height: 3; }
+.ui-surface .slider .axis { -fx-tick-label-fill: -ui-muted; }
 .ui-surface .slider .thumb { -fx-background-color: -ui-paper; -fx-background-insets: 0; -fx-border-color: -ui-muted; -fx-border-radius: 8; -fx-effect: null; }
 .ui-surface .slider .thumb:hover { -fx-background-color: -ui-hover; }
 .ui-surface .slider .thumb:pressed { -fx-background-color: -ui-pressed; }
@@ -141,6 +172,7 @@
 .ui-surface .icon-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 2; }
 .ui-surface .disclosure-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 2 5; }
 .ui-surface .state-icon { -fx-fill: -ui-muted; }
+.ui-surface .object-type-icon { -fx-fill: transparent; -fx-stroke: -ui-text; -fx-stroke-width: 1.4; }
 .ui-surface .icon-button:state-active .state-icon { -fx-fill: -ui-accent; }
 .ui-surface .icon-button:group-lock .state-icon { -fx-fill: -ui-group-lock; }
 .ui-surface .icon-button:both-lock .state-icon { -fx-fill: -ui-both-lock; }
@@ -151,6 +183,7 @@
 .ui-surface.status-bar { -fx-padding: 5 10; -fx-spacing: 12; -fx-border-color: -ui-border transparent transparent transparent; }
 .ui-surface .save-status { -fx-font-weight: bold; -fx-text-fill: -ui-success; }
 .ui-surface .save-status:unsaved { -fx-text-fill: -ui-warning; }
+.ui-surface .save-status:save-error { -fx-text-fill: -ui-error; }
 .ui-surface .empty-state { -fx-text-fill: -ui-muted; -fx-padding: 12; -fx-wrap-text: true; }
 
 /* Dialogs share the control palette, with a quiet header and a distinct action bar. */

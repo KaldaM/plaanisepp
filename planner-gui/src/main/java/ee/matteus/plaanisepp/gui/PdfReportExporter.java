@@ -184,7 +184,7 @@ final class PdfReportExporter {
                 }
                 String details = item.details().isBlank() ? "" : " · " + item.details();
                 String row = "%s: %s%s".formatted(item.type(), item.name(), details);
-                List<String> lines = wrapLine(row, PDType1Font.HELVETICA, fontSize, pageSize.getWidth() - margin * 2 - 20);
+                List<String> lines = wrapLine(row, PDType1Font.HELVETICA, fontSize, pageSize.getWidth() - margin * 2 - 38);
                 float requiredHeight = lines.size() * leading;
                 if (y - requiredHeight <= margin + 20) {
                     content.close();
@@ -195,9 +195,18 @@ final class PdfReportExporter {
                     drawText(content, item.groupName() + " (jätkub)", PDType1Font.HELVETICA_BOLD, 11, margin, y);
                     y -= 17;
                 }
-                drawColorSwatch(content, item.colorHex(), margin, y - 2);
+                content.setStrokingColor(java.awt.Color.DARK_GRAY);
+                content.setLineWidth(0.9f);
+                for (double[] stroke : ObjectTypeIcon.forType(item.type()).strokes) {
+                    content.moveTo(margin + (float) stroke[0] * .8f, y + 9 - (float) stroke[1] * .8f);
+                    for (int point = 2; point < stroke.length; point += 2) {
+                        content.lineTo(margin + (float) stroke[point] * .8f, y + 9 - (float) stroke[point + 1] * .8f);
+                    }
+                    content.stroke();
+                }
+                drawColorSwatch(content, item.colorHex(), margin + 18, y - 2);
                 for (String line : lines) {
-                    drawText(content, line, PDType1Font.HELVETICA, fontSize, margin + 20, y);
+                    drawText(content, line, PDType1Font.HELVETICA, fontSize, margin + 38, y);
                     y -= leading;
                 }
             }

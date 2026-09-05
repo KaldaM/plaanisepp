@@ -28,6 +28,8 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 17. **Pooleli:** põhiakna ühine JavaFX CSS-teema on rakendatud; teine etapp laiendab seda dialoogidele, menüüdele ja kaardilülitile. Windowsi ja eri DPI-de kontroll ning päriskasutuse viimistlus jätkuvad.
 18. **Tehtud (põhifunktsioonid):** interaktiivne pööramine, mitmikvalik, valikukast ja põhilised ühistoimingud töötavad. Ühise grupi, nimesildi nähtavuse, värvi ja läbipaistvuse hulgi muutmine on teostatud; ainult elektrikappidest koosneva valiku suurust saab samuti korraga muuta. Kaablid osalevad kihistuses, kiirotsingus ja eraldi mitmikvalikus ning nende nähtavust, lukustust ja läbipaistvust saab hulgi muuta. Ühe elemendi põhised väljad on mitmikvaliku ajal lukus. Alles jääb tavapärane käsitsi regressioonikontroll eri objektitüüpide ja suure valiku korral.
 19. **Jätkuv töö:** `PlaaniseppApp` refaktoreerimine väikeste funktsioonipõhiste sammudena; seda ei alustata enne, kui korraldajate põhivoos on päris kasutusest leitud probleemid fikseeritud.
+20. **Plaanitud:** Google Drive’i integratsioon ja telefonidele/tahvlitele mõeldud read-only veebivaade moodustavad ühe seotud töövoo. Desktop-rakendus jääb plaanide loomise ja muutmise kohaks, Drive lahendab ühise `.pplan`-failihalduse ning veebivaade annab ürituse ajal kiire ligipääsu viimati avaldatud plaanile. Esmalt võib veebiekspordi prototüüp valmida Drive’ist sõltumatult; hiljem ühendatakse need turvalise pilvesalvestuse, veebiekspordi ja PWA/offline-vahemäluga.
+21. **Plaanitud:** visuaalse teema järgmine UX-etapp täiendab tööruumi ja legendi: külgpaneeli minimeerimine, kontekstitundlikud valitud objekti toimingud tööriistaribal, selgemad objektitüübi ikoonid, dark mode, sisemise `plaanisepp_cables` grupi peitmine grupivalikust ning viimase salvestuse aja nähtav kuvamine.
 
 ### Praegune põhifookus: korraldajate kasutuselevõtt
 
@@ -106,7 +108,7 @@ Operatsioonisüsteemi faili avamise ja salvestamise aknad jäävad süsteemi kuj
 - **Release:** aluskaardi päriskaardilt valimine, ala muutmine, API-põhised vaikekaardid, automaatne kilpide import ning kõrglahutusega kaardi töövoog moodustavad versiooni `v0.6.0`.
 - **Tehtud:** avatud plaani ajal saab menüüst „Fail → Hiljutised plaanid…” avada sama plaanivaliku vaate nagu programmi käivitamisel. Dialoogi sulgemisel jääb praegune plaan avatuks ning teise plaani, uue plaani või kettalt valitud plaani avamine käsitleb salvestamata muudatusi ohutult.
 - **Tehtud (kohalik etapp):** plaanile saab „Plaani andmed” dialoogis määrata vabatahtliku festivali või sündmuse, mille osa see on. Seos salvestatakse plaanifaili ja kuvatakse raporti plaaniandmetes. Hiljutiste plaanide vaade loeb nime ja festivaliseose kiiresti ilma aluskaarte laadimata ning rühmitab plaanid festivali järgi. Kõigi festivaliplaanide ühine sirvimine lisatakse tulevase plaanide ühise hoiustamisega.
-- **Plaanitud:** Tudengipäevade jaoks võiks plaanid olla pilves hoiustatud ja rakendusest imporditavad. Tehnik peab saama ligi alati ajakohastele talle lubatud plaanidele ilma uusi faile käsitsi alla laadimata; lahendus vajab plaaniversioone, viimase sünkroonimisaja näitamist, konfliktide ohutut käsitlemist ja rollipõhist ligipääsu.
+- **Plaanitud:** Tudengipäevade jaoks tuleb plaanid siduda Google Drive’i olemasoleva ühise kausta või Shared Drive’iga, et kasutaja saaks Plaaniseppas avada alati ajakohase talle lubatud `.pplan` faili ilma käsitsi allalaadimiseta. Lahendus vajab plaaniversioone, viimase sünkroonimisaja näitamist, konfliktide ohutut käsitlemist ja lokaalset cache’i; esialgu haldavad ligipääsu Google Drive’i olemasolevad õigused, mitte Plaanisepp.
 - **Tehtud:** külgpaneeli objektide sektoris on igal objektil ja grupipäisel vajutatavad silma- ja lukuikoonid. Aktiivne nähtavus või lukustus kuvatakse tugevama tooniga. Grupi nähtavus ja lukustus on eraldi grupitaseme olekud: nende väljalülitamine taastab objektide varasemad individuaalsed peitmis- ja lukustusvalikud. Grupi kaudu lukustatud objektidel kuvatakse erivärviline lukuikoon ja märge „grupilukk”, et suure grupi lukustatud olek oleks ka selle alamridadel kohe nähtav.
 - **Tehtud (kohalik esimene etapp):** hiljutiste plaanide festivalirühma või selle plaani valimisel saab avada festivali kokkuvõtte. See loeb salvestatud plaanid ilma aluskaarte mällu laadimata, kuvab festivali plaanide loendi ning loetleb kõik Tartu linna püsivoolukilbid, millest vähemalt üks festivali plaan päriselt voolu võtab, koos neid kasutavate plaanide nimedega. Festivali inventari tippvajaduse arvutamiseks tuleb tulevikus lisada ürituste toimumisajad ning esemete ühelt ürituselt teisele viimise ajakulu; eri päevade plaanide koguseid ei tohi lihtsalt kokku liita.
 - **Release:** kilbitööriistade, objektide grupilukustuse, hiljutiste plaanide avamise ning festivali kohaliku töövoo esimene etapp moodustavad versiooni `v0.7.0`.
@@ -774,6 +776,89 @@ FXML-vaateid saab visuaalselt kujundada Gluon Scene Builderiga ning IntelliJ IDE
 - visuaalne uuendus ei muuda plaaniandmeid, `.pplan` vormingut ega olemasolevaid töövooge;
 - enne suuremat ümberkujundamist säilitatakse võrdluspildid peamistest vaadetest.
 
+### Visuaalse teema järgmine UX-etapp
+
+Põhiakna esimese ja teise etapi järel tuleb jätkata tööruumi tiheduse, olekute nähtavuse ja objektitüüpide kiire äratundmise parandamisega. Need muudatused peavad säilitama olemasoleva töövoo ning sobituma sama `UiTheme` ja CSS-i alustega.
+
+#### Külgpaneel ja tööriistariba
+
+- külgpaneeli saab ühe selge nupu või menüükäsuga minimeerida, nii et kaardile jääb rohkem ruumi;
+- minimeeritud olekus peab säilima võimalus külgpaneel kiiresti taastada ning olek peab olema kasutatav ka klaviatuuriga;
+- tööriistariba praegust vaba ruumi kasutatakse valitud objekti kõige olulisemateks kontekstitundlikeks toiminguteks;
+- kui objekt on valitud, kuvatakse seal vähemalt objekti nimi, lukustus, nähtavus ja läbipaistvus;
+- kui valikut ei ole või valitud on mitu eri tüüpi objekti, kuvatakse ainult tegevused, mille tähendus on üheselt rakendatav;
+- tööriistariba ei tohi muutuda liiga kõrgeks ega dubleerida kõiki külgpaneeli välju; vähem kasutatavad omadused jäävad külgpaneeli või kontekstimenüüsse;
+- valitud objekti toimingud peavad kasutama sama rakendusloogikat, undo/redo-t ja keelatud olekuid nagu olemasolevad külgpaneeli ning kontekstimenüü tegevused.
+
+#### Legend ja objektitüüpide ikoonid
+
+Legendis tuleb värvilised ruudud asendada või neid täiendada eristatavate objektitüübi ikoonidega. Ikoon peab säilitama tähenduse ka halltoonides, väikese suuruse korral ja siis, kui objektide värvid on kasutaja poolt muudetud.
+
+Esialgne ikoonisuund:
+
+- aiavõrk — aia või ühendatud võrgulõigu ikoon;
+- joon — jooneikoon;
+- ala — ebakorrapärase ala või hulknurga ikoon;
+- telk — telgiikoon;
+- elektrikilp ja alajaotuskilp — välguikoon või muu selgelt elektrit tähistav ikoon, vajaduse korral eri oleku- või tasemetähisega;
+- tekst — `T`-tähe ikoon;
+- ring — ringikujuline ikoon;
+- ristkülik — ruudu või ristküliku ikoon;
+- Red Bull DJ Truck — muusika- või helisüsteemi ikoon.
+
+Ikoonid peavad olema visuaalselt ühe süsteemi osa: sama optiline suurus, joonepaksus, aktiivse oleku käsitlus, kohtspikker ja ligipääsetav nimi. Värv võib jääda lisainfoks, kuid ei tohi olla ainus viis objektitüübi eristamiseks. Ikoonide täpsed glüüfid tuleb enne kogu legendi muutmist kinnitada ning neid tuleb kontrollida koos valiku, peitmise, lukustuse, grupeerimise ja PDF-i legendiga.
+
+Grupivaliku rippmenüüs ei tohi kuvada sisemist tehnilist gruppi `plaanisepp_cables`. See nimi ei ole kasutaja loodud plaanigrupp ega sobi korraldajale grupi valikuks. Kaablite enda kihistus, otsing, mitmikvalik ja tehniline vaade peavad samal ajal edasi töötama.
+
+#### Dark mode
+
+Lisada rakenduse kasutajaeelistusena hele ja tume teema. Dark mode peab hõlmama vähemalt põhiakent, külgpaneeli, tööriistariba, dialooge, menüüsid, vorme, loendeid, legendi, olekuriba ja valitud/peidetud/lukustatud olekuid. Kaardi enda värve, kaardipilti ja eksporditavat PDF-i ei tohi teema kogemata muuta.
+
+Teema tuleb lahendada ühiste CSS-i muutujate või stiiliklassidega, mitte üksikute vaadete juhuslike inline-värvidega. Kontrollida tuleb kontrasti, fookust, keelatud olekut, hover/pressed-olekut, värvist sõltumatuid tähiseid, erinevaid DPI-skaalasid ning teema vahetamist avatud plaani ajal. Teema valik on rakenduse kasutajaeelistus ega muuda `.pplan` faili sisu.
+
+#### Viimase salvestuse info
+
+Rakendus peab kuvama selgelt, millal plaan viimati edukalt salvestati. Info võib asuda olekuribal, akna päises või mõlemas ning peab eristama vähemalt:
+
+- salvestamata muudatusi;
+- viimase kohaliku salvestuse aega;
+- tulevikus pilve salvestamisel viimase eduka sünkroonimise aega.
+
+Salvestuse aeg uuendub ainult õnnestunud salvestamise järel. Ebaõnnestunud või pooleli olev salvestamine peab näitama vastavat olekut ega tohi jätta muljet, et plaan on turvaliselt salvestatud. Ajavorming peab olema kasutajale arusaadav ning pikema aja korral võib lisaks kuvada täpse kuupäeva ja kellaaja kohtspikris või olekuvaates.
+
+### Teostusetapid
+
+**Rakenduse seis 5. septembri UX-täienduste järel:** allolevad viis sammu on koodis rakendatud. Täielik käsitsi vastuvõtt ei ole veel lõpetatud.
+
+- Külgpaneeli nupp ja `Vaade` menüü käsk koos `Ctrl+Shift+B` kiirklahviga säilitavad paneeli sisu, valiku ja kerimiskoha.
+- Olekuriba näitab salvestamata muudatusi ja viimast selles seansis õnnestunud kohalikku salvestust; kohtspikker lisab kuupäeva ning märgib pilvesünkroonimise praegu kasutamata funktsiooniks. Salvestamise ajal kuvatakse edenemisdialoog, vea korral säilib eelmise eduka salvestuse aeg. Eksport ei kirjuta salvestusolekut üle.
+- Grupivalik ei paku tehnilist kaabligrupi nime; kaabligrupi olekuandmed jäävad puutumata.
+- Tööriistaribal on objekti nimi, enda luku ja nähtavuse toimingud ning läbipaistvus. Mitmikvalik peidab nimevälja ja lubab ühised toimingud; erinev läbipaistvus on tähistatud tekstiga „Erinev”. Kaabli- ja segavaliku korral jäävad vastavad toimingud olemasolevasse külgpaneeli.
+- `Vaade → Objektitüüpide legend`, objektiread ja PDF-i legend kasutavad ühiseid ühevärvilisi tüübiikoone, mille kõrval säilib objekti värvinäidis. Kaardi objektide kujundust ei muudeta.
+- `Vaade → Tume teema` salvestub kasutajaeelistusena ning rakendub ka dialoogidele ja JavaFX-i hüpikmenüüdele. Kaardipaan jääb teemast välja.
+
+Kontrollitud: iga loogilise sammu järel Java 25-ga `./gradlew clean test` ja `git diff --check`; JavaFX-i testplaaniga korraldaja- ja tehnikavaated, üksikvalik, kihistus, kaablite mitmikvalik, külgpaneeli kiirklahv ja taastamine, tööriistariba nime muutmine koos undo/redo-ga, lukustus ja nähtavus, läbipaistvus, edukas salvestus ja taasavamine ning ebaõnnestunud salvestuse olek. Heleda ja tumeda teema eksporditavad kaardipildid olid pikslitasemel võrdsed. Dialoogid, kontekstimenüüd, alammenüüd, värvivalik ning halltoonides PDF-i legend on tegelikult renderdatud ja läbi vaadatud.
+
+Käsitsi jäävad kontrollida Windows ja erinevad DPI-skaalad, pikad pärisplaani nimed, lohistamine/auto-scroll, kõik Ctrl-valiku kombinatsioonid, topelt-Shifti otsing ning kogu korraldaja/tehniku töövoog suure plaaniga. Neid vastuvõtukriteeriume ei loeta veel lõpetatuks.
+
+1. külgpaneeli minimeerimine ja viimase salvestuse oleku nähtavaks tegemine;
+2. `plaanisepp_cables` peitmine grupivalikust ning selle regressioonikontroll;
+3. kontekstitundlikud valitud objekti toimingud tööriistaribal;
+4. legendi ikoonisüsteem ja PDF-i/vaadete kooskõla;
+5. dark mode koos kontrasti, fookuse ja DPI kontrolliga.
+
+Järjekord võib muutuda kasutaja käsitsi regressioonikontrolli põhjal, kuid tööriistariba ja legendi muudatused tuleb teha enne dark mode’i lõplikku viimistlust, et uus teema kataks juba kinnitatud komponendid.
+
+### Täiendavad vastuvõtukriteeriumid
+
+- külgpaneeli saab minimeerida ja taastada ilma aktiivset valikut, kerimiskohta või plaaniandmeid rikkumata;
+- valitud objekti nimi, lukustus, nähtavus ja läbipaistvus on tööriistaribal kiiresti kasutatavad ning puuduv valik ei jäta sinna eksitavaid juhtelemente;
+- legendi objektitüübid on äratuntavad ka värvita ning ikoonid vastavad kaardil, külgpaneelis ja PDF-i legendis samale tähendusele;
+- `plaanisepp_cables` ei ole kasutaja grupivalikus, kuid kaablite tehniline käsitlus säilib;
+- dark mode katab rakenduse enda pinnad, menüüd ja dialoogid, kuid ei muuda kaarti ega PDF-i;
+- viimase eduka salvestuse aeg ja salvestamata muudatuste olek on üheselt nähtavad;
+- kõik uued tegevused töötavad hiire ja klaviatuuriga ning osalevad olemasolevas undo/redo ja valitud objekti loogikas.
+
 ## 20. Arenduspõhimõtted
 
 - Iga ülaltoodud tervik tehakse eraldi väikeste commit'ide jadana.
@@ -828,3 +913,331 @@ Valitud objektid on külgpaneelis tugevamalt eristatavad, kaardil ümbritseb mit
 - valitud objektide kopeerimine säilitab nende suhtelise paigutuse;
 - valikukast võimaldab välja zoomitud kaardil valida aiaridade ja teiste väikeste objektide kogumeid;
 - valik, pööramine ja ühistoimingud säilitavad undo/redo ning olemasolevate `.pplan` failide käitumise.
+
+## 22. Google Drive’i põhine pilveplaanide kasutamine
+
+### Eesmärk ja arhitektuur
+
+Tartu Tudengipäevade tiim kasutab juba failide jaoks ühist Google Drive’i kausta. Plaanisepp peab saama selle olemasoleva süsteemiga otse ühenduda, et kasutaja ei peaks `.pplan` faile käsitsi alla laadima, muutmise järel tagasi üles laadima, Google Drive Desktopi kasutama ega kohalikke Drive’i kaustateid teadma. Koosolekul peab kasutaja saama Plaanisepas näha talle lubatud ajakohaseid plaane.
+
+Eelistatud lahendus on **Google OAuth + Google Drive API + olemasolev jagatud Drive’i kaust või Google Workspace Shared Drive**. Google Drive on ainult storage backend; `.pplan` jääb Plaanisepa täielikuks failivorminguks ning pilvetugi ei muuda selle formaati. Lahendus peab töötama Windowsis, macOS-is ja Linuxis ning hoidma püsikulu väikesena.
+
+Esimeses etapis ei ole vaja oma backend-serverit, eraldi andmebaasi, Firebase’i, Supabase’i, oma kasutajakontosid ega reaalajas Google Docsi laadset ühismuutmist. Drive’i ligipääsuõigused jäävad esialgu Google’i hallata.
+
+### Kasutajakogemus
+
+Plaanide avavaates on vähemalt:
+
+- „Uus plaan”;
+- „Ava kohalik fail”;
+- „Tudengipäevade pilveplaanid”.
+
+Esimesel kasutamisel näidatakse tegevust „Ühenda Google kontoga”. OAuth peab avanema süsteemi veebibrauseris, mitte rakenduse enda manustatud veebivaates. Pärast ühendamist kuvatakse Drive’is olevad `.pplan` failid otse Plaaniseppas ning võimaluse korral grupeeritakse need festivali või Drive’i alamkaustade järgi.
+
+Pilveplaani real kuvatakse vähemalt nimi, viimase muutmise aeg ja sünkroonimisolek. Võimaluse korral näidatakse ka viimast muutjat. Kasutaja peab saama siduda või vahetada kasutatavat Drive’i kausta; rakendus ei tohi eeldada kindlat kohalikku kataloogiteed.
+
+### Avamine, cache ja salvestamine
+
+Drive’ist avamisel küsitakse Drive’ist uusim fail, laaditakse see lokaalsesse ajutisse või cache-asukohta ning avatakse sama olemasoleva `.pplan` lugemisloogikaga nagu kohalik fail. Avatud pilveplaan säilitab sessioonis vähemalt:
+
+- Drive’i `fileId`;
+- vajaliku versiooni- või muu metaandme;
+- viimase teadaoleva muutmisaja;
+- lokaalse cache’i asukoha.
+
+Drive’ist avatud plaani puhul salvestab `Ctrl + S` muudatused tagasi samasse Drive’i faili. Kasutaja ei pea valima uut failinime ega kausta. Kohalik ja pilvesalvestus kasutavad sama olemasolevat `.pplan` serialiseerimise loogikat; pilv on teine storage backend, mitte paralleelne failiformaat.
+
+Lokaalses cache’is hoitakse viimast sünkroonitud versiooni. Interneti puudumisel peab kasutaja saama seda vähemalt vaadata. Rakendus näitab selgelt offline-olekut, viimast sünkroonimisaega ja hoiatust, et nähtav versioon ei pruugi olla kõige uuem. Esimeses versioonis võib offline-cache olla read-only.
+
+### Konfliktikaitse ja õigused
+
+Esimeses versioonis ei tehta reaalajas ühismuutmist. Enne pilvesalvestust kontrollitakse Drive’i hetkeseisu. Kui fail on pärast avamist muutunud, peatatakse salvestamine ning vaikne overwrite ei ole lubatud. Kasutajale pakutakse vähemalt:
+
+- „Ava Drive’i uusim versioon”;
+- „Salvesta minu versioon koopiana”;
+- „Loobu”.
+
+Esialgu kasutatakse Google Drive’i olemasolevaid õigusi: Plaanisepp ei halda rolle ega kasutajakontosid ning kasutajale ilma Drive’i ligipääsuta faili ei näidata. Lahendus peab toetama nii tavalist jagatud kausta kui ka Workspace Shared Drive’i. Veebivaate hilisem piiratud ligipääs peab jääma arhitektuuris võimalikuks, kuid see ei ole esimese Drive-etapi eeldus.
+
+### Tehniline struktuur
+
+Drive’i loogikat ei seota otse JavaFX controller’itesse. Olemasolevat `planner-core` / `planner-gui` jaotust kasutatakse näiteks järgmiselt:
+
+```text
+planner-core
+  storage/
+    PlanStorage
+    PlanReference
+    LoadedPlan
+    CloudPlanMetadata
+
+planner-gui
+  cloud/
+    GoogleDriveAuthService
+    GoogleDrivePlanStorage
+    GoogleDriveFolderService
+    CloudCacheService
+```
+
+Võimalik üldine liides on:
+
+```java
+public interface PlanStorage {
+    List<PlanReference> listPlans();
+    LoadedPlan load(PlanReference plan);
+    SaveResult save(PlanReference plan, EventPlan data);
+}
+```
+
+Teostused on `LocalPlanStorage` ja `GoogleDrivePlanStorage`; täpsed nimed kohandatakse olemasoleva koodiga. `planner-core` peab jääma teadlikuks plaani laadimise ja salvestamise tulemusest, mitte JavaFX-i autentimise või dialoogide detailidest.
+
+### Teostusetapid
+
+#### Etapp 1 — pilvest avamine
+
+- OAuth ja turvaline kontoühendus;
+- Drive’i kausta või Shared Drive’i sidumine ning kausta ID lokaalne säilitamine;
+- `.pplan` failide nimekirja kuvamine ja festivalikaustade lugemine;
+- pilvefaili allalaadimine ja olemasoleva lugemisloogikaga avamine;
+- viimase muutmisaja kuvamine;
+- võrgu-, õiguste- ja autentimisvigade arusaadav käsitlemine.
+
+Selle järel saab koosolekul Plaanisepast otse avada viimase Drive’is oleva kasutajale lubatud plaani.
+
+#### Etapp 2 — pilve salvestamine
+
+- `Ctrl + S` samasse Drive’i faili;
+- `fileId` ja viimase serveriversiooni säilitamine;
+- versioonikontroll ja konfliktikaitse;
+- sünkroonimisoleku kuvamine;
+- koopia salvestamise võimalus konflikti korral.
+
+Selle järel ei ole tavakasutuses enam vaja `.pplan` faile käsitsi Drive’i üles laadida.
+
+#### Etapp 3 — kasutusmugavus ja offline
+
+- festivalide järgi grupeerimine;
+- viimase muutja kuvamine võimaluse korral;
+- offline-cache ja viimase sünkroonitud versiooni avamine;
+- konto või Drive’i kausta vahetamine;
+- selged pilveoleku ikoonid ja sünkroonimisteated.
+
+### Vastuvõtukriteeriumid
+
+- desktop-kasutaja saab avada uusima talle lubatud Drive’i `.pplan` faili ilma käsitsi failihalduseta;
+- Drive’ist avatud plaani `Ctrl + S` salvestab tagasi samasse faili;
+- pärast teise kasutaja muudatust ei kirjutata faili vaikse konfliktiga üle;
+- konflikt pakub uusima versiooni avamist, koopia salvestamist ja loobumist;
+- internetita on vähemalt viimase sünkroonitud versiooni vaatamine võimalik ning olek on kasutajale selge;
+- kohalikud `.pplan` failid ja olemasolev serialiseerimine töötavad edasi;
+- Drive’i ligipääs tuleb Google’i olemasolevatest õigustest ning toetatud on ka Shared Drive.
+
+## 23. Telefonidele ja tahvlitele mõeldud read-only veebivaade
+
+### Eesmärk ja põhimõte
+
+Plaaniseppa ei ole vaja tervikuna telefonile portida. Desktop-rakendus jääb plaanide loomiseks ja muutmiseks; ürituse ajal saavad korraldajad ja tehnikud telefonist või tahvlist kiiresti vaadata, kus objekt, telk, ala või elektrikapp asub, kuhu kaabel läheb ning millised märkmed, inventar ja tehnilised andmed objektiga seotud on. Veebivaates ei muudeta plaani.
+
+```text
+Plaanisepp desktop
+       |
+       +-- .pplan -> Google Drive
+       |
+       +-- web export -> mobiilne veebivaade
+```
+
+Desktopis jäävad loomine, muutmine, elektriplaneerimine, inventar ja salvestamine. Veebis on vaatamine, otsimine, suumimine, kaardi liigutamine, kihtide sisse- ja väljalülitamine ning objektiinfo vaatamine. Eraldi Androidi või iOS-i rakendust esialgu ei tehta.
+
+### Telefonis vajalikud funktsioonid
+
+Esimene veebivaade toetab vähemalt:
+
+- kaardi kuvamist ja õiges asukohas objekte;
+- puutetundlikku pinch-to-zoom’i ning kaardi lohistamist;
+- objektile vajutamist ja nime ning olulise info vaatamist;
+- objektide nimepõhist otsingut;
+- kiirliikumist otsingutulemuse või valitud objekti juurde;
+- kihtide sisse- ja väljalülitamist;
+- selget festivali ja plaani nime.
+
+Näiteks võib objektiinfo olla selline:
+
+```text
+INFO TELK
+
+3 × 6 m
+
+Inventar:
+2 × laud
+4 × tool
+
+Märkus:
+Elektriühendus tagant.
+```
+
+Tehnikavaates võib näidata näiteks:
+
+```text
+RED BULL DJ TRUCK
+
+Toide:
+Püsivoolukilp 17
+Väljund 2
+
+Kaabel:
+20 + 10 m
+```
+
+### Korraldaja- ja tehnikavaade
+
+Veebivaade kasutab sama põhimõtet nagu desktop:
+
+- korraldajavaade peidab tehnilise elektri- ja kaabliinfo;
+- tehnikavaates saab näha elektrikappe, alajaotuskilpe, kaableid, toiteinfot ja tehnilisi märkmeid;
+- esimese versiooni lihtne kuvaprofiil ei tohi välistada hilisemat piiratud ligipääsu ega kasutajarolli.
+
+Veebivaate profiil ei tohi muuta algset `.pplan` plaani. Tegemist on valitud info avaldamise ja filtreerimisega.
+
+### Veebiekspordi formaat
+
+Brauser ei pea `.pplan` faili lahti pakkima ega tundma selle sisemist vormingut. Plaanisepp teeb veebivaate jaoks eraldi lihtsustatud ekspordi:
+
+```text
+web-export/
+  index.html
+  plan.json
+  map.webp
+  assets/
+```
+
+`plan.json` sisaldab ainult veebivaate jaoks vajalikku infot, näiteks:
+
+```json
+{
+  "name": "Öölaulupidu 2026",
+  "objects": [
+    {
+      "type": "tent",
+      "name": "Tehnikatelk",
+      "x": 0.42,
+      "y": 0.71,
+      "width": 6,
+      "height": 3,
+      "rotation": 90
+    }
+  ]
+}
+```
+
+Teisendus on **`EventPlan → web view JSON`**. Veebikliendile ei dubleerita kogu `.pplan` lugemis- ja äriloogikat; see hoiab kliendi väikese ja vähendab kahe mudeli lahknemise riski.
+
+### Staatiline veeb ja PWA
+
+Esimene versioon võib olla täiesti staatiline: Plaanisepp ekspordib HTML-i, JavaScripti, JSON-i, kaardipildi ja vajalikud asset’id. Neid saab hostida GitHub Pagesis, Cloudflare Pagesis või muus odavas staatilise veebi teenuses. Tudengipäevade kasutusmahu puhul peab hostingukulu olema null või väga väike ning oma backend-server ei ole esialgu vajalik.
+
+Hilisemas etapis võib veebivaade olla Progressive Web App (PWA), mis võimaldab lisada ikooni telefoni avaekraanile, avada vaate peaaegu nagu tavalise rakenduse ning cache’ida viimati kasutatud plaane kehva interneti jaoks. PWA on eelistatud suund eraldi Androidi ja iOS-i native-rakenduste asemel.
+
+### Teostusetapid
+
+#### Etapp 1 — staatiline veebiekspordi prototüüp
+
+Plaanisepp saab tegevuse „Ekspordi veebivaade”, mis ekspordib ühe plaani. Veebis peavad töötama kaart, objektid, suum, lohistamine, objektile vajutamine, otsing ja põhikihid. See etapp peab töötama täielikult sõltumatult Google Drive’i integratsioonist.
+
+#### Etapp 2 — mobiili kasutuskogemus
+
+- puutežestide parandamine;
+- telefoniekraanile sobiv külgpaneel või bottom sheet;
+- objektide otsing ja kihifiltrid;
+- korraldaja- ja tehnikavaade;
+- selge festivali ning plaani nime kuvamine;
+- kiire plaanide vahel vahetamine.
+
+#### Etapp 3 — veebiversiooni avaldamine
+
+Pärast desktopis salvestamist või eraldi „Avalda veebivaade” tegevust genereeritakse ja avaldatakse uus veebiversioon. Kasutajale kuvatakse näiteks „Drive’i salvestatud” ja „Veebivaade uuendatud” ning veebis on näha viimase avaldamise aeg. Avaldamise viis peab jääma väikese püsikuluga ja ei tohi muuta veebivaadet kirjutatavaks.
+
+#### Etapp 4 — PWA ja offline
+
+- telefoni avaekraanile lisamine;
+- viimase plaani cache;
+- offline-avamine;
+- vajaduse korral mitme festivali plaani cache.
+
+### Vastuvõtukriteeriumid
+
+- telefonikasutaja saab veebilingilt avada avaldatud festivali plaani;
+- kaart on puutetundlikult suumitav ja liigutatav;
+- objekti saab otsida nime järgi ning otsing viib selle juurde;
+- objekti puudutades näeb kasutaja valitud profiili olulist infot;
+- kihte saab peita ja kuvada;
+- korraldajavaade ei näita tehnikale mõeldud elektriinfot;
+- veebivaade on read-only ning `.pplan` algandmeid ei saa sellest muuta;
+- veebivaate põhifunktsioon töötab tänapäevastes Androidi ja iOS-i brauserites;
+- veebiversiooni uuendamine ei eelda `.pplan` faili käsitsi veebiserverisse kopeerimist pärast avaldamisvoo valmimist.
+
+## 24. Google Drive’i ja veebivaate ühine töövoog
+
+Need ei ole kaks täiesti eraldiseisvat projekti. Google Drive lahendab desktop-kasutajate ühise `.pplan`-failihalduse ning veebivaade lahendab ürituse ajal telefoni või tahvli kaudu kiire vaatamise. Nad võivad kasutada eri formaate: Drive’is on täielik `.pplan`, veebis lihtsustatud `plan.json` koos kaardi ja asset’idega.
+
+```text
+                         Plaanisepp
+                      Java desktop app
+                      Windows / macOS / Linux
+                              |
+                 +------------+------------+
+                 |                         |
+            Google Drive              Web export
+               .pplan                       |
+                 |                    telefon / tahvel
+        teised desktop-kasutajad
+```
+
+Võimalik lõplik töövoog on:
+
+1. korraldaja muudab desktop-Plaaniseppas plaani;
+2. `Ctrl + S` salvestab `.pplan` faili Google Drive’i;
+3. „Avalda veebivaade” või hilisem automaatne avaldamine genereerib uue ekspordi;
+4. telefonikasutaja avab Plaanisepa veebivaate;
+5. veebis kuvatakse viimati avaldatud plaan;
+6. telefonist ei saa plaani muuta.
+
+Soovituslik prioriteet on:
+
+1. staatiline read-only veebiekspordi prototüüp;
+2. Google Drive’ist pilveplaanide avamine;
+3. Google Drive’i salvestamine ja konfliktikaitse;
+4. veebivaate mobiili-UX;
+5. automaatne veebiversiooni avaldamine;
+6. offline-cache ja PWA;
+7. alles vajaduse tekkimisel keerukamad õigused või collaborative editing.
+
+Staatiline veebivaate prototüüp annab tõenäoliselt kiiremini väärtust kui kogu Drive’i sünkroonimine, sest lahendab kohe üritusel telefoni kaudu plaanide vaatamise probleemi. Samal ajal peab andmemudel algusest peale toetama hilisemat Drive’ist laaditud plaani avaldamist.
+
+### Üldised põhimõtted
+
+- desktop Plaanisepp jääb peamiseks muutmise tööriistaks;
+- telefonist ei pea esialgu saama midagi muuta;
+- `.pplan` jääb peamiseks täielikuks andmeformaadiks;
+- veebivaade kasutab lihtsustatud read-only andmemudelit;
+- pilvetugi ei tohi rikkuda kohalike `.pplan` failide töövoogu;
+- kõik desktopi lahendused peavad töötama Windowsis, macOS-is ja Linuxis;
+- veebivaade peab töötama vähemalt Androidi ja iOS-i kaasaegsetes brauserites;
+- eraldi tasulist backend-serverit ja püsikulu välditakse seni, kuni päriskasutus seda nõuab;
+- reaalajas ühismuutmist ei tehta enne tegeliku vajaduse tekkimist;
+- pilvesalvestuse, `.pplan` serialiseerimise ja veebiekspordi vastutused on koodis selgelt eraldatud.
+
+### Kogu seotud töövoo vastuvõtukriteeriumid
+
+Pikema arendusetapi lõppeesmärk on täidetud, kui:
+
+1. desktop-kasutaja saab Plaanisepast avada uusima talle lubatud Drive’i plaani;
+2. desktop-kasutaja saab salvestada muudatused tagasi Drive’i;
+3. teise kasutaja muudatusi ei kirjutata vaikse konfliktiga üle;
+4. kohalikud `.pplan` failid töötavad edasi;
+5. telefonikasutaja saab veebilingilt avada festivali plaani;
+6. telefonis saab kaarti suumida ja liigutada ning objekti otsida;
+7. objekti puudutades näeb kasutaja olulist infot;
+8. kihte ja korraldaja-/tehnikavaadet saab kasutada ilma algplaani muutmata;
+9. veebivaate uuendamine ei nõua `.pplan` faili käsitsi veebiserverisse kopeerimist;
+10. vähemalt viimast avaldatud plaani saab tulevikus PWA/cache’i abil vaadata ka halva interneti korral;
+11. tavakasutuse jaoks ei ole vaja eraldi tasulist backend-serverit.

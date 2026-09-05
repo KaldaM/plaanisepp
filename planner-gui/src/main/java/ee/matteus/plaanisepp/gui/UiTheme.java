@@ -25,6 +25,26 @@ import javafx.geometry.Pos;
 /** Presentation only: deliberately attached to chrome, never the map/export subtree. */
 final class UiTheme {
     private UiTheme() {}
+    private static boolean dark = ApplicationPreferences.open().getBoolean("dark-mode", false);
+    private static final java.util.Set<Parent> surfaces = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    private static final java.util.Set<PopupControl> popups = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
+    static boolean isDark() { return dark; }
+
+    static void setDark(boolean enabled) {
+        dark = enabled;
+        ApplicationPreferences.open().putBoolean("dark-mode", enabled);
+        surfaces.forEach(surface -> {
+            applyThemeClass(surface.getStyleClass());
+            surface.applyCss();
+        });
+        popups.forEach(popup -> applyThemeClass(popup.getStyleClass()));
+    }
+
+    private static void applyThemeClass(java.util.List<String> classes) {
+        classes.remove("dark-mode");
+        if (dark) classes.add("dark-mode");
+    }
 
     enum LockTone { INDIVIDUAL, GROUP, BOTH }
 
@@ -61,6 +81,8 @@ final class UiTheme {
     }
 
     static void install(Parent surface) {
+        surfaces.add(surface);
+        applyThemeClass(surface.getStyleClass());
         if (!surface.getStyleClass().contains("ui-surface")) {
             surface.getStyleClass().add("ui-surface");
         }
@@ -68,6 +90,13 @@ final class UiTheme {
         if (!surface.getStylesheets().contains(stylesheet)) {
             surface.getStylesheets().add(stylesheet);
         }
+    }
+
+    static void installWorkspaceFrame(Parent frame) {
+        install(frame);
+        // Frame selectors style only the divider, never descendant map controls.
+        frame.getStyleClass().remove("ui-surface");
+        frame.getStyleClass().add("workspace-frame");
     }
 
     static <T, D extends Dialog<T>> D dialog(D dialog) {
@@ -113,11 +142,14 @@ final class UiTheme {
     }
 
     private static void stylePopup(PopupControl popup) {
+        popups.add(popup);
+        applyThemeClass(popup.getStyleClass());
         if (!popup.getStyleClass().contains("ui-surface")) popup.getStyleClass().add("ui-surface");
         String stylesheet = UiTheme.class.getResource("plaanisepp.css").toExternalForm();
         if (!popup.getScene().getStylesheets().contains(stylesheet)) {
             popup.getScene().getStylesheets().add(stylesheet);
         }
+        install(popup.getScene().getRoot());
         popup.getScene().getRoot().applyCss();
         if (popup.getScene().getRoot().lookup(".color-palette") != null) {
             localizeColorControls(popup.getScene().getRoot());

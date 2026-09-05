@@ -10,12 +10,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlanDocumentStateTest {
     @Test
+    void failedSavePreservesLastSuccessAndDirtyState() {
+        PlanDocumentState state = new PlanDocumentState();
+        state.saveSucceeded();
+        String details = state.saveDetails();
+        state.markDirty();
+        state.beginSave();
+        assertTrue(state.saveStatusText().startsWith("Salvestamine…"));
+        state.saveFailed();
+        assertTrue(state.hasUnsavedChanges());
+        assertTrue(state.hasSaveError());
+        assertEquals(details, state.saveDetails());
+        state.resetSaveInfo();
+        assertTrue(state.saveDetails().contains("selles seansis puudub"));
+        assertFalse(state.hasSaveError());
+    }
+
+    @Test
     void newDocumentIsClean() {
         PlanDocumentState state = new PlanDocumentState();
 
         assertFalse(state.hasUnsavedChanges());
         assertEquals("Plaanisepp", state.windowTitle(null));
-        assertEquals("Salvestatud", state.saveStatusText());
+        assertEquals("Muudatusi pole", state.saveStatusText());
     }
 
     @Test
@@ -41,6 +58,6 @@ class PlanDocumentStateTest {
 
         assertFalse(state.hasUnsavedChanges());
         assertEquals("Plaanisepp - test.pplan", state.windowTitle(new File("test.pplan")));
-        assertEquals("Salvestatud", state.saveStatusText());
+        assertEquals("Muudatusi pole", state.saveStatusText());
     }
 }
