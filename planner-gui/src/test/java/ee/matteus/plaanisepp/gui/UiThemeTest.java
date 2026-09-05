@@ -37,8 +37,10 @@ class UiThemeTest {
         VBox map = new VBox();
         VBox root = new VBox(chrome, map);
         UiTheme.install(chrome);
+        UiTheme.install(chrome);
 
         assertEquals(1, chrome.getStylesheets().size());
+        assertEquals(1, chrome.getStyleClass().stream().filter("ui-surface"::equals).count());
         assertTrue(root.getStylesheets().isEmpty());
         assertTrue(map.getStylesheets().isEmpty());
         assertFalse(map.getStyleClass().contains("ui-surface"));

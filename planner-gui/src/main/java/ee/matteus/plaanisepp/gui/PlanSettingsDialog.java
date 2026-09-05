@@ -116,7 +116,7 @@ final class PlanSettingsDialog {
 
         VBox content = new VBox(12, basicForm, advancedSettings);
 
-        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         dialog.initOwner(owner);
         dialog.setTitle(creatingNewPlan ? "Uus plaan" : "Plaani andmed");
         dialog.setHeaderText(creatingNewPlan ? "Sisesta uue plaani andmed" : "Muuda plaani andmeid");

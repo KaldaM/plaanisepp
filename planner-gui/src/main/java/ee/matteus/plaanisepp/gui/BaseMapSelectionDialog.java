@@ -81,7 +81,7 @@ final class BaseMapSelectionDialog {
     }
 
     private Optional<BaseMapDownload> showDialog(Window owner) {
-        Dialog<BaseMapDownload> dialog = new Dialog<>();
+        Dialog<BaseMapDownload> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(owner);
         dialog.setTitle("Määra aluskaart päriskaardilt");
         dialog.setHeaderText("Lohista ja suumi kaarti. Raami sees olev ala lisatakse plaani.");
@@ -93,11 +93,11 @@ final class BaseMapSelectionDialog {
         preview.setPreserveRatio(false);
         preview.setCursor(Cursor.OPEN_HAND);
         Rectangle frame = new Rectangle(PREVIEW_WIDTH - 4, PREVIEW_HEIGHT - 4, Color.TRANSPARENT);
-        frame.setStroke(Color.web("#2563eb"));
+        frame.getStyleClass().add("map-selection-frame");
         frame.setStrokeWidth(3);
         frame.setMouseTransparent(true);
         Label hint = new Label("Valitud ala");
-        hint.setStyle("-fx-background-color: #2563eb; -fx-text-fill: white; -fx-padding: 4 8;");
+        hint.getStyleClass().add("map-selection-hint");
         StackPane map = new StackPane(preview, frame, hint);
         StackPane.setAlignment(hint, Pos.TOP_LEFT);
         StackPane.setMargin(hint, new Insets(8));
@@ -144,7 +144,8 @@ final class BaseMapSelectionDialog {
         settings.addRow(3, new Label("Valitud ala:"), areaLabel);
         settings.addRow(4, new Label("Väljund:"), outputLabel);
         Label attribution = new Label("Kaardiandmed: Maa- ja Ruumiamet. Alla laaditakse nii põhikaart kui ortofoto.");
-        attribution.setStyle("-fx-text-fill: #4b5563;");
+        attribution.getStyleClass().add("muted");
+        outputLabel.getStyleClass().add("feedback");
         BorderPane content = new BorderPane(map);
         content.setBottom(new javafx.scene.layout.VBox(8, settings, attribution));
         BorderPane.setMargin(content.getBottom(), new Insets(12, 0, 0, 0));
@@ -290,10 +291,10 @@ final class BaseMapSelectionDialog {
             int[] dimensions = outputDimensions();
             double megapixels = (long) dimensions[0] * dimensions[1] / 1_000_000.0;
             outputLabel.setText(String.format("%d × %d px (%.1f MP), kaks pilti", dimensions[0], dimensions[1], megapixels));
-            outputLabel.setStyle("");
+            UiTheme.state(outputLabel, "invalid", false);
         } catch (RuntimeException exception) {
             outputLabel.setText(exception.getMessage());
-            outputLabel.setStyle("-fx-text-fill: #b91c1c;");
+            UiTheme.state(outputLabel, "invalid", true);
         }
     }
 
@@ -338,7 +339,7 @@ final class BaseMapSelectionDialog {
     }
 
     private static void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
+        Alert alert = UiTheme.dialog(new Alert(Alert.AlertType.ERROR));
         alert.setTitle(title);
         alert.setHeaderText(title);
         alert.setContentText(message == null ? "Tundmatu viga." : message);

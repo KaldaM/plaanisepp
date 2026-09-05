@@ -548,13 +548,16 @@ public class PlaaniseppApp extends Application {
     @Override
     public void start(Stage stage) {
         this.stage = stage;
+        UiTheme.watchOwnedPopups(stage);
         zoomRedrawDebounce.setOnFinished(event -> redrawMap());
         organizerView = preferences.getBoolean(ORGANIZER_VIEW_PREFERENCE, true);
         String startupPlanError = initializePlan();
         objectListHeight = loadObjectListHeightPreference();
 
         BorderPane root = new BorderPane();
-        root.setTop(new VBox(createMenuBar(), createToolbar()));
+        MenuBar menuBar = createMenuBar();
+        UiTheme.install(menuBar);
+        root.setTop(new VBox(menuBar, createToolbar()));
         root.setCenter(createContent());
         root.setBottom(createStatusBar());
 
@@ -1214,7 +1217,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showGettingStartedGuide() {
-        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         dialog.initOwner(stage);
         dialog.setTitle("Alustamise juhend");
         dialog.setHeaderText("Esimese plaani koostamine");
@@ -1278,7 +1281,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showKeyboardShortcuts() {
-        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         dialog.initOwner(stage);
         dialog.setTitle("Klahvikombinatsioonid");
         dialog.setHeaderText("Plaanisepa klahvikombinatsioonid");
@@ -1325,7 +1328,7 @@ public class PlaaniseppApp extends Application {
 
     private void showAboutDialog() {
         String version = applicationVersion();
-        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         dialog.initOwner(stage);
         dialog.setTitle("Plaanisepa kohta");
         dialog.setHeaderText("Plaanisepp");
@@ -1339,7 +1342,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showVersionsDialog() {
-        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         dialog.initOwner(stage);
         dialog.setTitle("Plaanisepa versioonid");
         dialog.setHeaderText("Plaanisepp");
@@ -1423,7 +1426,7 @@ public class PlaaniseppApp extends Application {
         }
 
         GitHubReleaseService.ReleaseAsset asset = preferredAsset.get();
-        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         dialog.initOwner(stage);
         dialog.setTitle("Plaaniseppa saab uuendada");
         dialog.setHeaderText("Uus versioon on saadaval");
@@ -1453,7 +1456,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showReleasePageOnlyUpdateDialog(GitHubReleaseService.LatestRelease latestRelease) {
-        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         dialog.initOwner(stage);
         dialog.setTitle("Plaaniseppa saab uuendada");
         dialog.setHeaderText("Uus versioon on saadaval");
@@ -1486,7 +1489,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void downloadReleaseAsset(GitHubReleaseService.ReleaseAsset asset, Path destination) {
-        Alert progressDialog = new Alert(Alert.AlertType.INFORMATION);
+        Alert progressDialog = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         progressDialog.initOwner(stage);
         progressDialog.setTitle("Plaanisepa uuenduse allalaadimine");
         progressDialog.setHeaderText("Allalaadimine käib");
@@ -1506,7 +1509,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean confirmReplacingReleaseAsset(Path destination) {
-        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert confirmation = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         confirmation.initOwner(stage);
         confirmation.setTitle("Asenda olemasolev fail?");
         confirmation.setHeaderText("Fail on juba olemas");
@@ -1516,7 +1519,7 @@ public class PlaaniseppApp extends Application {
 
     private void showDownloadedReleaseDialog(Path file) {
         boolean installer = !file.getFileName().toString().toLowerCase().endsWith(".tar.gz");
-        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         dialog.initOwner(stage);
         dialog.setTitle("Uuendus on allalaaditud");
         dialog.setHeaderText("Faili terviklus on kontrollitud");
@@ -2155,18 +2158,14 @@ public class PlaaniseppApp extends Application {
     private HBox createBaseMapSwitcher() {
         defaultMapButton = new ToggleButton("Tavakaart");
         orthophotoMapButton = new ToggleButton("Ortofoto");
-        defaultMapButton.setFocusTraversable(false);
-        orthophotoMapButton.setFocusTraversable(false);
         defaultMapButton.setTooltip(new Tooltip("Laadi vaikimisi Tartu ala tavakaart Maa- ja Ruumiameti teenusest"));
         orthophotoMapButton.setTooltip(new Tooltip("Laadi vaikimisi Tartu ala ortofoto Maa- ja Ruumiameti teenusest"));
         defaultMapButton.setOnAction(event -> switchBaseMap(false));
         orthophotoMapButton.setOnAction(event -> switchBaseMap(true));
-        HBox switcher = new HBox(0, defaultMapButton, orthophotoMapButton);
+        HBox switcher = new HBox(4, defaultMapButton, orthophotoMapButton);
         switcher.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-        switcher.setStyle("-fx-background-color: rgba(255,255,255,0.94);"
-                + " -fx-background-radius: 5; -fx-border-color: #9ca3af;"
-                + " -fx-border-radius: 5; -fx-padding: 2;"
-                + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 6, 0, 0, 1);");
+        switcher.getStyleClass().add("map-switcher");
+        UiTheme.install(switcher);
         refreshBaseMapSwitcher();
         return switcher;
     }
@@ -2222,7 +2221,7 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             if (interactive) {
-                Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+                Alert confirmation = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
                 confirmation.initOwner(stage);
                 confirmation.setTitle("Impordi Tartu püsivoolukilbid");
                 confirmation.setHeaderText("Leiti " + cabinets.size() + " püsivoolukilpi");
@@ -2316,7 +2315,7 @@ public class PlaaniseppApp extends Application {
             PowerSource source,
             List<TartuPowerCabinetImportService.Attachment> attachments
     ) {
-        Dialog<Void> dialog = new Dialog<>();
+        Dialog<Void> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(stage);
         dialog.setTitle("Tartu GIS-i lisafailid");
         dialog.setHeaderText(source.name());
@@ -3722,7 +3721,7 @@ public class PlaaniseppApp extends Application {
                         : ChecklistSuggestionStatus.IRRELEVANT
         ));
         showContextMenu(
-                new ContextMenu(completedItem, irrelevantItem),
+                UiTheme.contextMenu(new ContextMenu(completedItem, irrelevantItem)),
                 checklistSuggestionList,
                 screenX,
                 screenY
@@ -3768,7 +3767,7 @@ public class PlaaniseppApp extends Application {
             }
         });
         showContextMenu(
-                new ContextMenu(renameItem, moveUpItem, moveDownItem, new SeparatorMenuItem(), deleteItem),
+                UiTheme.contextMenu(new ContextMenu(renameItem, moveUpItem, moveDownItem, new SeparatorMenuItem(), deleteItem)),
                 checklistList,
                 screenX,
                 screenY
@@ -3776,7 +3775,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void renameChecklistItem(ChecklistItem item) {
-        TextInputDialog dialog = new TextInputDialog(item.text());
+        TextInputDialog dialog = UiTheme.dialog(new TextInputDialog(item.text()));
         dialog.initOwner(stage);
         dialog.setTitle("Checklist'i kirje");
         dialog.setHeaderText("Nimeta ülesanne ümber");
@@ -5107,13 +5106,13 @@ public class PlaaniseppApp extends Application {
         resetOrderItem.setOnAction(event -> resetSidebarSectionOrder());
         MenuItem hideSectionItem = new MenuItem("Peida jaotis");
         hideSectionItem.setOnAction(event -> setSidebarSectionVisible(stateKey, false));
-        ContextMenu contextMenu = new ContextMenu(
+        ContextMenu contextMenu = UiTheme.contextMenu(new ContextMenu(
                 moveUpItem,
                 moveDownItem,
                 resetOrderItem,
                 new SeparatorMenuItem(),
                 hideSectionItem
-        );
+        ));
         contextMenu.setOnShowing(event -> {
             List<String> order = currentSidebarSectionOrder();
             int index = order.indexOf(stateKey);
@@ -5327,7 +5326,7 @@ public class PlaaniseppApp extends Application {
         MenuItem pasteItem = new MenuItem("Kleebi");
         pasteItem.setDisable(!hasCopiedObjects() || mapLayoutLocked);
         pasteItem.setOnAction(event -> pasteCopiedObject(position));
-        showContextMenu(new ContextMenu(addMenu, pasteItem), mapPane, screenX, screenY);
+        showContextMenu(UiTheme.contextMenu(new ContextMenu(addMenu, pasteItem)), mapPane, screenX, screenY);
     }
 
     private void startPlacementAt(PlacementType placementType, Position position) {
@@ -6913,8 +6912,8 @@ public class PlaaniseppApp extends Application {
         lockItem.setOnAction(event -> setSelectedCablesLocked(!allSelectedLocked));
         Menu layerMenu = cableLayerMenu(cable.connection());
         showContextMenu(
-                new ContextMenu(noteItem, piecesItem, new SeparatorMenuItem(), routeItem, layerMenu,
-                        new SeparatorMenuItem(), visibilityItem, lockItem),
+                UiTheme.contextMenu(new ContextMenu(noteItem, piecesItem, new SeparatorMenuItem(), routeItem, layerMenu,
+                        new SeparatorMenuItem(), visibilityItem, lockItem)),
                 mapPane,
                 screenX,
                 screenY
@@ -7166,7 +7165,7 @@ public class PlaaniseppApp extends Application {
         MenuItem resetItem = new MenuItem("Lähtesta ühenduspunkt");
         resetItem.setDisable(mapLayoutLocked);
         resetItem.setOnAction(event -> resetPowerConnectionAnchor(cable.consumer()));
-        showContextMenu(new ContextMenu(resetItem), marker, screenX, screenY);
+        showContextMenu(UiTheme.contextMenu(new ContextMenu(resetItem)), marker, screenX, screenY);
     }
 
     private void resetPowerConnectionAnchor(PlannerObject consumer) {
@@ -7194,7 +7193,7 @@ public class PlaaniseppApp extends Application {
         removePointItem.setDisable(mapLayoutLocked);
         removePointItem.setOnAction(event -> removeCableRoutePoint(cable, routePointIndex));
 
-        ContextMenu contextMenu = new ContextMenu(removePointItem);
+        ContextMenu contextMenu = UiTheme.contextMenu(new ContextMenu(removePointItem));
         showContextMenu(contextMenu, marker, screenX, screenY);
     }
 
@@ -7683,7 +7682,7 @@ public class PlaaniseppApp extends Application {
             refreshEditedShapeObject();
         });
         showContextMenu(
-                new ContextMenu(continueItem, disconnectItem, removeJointItem),
+                UiTheme.contextMenu(new ContextMenu(continueItem, disconnectItem, removeJointItem)),
                 owner,
                 screenX,
                 screenY
@@ -7703,7 +7702,7 @@ public class PlaaniseppApp extends Application {
             plan.splitFenceRow(fenceRow, segmentIndex, planFactory.newId());
             refreshEditedShapeObject();
         });
-        showContextMenu(new ContextMenu(addJointItem), owner, screenX, screenY);
+        showContextMenu(UiTheme.contextMenu(new ContextMenu(addJointItem)), owner, screenX, screenY);
     }
 
     private void startConnectedFenceRow(FenceRow template, boolean startEndpoint) {
@@ -8207,7 +8206,7 @@ public class PlaaniseppApp extends Application {
         removePointItem.setOnAction(event -> removeAreaPoint(object, pointIndex));
         removePointItem.setDisable(mapLayoutLocked || isObjectEffectivelyLocked(object) || object.points().size() <= 3);
 
-        ContextMenu contextMenu = new ContextMenu(removePointItem);
+        ContextMenu contextMenu = UiTheme.contextMenu(new ContextMenu(removePointItem));
         showContextMenu(contextMenu, marker, screenX, screenY);
     }
 
@@ -8222,7 +8221,7 @@ public class PlaaniseppApp extends Application {
         removePointItem.setOnAction(event -> removeLinePoint(object, pointIndex));
         removePointItem.setDisable(mapLayoutLocked || isObjectEffectivelyLocked(object) || object.points().size() <= 2);
 
-        ContextMenu contextMenu = new ContextMenu(removePointItem);
+        ContextMenu contextMenu = UiTheme.contextMenu(new ContextMenu(removePointItem));
         showContextMenu(contextMenu, marker, screenX, screenY);
     }
 
@@ -9489,7 +9488,7 @@ public class PlaaniseppApp extends Application {
         menuItems.add(lockItem);
         menuItems.add(deleteItem);
         showContextMenu(
-                new ContextMenu(menuItems.toArray(MenuItem[]::new)),
+                UiTheme.contextMenu(new ContextMenu(menuItems.toArray(MenuItem[]::new))),
                 mapPane,
                 screenX,
                 screenY
@@ -9600,7 +9599,7 @@ public class PlaaniseppApp extends Application {
         dialogScrollPane.setPrefViewportWidth(620);
         dialogScrollPane.setPrefViewportHeight(680);
 
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(stage);
         dialog.setTitle("Muuda objekti");
         dialog.getDialogPane().setHeaderText(object.name());
@@ -11642,7 +11641,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean confirmDeleteSelectedObject() {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert alert = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         alert.initOwner(stage);
         alert.setTitle("Kustuta objekt");
         List<PlannerObject> logicalSelection = selectedLogicalObjects();
@@ -12016,7 +12015,7 @@ public class PlaaniseppApp extends Application {
                 }
             });
             node.setOnContextMenuRequested(event -> {
-                ContextMenu menu = new ContextMenu();
+                ContextMenu menu = UiTheme.contextMenu(new ContextMenu());
                 MenuItem editRouteItem = new MenuItem("Muuda trajektoori");
                 editRouteItem.setOnAction(actionEvent -> startEditingMeasurementPath(completedPath));
                 MenuItem removeItem = new MenuItem("Eemalda mõõdulint");
@@ -12226,7 +12225,7 @@ public class PlaaniseppApp extends Application {
         }
 
         MeasurementView measurement = measurements.getLast();
-        TextInputDialog dialog = new TextInputDialog("%.2f".formatted(distanceMeters(measurement.start(), measurement.end())));
+        TextInputDialog dialog = UiTheme.dialog(new TextInputDialog("%.2f".formatted(distanceMeters(measurement.start(), measurement.end()))));
         dialog.initOwner(stage);
         dialog.setTitle("Määra mõõtkava");
         dialog.setHeaderText("Sisesta viimase mõõdulindi lõigu tegelik pikkus meetrites");
@@ -12844,7 +12843,7 @@ public class PlaaniseppApp extends Application {
                 editItem.setOnAction(event -> showObjectInventoryDialog(item));
                 MenuItem removeItem = new MenuItem("Eemalda");
                 removeItem.setOnAction(event -> removeObjectInventoryItem(item));
-                setContextMenu(new ContextMenu(editItem, removeItem));
+                setContextMenu(UiTheme.contextMenu(new ContextMenu(editItem, removeItem)));
                 setOnMouseClicked(event -> {
                     if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
                         showObjectInventoryDialog(item);
@@ -12871,7 +12870,7 @@ public class PlaaniseppApp extends Application {
         form.addRow(0, new Label("Nimetus"), nameBox);
         form.addRow(1, new Label("Kogus"), quantityField);
         form.addRow(2, new Label("Märkus"), itemNotesField);
-        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         dialog.initOwner(stage);
         dialog.setTitle(existingItem == null ? "Lisa inventar" : "Muuda inventari");
         dialog.setHeaderText(selectedObject.name());
@@ -12983,7 +12982,7 @@ public class PlaaniseppApp extends Application {
                 }));
                 MenuItem removeItem = new MenuItem("Eemalda");
                 removeItem.setOnAction(event -> equipmentAt(getIndex()).ifPresent(PlaaniseppApp.this::removeEquipment));
-                setContextMenu(new ContextMenu(editItem, removeItem));
+                setContextMenu(UiTheme.contextMenu(new ContextMenu(editItem, removeItem)));
             }
         };
     }
@@ -13011,7 +13010,7 @@ public class PlaaniseppApp extends Application {
         if (container == null) {
             return;
         }
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(stage);
         dialog.setTitle(equipment == null ? "Lisa seade" : "Muuda seadet");
         dialog.setHeaderText(equipment == null ? "Sisesta lisatava seadme andmed" : "Muuda seadme andmeid");
@@ -13309,7 +13308,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean confirmRemoveConnectedOutlet(PowerOutlet outlet, List<PowerConsumer> connectedConsumers) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert alert = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         alert.initOwner(stage);
         alert.setTitle("Eemalda väljund");
         alert.setHeaderText("See väljund on kasutusel");
@@ -13324,7 +13323,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private boolean confirmOutletTypeChange(PowerOutlet outlet, ConnectorType selectedType, List<PowerConsumer> connectedConsumers) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert alert = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         alert.initOwner(stage);
         alert.setTitle("Muuda väljundi tüüpi");
         alert.setHeaderText("See väljund on kasutusel");
@@ -13821,7 +13820,7 @@ public class PlaaniseppApp extends Application {
         HBox itemRow = new HBox(6, itemLabel, decreaseButton, increaseButton);
         itemRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         HBox.setHgrow(itemLabel, Priority.ALWAYS);
-        attachInventoryContextMenu(itemRow, new ContextMenu(editItem, removeItem));
+        attachInventoryContextMenu(itemRow, UiTheme.contextMenu(new ContextMenu(editItem, removeItem)));
         return itemRow;
     }
 
@@ -13832,7 +13831,7 @@ public class PlaaniseppApp extends Application {
         MenuItem inventoryAsTextItem = inventoryAsTextMenuItem(object);
         MenuItem revealItem = new MenuItem("Kuva kaardil");
         revealItem.setOnAction(event -> showInventoryObjectOnMap(object));
-        return new ContextMenu(noteItem, notesAsTextItem, inventoryAsTextItem, revealItem);
+        return UiTheme.contextMenu(new ContextMenu(noteItem, notesAsTextItem, inventoryAsTextItem, revealItem));
     }
 
     private ContextMenu inventoryContributionContextMenu(InventorySummaryService.ObjectInventoryContribution contribution) {
@@ -13846,7 +13845,7 @@ public class PlaaniseppApp extends Application {
         MenuItem revealItem = new MenuItem("Kuva kaardil");
         revealItem.setOnAction(event -> plan.findObject(contribution.objectId())
                 .ifPresent(this::showInventoryObjectOnMap));
-        return new ContextMenu(noteItem, notesAsTextItem, inventoryAsTextItem, revealItem);
+        return UiTheme.contextMenu(new ContextMenu(noteItem, notesAsTextItem, inventoryAsTextItem, revealItem));
     }
 
     private ContextMenu inventoryFenceContextMenu(FenceRow fenceRow) {
@@ -13855,7 +13854,7 @@ public class PlaaniseppApp extends Application {
         MenuItem notesAsTextItem = inventoryNotesAsTextMenuItem(fenceRow, fenceRow.name(), fenceRow.notes());
         MenuItem revealItem = new MenuItem("Kuva kaardil");
         revealItem.setOnAction(event -> showInventoryObjectOnMap(fenceRow));
-        return new ContextMenu(noteItem, notesAsTextItem, revealItem);
+        return UiTheme.contextMenu(new ContextMenu(noteItem, notesAsTextItem, revealItem));
     }
 
     private MenuItem inventoryNotesAsTextMenuItem(PlannerObject sourceObject, String title, String notes) {
@@ -13925,7 +13924,7 @@ public class PlaaniseppApp extends Application {
         piecesItem.setOnAction(event -> showCableInventoryLengthNotesDialog(row));
         MenuItem revealItem = new MenuItem("Kuva kaardil");
         revealItem.setOnAction(event -> showCableInventoryOnMap(row));
-        return new ContextMenu(noteItem, piecesItem, revealItem);
+        return UiTheme.contextMenu(new ContextMenu(noteItem, piecesItem, revealItem));
     }
 
     private void attachInventoryContextMenu(Node row, ContextMenu menu) {
@@ -13936,7 +13935,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showInventoryObjectNoteDialog(PlannerObject object) {
-        TextInputDialog dialog = new TextInputDialog(object.notes());
+        TextInputDialog dialog = UiTheme.dialog(new TextInputDialog(object.notes()));
         dialog.initOwner(stage);
         dialog.setTitle("Objekti märkus");
         dialog.setHeaderText(object.name());
@@ -13957,7 +13956,7 @@ public class PlaaniseppApp extends Application {
                         && contribution.itemIndex() < container.inventoryItems().size())
                 .ifPresent(container -> {
                     InventoryItem item = container.inventoryItems().get(contribution.itemIndex());
-                    TextInputDialog dialog = new TextInputDialog(item.notes());
+                    TextInputDialog dialog = UiTheme.dialog(new TextInputDialog(item.notes()));
                     dialog.initOwner(stage);
                     dialog.setTitle("Inventari märkus");
                     dialog.setHeaderText("%s · %s".formatted(contribution.objectName(), item.name()));
@@ -13972,7 +13971,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showFenceInventoryNoteDialog(FenceRow fenceRow) {
-        TextInputDialog dialog = new TextInputDialog(fenceRow.notes());
+        TextInputDialog dialog = UiTheme.dialog(new TextInputDialog(fenceRow.notes()));
         dialog.initOwner(stage);
         dialog.setTitle("Aia märkus");
         dialog.setHeaderText(fenceRow.name());
@@ -14002,7 +14001,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showCableNoteDialog(PowerConnection connection, String header) {
-        TextInputDialog dialog = new TextInputDialog(connection.cableNotes());
+        TextInputDialog dialog = UiTheme.dialog(new TextInputDialog(connection.cableNotes()));
         dialog.initOwner(stage);
         dialog.setTitle("Kaabli märkus");
         dialog.setHeaderText(header);
@@ -14021,7 +14020,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showCableLengthNotesDialog(PowerConnection connection, String header) {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(stage);
         dialog.setTitle("Kaablitükid");
         dialog.setHeaderText(header);
@@ -14123,7 +14122,7 @@ public class PlaaniseppApp extends Application {
         form.addRow(0, new Label("Nimetus"), nameBox);
         form.addRow(1, new Label("Kogus"), quantityField);
         form.addRow(2, new Label("Märkus"), notesField);
-        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         dialog.initOwner(stage);
         dialog.setTitle(existingItem == null ? "Lisa lisainventar" : "Muuda lisainventari");
         dialog.setHeaderText("Inventar, mida ei seota kaardiobjektiga");
@@ -14267,7 +14266,7 @@ public class PlaaniseppApp extends Application {
     private ContextMenu inventoryTextObjectContextMenu(TitledPane pane) {
         MenuItem createTextItem = new MenuItem("Loo kaardile tekstiobjekt");
         createTextItem.setOnAction(event -> createInventoryTextObject(pane));
-        return new ContextMenu(createTextItem);
+        return UiTheme.contextMenu(new ContextMenu(createTextItem));
     }
 
     private void createInventoryTextObject(TitledPane pane) {
@@ -14282,7 +14281,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showInventorySummaryTextObjectDialog(String key) {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(stage);
         dialog.setTitle("Loo inventarist tekstiobjekt");
         dialog.setHeaderText(inventorySummaryTitle(key));
@@ -14360,7 +14359,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showNotesTextObjectDialog(PlannerObject sourceObject) {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(stage);
         dialog.setTitle("Loo märkmetest tekstiobjekt");
         dialog.setHeaderText(sourceObject.name());
@@ -14385,7 +14384,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showInventoryTextObjectDialog(PlannerObject sourceObject, InventoryContainer container) {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(stage);
         dialog.setTitle("Loo inventarist tekstiobjekt");
         dialog.setHeaderText(sourceObject.name());
@@ -14409,7 +14408,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showPowerOutletsTextObjectDialog(PowerSource source) {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(stage);
         dialog.setTitle("Loo väljunditest tekstiobjekt");
         dialog.setHeaderText(source.name());
@@ -14893,7 +14892,7 @@ public class PlaaniseppApp extends Application {
         summary.setWrapText(true);
         summary.setPrefSize(620, 380);
 
-        Alert dialog = new Alert(Alert.AlertType.INFORMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         dialog.initOwner(stage);
         dialog.setTitle("Festivali kokkuvõte");
         dialog.setHeaderText(festivalName + " · salvestatud hiljutised plaanid");
@@ -14949,7 +14948,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
+        Alert alert = UiTheme.dialog(new Alert(Alert.AlertType.ERROR));
         alert.initOwner(stage);
         alert.setTitle(title);
         alert.setHeaderText(title);
@@ -14958,7 +14957,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showInformation(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        Alert alert = UiTheme.dialog(new Alert(Alert.AlertType.INFORMATION));
         alert.initOwner(stage);
         alert.setTitle(title);
         alert.setHeaderText(title);

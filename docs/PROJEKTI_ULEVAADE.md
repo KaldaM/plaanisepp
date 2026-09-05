@@ -498,6 +498,8 @@ Põhiakna visuaalse keele esimene etapp on rakendatud ühises `plaanisepp.css` f
 
 ### 9.2 Kvaliteet ja arhitektuur
 
+Visuaalse teema teine etapp laiendab sama CSS-i kõigile rakenduse enda dialoogidele, põhi- ja kontekstimenüüdele, JavaFX-i loodud alammenüüdele ning kaardinurga aluskaardilülitile. `UiTheme` seob teema dialoogide ja ainult rakendusele kuuluvate hüpikakendega, säilitades kaardi ning ekspordi eraldatuse. Standarddialoogide nupud on eestikeelsed ning hiljutiste plaanide puu säilitab loetava miinimumkõrguse. Põhilised dialoogitüübid, menüüd ja värvivalikuaken on päris JavaFX-akendes läbi vaadatud; süsteemi failivalijad jäävad operatsioonisüsteemi stiili ning Windowsi/DPI ja kõigi kinnitamisvoogude kontroll jätkub.
+
 - Hoida `.pplan` paketi lugemine ja kirjutamine `planner-core` teenuses; JavaFX-i pildikuvamine jääb `planner-gui` vastutuseks.
 - Jagada väga suur `PlaaniseppApp` järk-järgult väiksemateks vaate-, kontrolleri- ja tööriistaklassideks.
 - Laiendada automaatteste eelkõige vigaste failide, kasutajaliidese sündmuste ja ekspordi regressioonide suunas.

@@ -71,6 +71,7 @@ final class PlacementDetailsDialog {
         showFenceInventoryLabelCheckBox.setSelected(initialShowFenceInventoryLabel);
         CheckBox highFenceCheckBox = new CheckBox("Kõrge aed (2 m)");
         Label fenceRingPreviewLabel = new Label();
+        fenceRingPreviewLabel.getStyleClass().add("feedback");
         fenceRingPreviewLabel.setWrapText(true);
 
         configureMarkerDefaults(placementType, nameField, colorPicker, markerTypeComboBox);
@@ -126,7 +127,7 @@ final class PlacementDetailsDialog {
         if (placementType != PlacementType.TEXT_OBJECT) {
             form.addRow(form.getRowCount(), new Label("Nimesilt"), showMapLabelCheckBox);
         }
-        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         dialog.initOwner(owner);
         dialog.setTitle("Lisa objekt");
         dialog.setHeaderText("Sisesta lisatava objekti andmed");
@@ -437,10 +438,12 @@ final class PlacementDetailsDialog {
                                     preview.radiusDeviationMeters()
                             )
             );
-            previewLabel.setStyle("-fx-text-fill: #166534;");
+            UiTheme.state(previewLabel, "valid", true);
+            UiTheme.state(previewLabel, "invalid", false);
         } catch (RuntimeException exception) {
             previewLabel.setText("Sisesta kehtivad positiivsed mõõdud.");
-            previewLabel.setStyle("-fx-text-fill: #b91c1c;");
+            UiTheme.state(previewLabel, "valid", false);
+            UiTheme.state(previewLabel, "invalid", true);
         }
     }
 
@@ -639,7 +642,7 @@ final class PlacementDetailsDialog {
     }
 
     private static void showError(Stage owner, String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
+        Alert alert = UiTheme.dialog(new Alert(Alert.AlertType.ERROR));
         alert.initOwner(owner);
         alert.setTitle(title);
         alert.setHeaderText(title);

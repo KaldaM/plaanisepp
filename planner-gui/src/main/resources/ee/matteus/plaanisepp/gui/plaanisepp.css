@@ -1,6 +1,6 @@
-/* Scoped desktop chrome. Never attach to the scene or the map snapshot root.
+/* Scoped desktop chrome. Never attach to the main scene or the map snapshot root.
  * Spacing: 2 / 4 / 8 / 12 px; controls: 4 px radius; flat surfaces, no shadows. */
-.ui-surface {
+.ui-surface, .context-menu {
     -ui-paper: #ffffff;
     -ui-panel: #f3f5f7;
     -ui-hover: #e8edf2;
@@ -12,6 +12,7 @@
     -ui-selection: #dceaf7;
     -ui-success: #276342;
     -ui-warning: #8a530d;
+    -ui-error: #a02f35;
     -ui-group-lock: #89560d;
     -ui-both-lock: #70459b;
     -fx-base: -ui-panel;
@@ -149,3 +150,86 @@
 .ui-surface .save-status { -fx-font-weight: bold; -fx-text-fill: -ui-success; }
 .ui-surface .save-status:unsaved { -fx-text-fill: -ui-warning; }
 .ui-surface .empty-state { -fx-text-fill: -ui-muted; -fx-padding: 12; -fx-wrap-text: true; }
+
+/* Dialogs share the control palette, with a quiet header and a distinct action bar. */
+.ui-surface.dialog-pane { -fx-background-color: -ui-paper; -fx-padding: 0; }
+.ui-surface.dialog-pane > .header-panel {
+    -fx-background-color: -ui-panel;
+    -fx-padding: 16;
+    -fx-border-color: transparent transparent -ui-border transparent;
+}
+.ui-surface.dialog-pane > .header-panel .label {
+    -fx-font-size: 1.15em;
+    -fx-font-weight: bold;
+    -fx-wrap-text: true;
+}
+.ui-surface.dialog-pane > .content { -fx-padding: 16; }
+.ui-surface.dialog-pane > .button-bar {
+    -fx-background-color: -ui-panel;
+    -fx-padding: 12 16;
+    -fx-border-color: -ui-border transparent transparent transparent;
+}
+.ui-surface .button:default {
+    -fx-background-color: -ui-accent;
+    -fx-border-color: -ui-accent;
+    -fx-text-fill: white;
+}
+.ui-surface .button:default:hover { -fx-background-color: derive(-ui-accent, -12%); }
+.ui-surface .button:default:pressed { -fx-background-color: derive(-ui-accent, -24%); }
+.ui-surface .button:default:focused { -fx-border-color: white; -fx-border-style: segments(2, 2); }
+.ui-surface .scroll-pane, .ui-surface .scroll-pane > .viewport { -fx-background-color: -ui-paper; }
+.ui-surface .tree-view { -fx-background-color: -ui-paper; -fx-background-insets: 0; -fx-border-color: -ui-border; -fx-padding: 1; }
+.ui-surface .tree-view:focused { -fx-border-color: -ui-accent; }
+.ui-surface .tree-cell { -fx-background-color: -ui-paper; -fx-text-fill: -ui-text; -fx-padding: 5 8; }
+.ui-surface .tree-cell:filled:hover { -fx-background-color: -ui-hover; }
+.ui-surface .tree-cell:filled:selected { -fx-background-color: -ui-selection; -fx-text-fill: -ui-text; }
+.ui-surface .tree-cell:plan-group { -fx-font-weight: bold; }
+.ui-surface .tree-cell:empty { -fx-padding: 0; }
+.ui-surface .tree-cell > .tree-disclosure-node > .arrow { -fx-background-color: -ui-muted; }
+.ui-surface .progress-bar > .track { -fx-background-color: -ui-hover; -fx-background-insets: 0; -fx-background-radius: 3; }
+.ui-surface .progress-bar > .bar { -fx-background-color: -fx-accent; -fx-background-insets: 0; -fx-background-radius: 3; }
+.ui-surface .feedback:valid { -fx-text-fill: -ui-success; }
+.ui-surface .feedback:invalid { -fx-text-fill: -ui-error; }
+.ui-surface .map-selection-hint { -fx-background-color: -ui-accent; -fx-text-fill: white; -fx-padding: 4 8; }
+.ui-surface .map-selection-frame { -fx-stroke: -ui-accent; }
+
+/* The switcher is a sibling of the exported map, never part of its snapshot. */
+.ui-surface.map-switcher {
+    -fx-background-color: -ui-paper;
+    -fx-background-radius: 5;
+    -fx-border-color: -ui-border;
+    -fx-border-radius: 5;
+    -fx-padding: 4;
+    -fx-effect: null;
+}
+
+/* Also covers JavaFX-created submenus through the popup's styleable owner chain. */
+.ui-surface.menu-bar { -fx-background-color: -ui-panel; -fx-padding: 2 6; }
+.context-menu {
+    -fx-background-color: -ui-paper;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+    -fx-border-color: -ui-border;
+    -fx-border-radius: 4;
+    -fx-padding: 4;
+    -fx-effect: null;
+}
+.ui-surface .menu-item, .context-menu .menu-item { -fx-background-color: transparent; -fx-padding: 6 10; }
+.ui-surface .menu-item > .label, .context-menu .menu-item > .label { -fx-text-fill: -ui-text; }
+.ui-surface .menu-item:focused, .context-menu .menu-item:focused,
+.ui-surface.menu-bar > .container > .menu-button:hover,
+.ui-surface.menu-bar > .container > .menu-button:showing { -fx-background-color: -ui-selection; }
+.ui-surface .menu-item:focused > .label, .context-menu .menu-item:focused > .label,
+.ui-surface.menu-bar > .container > .menu-button > .label { -fx-text-fill: -ui-text; }
+.ui-surface .menu-item:disabled, .context-menu .menu-item:disabled { -fx-opacity: 0.58; }
+.ui-surface .menu-item .accelerator-text, .context-menu .menu-item .accelerator-text { -fx-text-fill: -ui-muted; }
+.ui-surface .menu-item .arrow, .context-menu .menu-item .arrow,
+.ui-surface .check-menu-item:checked > .left-container > .check,
+.context-menu .check-menu-item:checked > .left-container > .check,
+.ui-surface .radio-menu-item:checked > .left-container > .radio,
+.context-menu .radio-menu-item:checked > .left-container > .radio { -fx-background-color: -ui-accent; }
+.ui-surface .separator > .line, .context-menu .separator > .line { -fx-border-color: -ui-border; -fx-border-width: 1 0 0 0; }
+.ui-surface.tool-bar .separator:vertical > .line { -fx-border-width: 0 1 0 0; }
+.ui-surface.tooltip { -fx-background-color: -ui-text; -fx-text-fill: white; -fx-padding: 6 8; -fx-background-radius: 4; }
+.ui-surface .hyperlink { -fx-text-fill: -ui-accent; }
+.ui-surface.custom-color-dialog { -fx-background-color: -ui-paper; -fx-padding: 12; }

@@ -25,7 +25,7 @@ Rakendus ei ole enam ainult pannkoogihommiku töövahend. Edasine arendus peab t
 14. **Tehtud:** kogu kaardi geomeetriat kaitsev paigutuslukustus.
 15. **Tehtud:** kõrglahutusega ja georefereeritud aluskaartide hankimise töövoog, tavakaardi/ortofoto vahetamine, kaardiala hilisem muutmine ning Tartu püsivoolukilpide automaatne import.
 16. **Tehtud (esimene etapp):** tehnikakihita korraldajavaade käivitub esmakordsel kasutamisel vaikimisi ning jätab lokaalselt meelde viimati kasutatud korraldaja-/tehnikuvaate. PDF-eksport kasutab aktiivset kaardivaadet; korraldajavaates jäetakse välja voolu- ja kaabliinfo ning kilpidest loodud tekstobjektid. Valitav objektide legend sisaldab kõiki kaardil nähtavaid objekte samas grupijaotuses nagu külgpaneel, koos joondatud värvinäidise, tüübi, nime ja mõõdu-/koguseinfoga. Aiavõrgud kuvatakse raporti grupiloendis ühe tervikobjektina ning voolu kokkuvõttes on kilbi plokid ja koormustaseme värvilised ribad. Kuvaprofiilid ja kommentaarid on lisamata ning jäävad hilisemasse etappi.
-17. **Pooleli:** põhiakna ühine JavaFX CSS-teema on rakendatud; dialoogide terviklik uuendus ning Windowsi ja eri DPI-de kontroll jäävad järgmisse etappi.
+17. **Pooleli:** põhiakna ühine JavaFX CSS-teema on rakendatud; teine etapp laiendab seda dialoogidele, menüüdele ja kaardilülitile. Windowsi ja eri DPI-de kontroll ning päriskasutuse viimistlus jätkuvad.
 18. **Tehtud (põhifunktsioonid):** interaktiivne pööramine, mitmikvalik, valikukast ja põhilised ühistoimingud töötavad. Ühise grupi, nimesildi nähtavuse, värvi ja läbipaistvuse hulgi muutmine on teostatud; ainult elektrikappidest koosneva valiku suurust saab samuti korraga muuta. Kaablid osalevad kihistuses, kiirotsingus ja eraldi mitmikvalikus ning nende nähtavust, lukustust ja läbipaistvust saab hulgi muuta. Ühe elemendi põhised väljad on mitmikvaliku ajal lukus. Alles jääb tavapärane käsitsi regressioonikontroll eri objektitüüpide ja suure valiku korral.
 19. **Jätkuv töö:** `PlaaniseppApp` refaktoreerimine väikeste funktsioonipõhiste sammudena; seda ei alustata enne, kui korraldajate põhivoos on päris kasutusest leitud probleemid fikseeritud.
 
@@ -76,7 +76,19 @@ Kasutajal tuleb kontrollida päris kirju plaaniga ning Windowsi/Linuxi kasutatav
 4. Vormide sisestused, rippvalikud, linnukesed, fookus Tabiga, hover/pressed-olekud, tühjad loendid ja mitmikvaliku keelatud väljad.
 5. Salvestamine ja avamine vanade plaanidega, undo/redo ning PDF-i võrdlus varasema väljundiga.
 
-Graafiline vaatlus ei asenda hiire- ja klaviatuurisündmuste täielikku käsitsi regressiooni. Kitsaste paneelide, väga pikkade nimede ja eri DPI-de kontroll ning ülejäänud dialoogide teema on lahtised kohad.
+Graafiline vaatlus ei asenda hiire- ja klaviatuurisündmuste täielikku käsitsi regressiooni. Kitsaste paneelide, väga pikkade nimede ja eri DPI-de kontroll jääb vajalikuks.
+
+### Visuaalse teema teine etapp — dialoogid ja menüüd
+
+Alus on commit `5ad9789` (`Introduce a unified JavaFX visual theme for the main workspace`). Teise etapi muudatused on tööpuus:
+
+- Kõik rakenduse enda `Dialog`, `Alert`, `TextInputDialog` ja `ChoiceDialog` loomiskohad kasutavad `UiTheme.dialog` abilist. Ühised on päis, sisupind, nupuriba, esmane nupp, vormikontrollid, puuvaade ja valideerimise tagasiside. Standardnuppude eestikeelsed sildid säilitavad algse `ButtonType` ja tulemuse loogika.
+- Põhimenüü, paremklõpsumenüüd ja alammenüüd kasutavad sama valikutausta, teksti, vahesid, ääriseid ning keelatud olekut. Rakenduse omanikahelaga piiratud hüpikakende vaatleja katab ka JavaFX-i enda loodud alammenüüd, tekstivälja menüüd, kohtspikrid ja kohandatud värvivalikuakna; põhistseeni ega eksporditava kaardi CSS-i ei muudeta.
+- „Tavakaart / Ortofoto” on kompaktne ühise teemaga lüliti, millel on nähtav valik ja klaviatuurifookus. Varasem vari ja inline-kujundus on eemaldatud. Kaardi vahetamise loogika säilib.
+- Hiljutiste plaanide puuvaatele on lisatud miinimumkõrgus, et avadialoog ei suruks seda ühe rea kõrguseks.
+- Päris JavaFX-akendes kontrolliti plaanide avavaadet, plaani seadeid, telgi ja aiaringi lisamist, PDF-i ning pildiala valikuid, salvestamata muudatuste kinnitust, juhendit, märkuse muutmist, kaardi- ja objektimenüüd koos alammenüüga ning kohandatud värvivalikut. Dialoogid suleti testis tühistamisega.
+
+Operatsioonisüsteemi faili avamise ja salvestamise aknad jäävad süsteemi kujundusega: JavaFX CSS neid ei kujunda. Käsitsi tuleb veel kontrollida kõigi dialoogide kinnitamise/tühistamise töövooge päris plaaniga, päriskaardi laadimise dialoogi võrguolekuid ning Windowsi ja erinevaid skaalasid. Kaardiobjektide värvid, PDF-i joonistus, domeeniloogika ja vorming 28 koos varasemate lugejatega on muutmata.
 
 ## Järgmise töökorra märkmed — 31. august 2026
 

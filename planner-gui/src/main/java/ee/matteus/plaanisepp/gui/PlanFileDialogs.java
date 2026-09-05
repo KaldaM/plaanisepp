@@ -27,7 +27,7 @@ final class PlanFileDialogs {
     }
 
     static UnsavedChangesChoice confirmUnsavedChanges(Stage owner) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert alert = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         alert.initOwner(owner);
         alert.setTitle("Salvestamata muudatused");
         alert.setHeaderText("Plaanis on salvestamata muudatusi");

@@ -17,11 +17,11 @@ final class ExportOptionsDialog {
     }
 
     static Optional<MapImageExportScope> chooseMapImageExportScope(Stage owner) {
-        ChoiceDialog<MapImageExportScope> dialog = new ChoiceDialog<>(
+        ChoiceDialog<MapImageExportScope> dialog = UiTheme.dialog(new ChoiceDialog<>(
                 MapImageExportScope.FULL_MAP,
                 MapImageExportScope.FULL_MAP,
                 MapImageExportScope.CURRENT_VIEW
-        );
+        ));
         dialog.initOwner(owner);
         dialog.setTitle("Ekspordi kaart pildina");
         dialog.setHeaderText("Vali eksporditav ala");
@@ -33,11 +33,11 @@ final class ExportOptionsDialog {
         if (!technicalDetailsAvailable) {
             return Optional.of(ReportExportScope.COMPACT);
         }
-        ChoiceDialog<ReportExportScope> dialog = new ChoiceDialog<>(
+        ChoiceDialog<ReportExportScope> dialog = UiTheme.dialog(new ChoiceDialog<>(
                 ReportExportScope.COMPACT,
                 ReportExportScope.COMPACT,
                 ReportExportScope.FULL
-        );
+        ));
         dialog.initOwner(owner);
         dialog.setTitle("Ekspordi raport");
         dialog.setHeaderText("Vali raporti detailsus");
@@ -64,7 +64,7 @@ final class ExportOptionsDialog {
         }
         form.addRow(nextRow, new Label("Kaardil"), includeObjectLegend);
 
-        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        Alert dialog = UiTheme.dialog(new Alert(Alert.AlertType.CONFIRMATION));
         dialog.initOwner(owner);
         dialog.setTitle("Ekspordi PDF");
         dialog.setHeaderText("Vali PDF ekspordi seaded");

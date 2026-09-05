@@ -4,7 +4,16 @@ import javafx.css.PseudoClass;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.PopupControl;
+import javafx.stage.PopupWindow;
+import javafx.stage.Stage;
+import javafx.stage.Window;
+import javafx.stage.WindowEvent;
+import javafx.collections.ListChangeListener;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.geometry.Pos;
@@ -32,8 +41,79 @@ final class UiTheme {
     }
 
     static void install(Parent surface) {
-        surface.getStyleClass().add("ui-surface");
-        surface.getStylesheets().add(UiTheme.class.getResource("plaanisepp.css").toExternalForm());
+        if (!surface.getStyleClass().contains("ui-surface")) {
+            surface.getStyleClass().add("ui-surface");
+        }
+        String stylesheet = UiTheme.class.getResource("plaanisepp.css").toExternalForm();
+        if (!surface.getStylesheets().contains(stylesheet)) {
+            surface.getStylesheets().add(stylesheet);
+        }
+    }
+
+    static <T, D extends Dialog<T>> D dialog(D dialog) {
+        install(dialog.getDialogPane());
+        localizeDialogButtons(dialog);
+        dialog.getDialogPane().getButtonTypes().addListener((ListChangeListener<ButtonType>) change ->
+                localizeDialogButtons(dialog));
+        return dialog;
+    }
+
+    static ContextMenu contextMenu(ContextMenu menu) {
+        menu.addEventHandler(WindowEvent.WINDOW_SHOWN, event -> stylePopup(menu));
+        return menu;
+    }
+
+    static void watchOwnedPopups(Stage owner) {
+        // JavaFX creates submenu, text-field and colour-picker windows internally.
+        // Their stylesheets are replaced from the root owner during show(), so theme
+        // only the owned transient window after it joins the visible window list.
+        ListChangeListener<Window> listener = change -> {
+            while (change.next()) {
+                for (Window window : change.getAddedSubList()) {
+                    if (!isOwnedBy(window, owner)) continue;
+                    if (window instanceof PopupControl popup) {
+                        stylePopup(popup);
+                    } else if (window.getScene() != null
+                            && window.getScene().getRoot().getStyleClass().contains("custom-color-dialog")) {
+                        install(window.getScene().getRoot());
+                    }
+                }
+            }
+        };
+        Window.getWindows().addListener(listener);
+        owner.addEventHandler(WindowEvent.WINDOW_HIDDEN, event -> Window.getWindows().removeListener(listener));
+    }
+
+    private static boolean isOwnedBy(Window window, Stage owner) {
+        Window parent = window instanceof PopupWindow popup ? popup.getOwnerWindow()
+                : window instanceof Stage stage ? stage.getOwner() : null;
+        return parent != null && (parent == owner || isOwnedBy(parent, owner));
+    }
+
+    private static void stylePopup(PopupControl popup) {
+        if (!popup.getStyleClass().contains("ui-surface")) popup.getStyleClass().add("ui-surface");
+        String stylesheet = UiTheme.class.getResource("plaanisepp.css").toExternalForm();
+        if (!popup.getScene().getStylesheets().contains(stylesheet)) {
+            popup.getScene().getStylesheets().add(stylesheet);
+        }
+        popup.getScene().getRoot().applyCss();
+    }
+
+    private static void localizeDialogButtons(Dialog<?> dialog) {
+        for (ButtonType type : dialog.getDialogPane().getButtonTypes()) {
+            String text = type == ButtonType.CANCEL ? "Tühista"
+                    : type == ButtonType.CLOSE ? "Sulge"
+                    : type == ButtonType.YES ? "Jah"
+                    : type == ButtonType.NO ? "Ei"
+                    : type == ButtonType.APPLY ? "Rakenda"
+                    : type == ButtonType.FINISH ? "Valmis"
+                    : type == ButtonType.NEXT ? "Edasi"
+                    : type == ButtonType.PREVIOUS ? "Tagasi" : null;
+            if (text != null && dialog.getDialogPane().lookupButton(type) instanceof Button button) {
+                // Keep the original ButtonType identity and its result/cancel semantics.
+                button.setText(text);
+            }
+        }
     }
 
     static void state(Node node, String name, boolean active) {

@@ -31,7 +31,7 @@ final class StartupPlanDialog {
             Consumer<String> festivalSummaryHandler,
             Runnable gettingStartedHandler
     ) {
-        Dialog<Choice> dialog = new Dialog<>();
+        Dialog<Choice> dialog = UiTheme.dialog(new Dialog<>());
         dialog.initOwner(owner);
         dialog.setTitle("Plaanisepp");
         dialog.setHeaderText("Vali plaan või alusta uut");
@@ -54,10 +54,13 @@ final class StartupPlanDialog {
         TreeView<RecentPlan> recentFileTree = new TreeView<>(root);
         recentFileTree.setShowRoot(false);
         recentFileTree.setPrefSize(560, 280);
+        recentFileTree.setMinHeight(240);
+        VBox.setVgrow(recentFileTree, javafx.scene.layout.Priority.ALWAYS);
         recentFileTree.setCellFactory(ignored -> new TreeCell<>() {
             @Override
             protected void updateItem(RecentPlan recentPlan, boolean empty) {
                 super.updateItem(recentPlan, empty);
+                UiTheme.state(this, "plan-group", !empty && recentPlan != null && recentPlan.group());
                 if (empty || recentPlan == null) {
                     setText(null);
                     setGraphic(null);
@@ -65,17 +68,15 @@ final class StartupPlanDialog {
                 }
                 if (recentPlan.group()) {
                     setText(recentPlan.planName());
-                    setStyle("-fx-font-weight: bold;");
                     setGraphic(null);
                     return;
                 }
-                setStyle("");
                 Label planName = new Label(recentPlan.planName());
-                planName.setStyle("-fx-font-weight: bold;");
+                planName.getStyleClass().add("row-title");
                 Path path = recentPlan.path();
                 Label directory = new Label(path.getFileName() + " · "
                         + (path.getParent() == null ? "" : path.getParent()));
-                directory.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 11;");
+                directory.getStyleClass().add("muted");
                 setText(null);
                 setGraphic(new VBox(2, planName, directory));
             }
