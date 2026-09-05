@@ -498,6 +498,8 @@ Põhiakna visuaalse keele esimene etapp on rakendatud ühises `plaanisepp.css` f
 
 Külgpaneeli alguslaius on umbes 360 JavaFX-i ühikut, mitte protsent akna laiusest. Akna suurendamine jätab selle laiuse samaks ning jaoturiga saab laiust endiselt muuta. Paneeli vahed ja vormisildid on kompaktsemad ning objekti märkmeväli kasutab kogu paneeli laiust. Alguslaiust ja käsitsi muudetud laiuse säilimist kontrolliti JavaFX-aknas laiustel 960, 1280 ja 1920; erinevate ekraaniskaalade kontroll jääb käsitsi teha.
 
+Mõõdulindi sildid, punktid ja joonepaksus säilitavad ekraanil suuruse ka suure kaardi väljasuumimisel. Mõõtmise koordinaadid ja pikkused ei muutu. JavaFX-i kohandatud värvide dialoogi pealkiri, nupud ja värvikanalite sildid on eestikeelsed ka värvirežiimi vahetamisel. Mõõdulindi kuvamist kontrolliti JavaFX-is skaaladel 0,25, 1 ja 2 ning värvidialoogi vaadati testaknas; päris HiDPI-ekraani kontroll jääb kasutajale.
+
 ### 9.2 Kvaliteet ja arhitektuur
 
 Visuaalse teema teine etapp laiendab sama CSS-i kõigile rakenduse enda dialoogidele, põhi- ja kontekstimenüüdele, JavaFX-i loodud alammenüüdele ning kaardinurga aluskaardilülitile. `UiTheme` seob teema dialoogide ja ainult rakendusele kuuluvate hüpikakendega, säilitades kaardi ning ekspordi eraldatuse. Standarddialoogide nupud on eestikeelsed ning hiljutiste plaanide puu säilitab loetava miinimumkõrguse. Põhilised dialoogitüübid, menüüd ja värvivalikuaken on päris JavaFX-akendes läbi vaadatud; süsteemi failivalijad jäävad operatsioonisüsteemi stiili ning Windowsi/DPI ja kõigi kinnitamisvoogude kontroll jätkub.

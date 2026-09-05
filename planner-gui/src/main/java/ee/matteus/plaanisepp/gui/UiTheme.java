@@ -96,6 +96,8 @@ final class UiTheme {
                     } else if (window.getScene() != null
                             && window.getScene().getRoot().getStyleClass().contains("custom-color-dialog")) {
                         install(window.getScene().getRoot());
+                        if (window instanceof Stage colorDialog) colorDialog.setTitle("Kohandatud värvid");
+                        localizeColorControls(window.getScene().getRoot());
                     }
                 }
             }
@@ -117,6 +119,43 @@ final class UiTheme {
             popup.getScene().getStylesheets().add(stylesheet);
         }
         popup.getScene().getRoot().applyCss();
+        if (popup.getScene().getRoot().lookup(".color-palette") != null) {
+            localizeColorControls(popup.getScene().getRoot());
+        }
+    }
+
+    private static void localizeColorControls(Node node) {
+        if (node instanceof javafx.scene.control.Labeled labeled) {
+            translateColorLabel(labeled);
+            if (!Boolean.TRUE.equals(labeled.getProperties().put("color-label-localized", true))) {
+                labeled.textProperty().addListener((observable, oldText, newText) -> translateColorLabel(labeled));
+            }
+        }
+        if (node instanceof Parent parent) parent.getChildrenUnmodifiable().forEach(UiTheme::localizeColorControls);
+    }
+
+    private static void translateColorLabel(javafx.scene.control.Labeled label) {
+        String text = label.getText();
+        if (text == null || label.textProperty().isBound()) return;
+        String translated = switch (text) {
+            case "Custom Color...", "Custom Colors", "Custom Colors..." -> "Kohandatud värvid…";
+            case "Current Color" -> "Praegune värv";
+            case "New Color" -> "Uus värv";
+            case "Hue:" -> "Toon:";
+            case "Saturation:" -> "Küllastus:";
+            case "Brightness:" -> "Heledus:";
+            case "Opacity:" -> "Katvus:";
+            case "Red:" -> "Punane:";
+            case "Green:" -> "Roheline:";
+            case "Blue:" -> "Sinine:";
+            case "Web:" -> "Veeb:";
+            case "Web" -> "Veeb";
+            case "Save" -> "Salvesta";
+            case "Use" -> "Kasuta";
+            case "Cancel" -> "Tühista";
+            default -> text;
+        };
+        if (!text.equals(translated)) label.setText(translated);
     }
 
     private static void localizeDialogButtons(Dialog<?> dialog) {

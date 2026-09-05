@@ -11945,7 +11945,7 @@ public class PlaaniseppApp extends Application {
         measurementStart = start;
         measurementPreviewLine = new Line(start.x(), start.y(), start.x(), start.y());
         measurementPreviewLine.setStroke(Color.web("#111827"));
-        measurementPreviewLine.setStrokeWidth(2);
+        measurementPreviewLine.strokeWidthProperty().bind(javafx.beans.binding.Bindings.divide(2.0, mapScale.xProperty()));
         measurementPreviewEndMarker = createMeasurementMarker(start);
         measurementPreviewLabel = createMeasurementLabel("0.00 m");
         measurementPreviewLabel.setVisible(false);
@@ -11964,6 +11964,12 @@ public class PlaaniseppApp extends Application {
     private Label createMeasurementLabel(String text) {
         Label label = new Label(text);
         label.setStyle("-fx-background-color: white; -fx-padding: 2 4 2 4;");
+        // Keep ruler annotations readable when a large map is fitted to the window.
+        // Scale around the label origin so its map anchor does not move.
+        Scale screenScale = new Scale(1, 1, 0, 0);
+        screenScale.xProperty().bind(javafx.beans.binding.Bindings.divide(1.0, mapScale.xProperty()));
+        screenScale.yProperty().bind(screenScale.xProperty());
+        label.getTransforms().add(screenScale);
         return label;
     }
 
@@ -12061,7 +12067,7 @@ public class PlaaniseppApp extends Application {
             measureButton.setSelected(true);
         }
         path.pointMarkers().forEach(marker -> {
-            marker.setRadius(6 / Math.max(zoomLevel, 0.1));
+            marker.setRadius(6);
             marker.setFill(Color.web("#ffffff"));
             marker.setStroke(Color.web("#2563eb"));
             marker.toFront();
@@ -12263,6 +12269,12 @@ public class PlaaniseppApp extends Application {
 
     private Circle createMeasurementMarker(Position point) {
         Circle marker = new Circle(point.x(), point.y(), 4);
+        Scale screenScale = new Scale();
+        screenScale.pivotXProperty().bind(marker.centerXProperty());
+        screenScale.pivotYProperty().bind(marker.centerYProperty());
+        screenScale.xProperty().bind(javafx.beans.binding.Bindings.divide(1.0, mapScale.xProperty()));
+        screenScale.yProperty().bind(screenScale.xProperty());
+        marker.getTransforms().add(screenScale);
         marker.setFill(Color.web("#111827"));
         marker.setStroke(Color.WHITE);
         return marker;
