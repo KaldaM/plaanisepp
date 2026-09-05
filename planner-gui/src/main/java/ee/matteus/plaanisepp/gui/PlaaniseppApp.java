@@ -198,6 +198,7 @@ public class PlaaniseppApp extends Application {
     private static final double DJ_TRUCK_LABEL_HEIGHT_METERS = 0.8;
     private static final double MIN_DJ_TRUCK_LABEL_SIZE_PIXELS = 12.0;
     private static final String OBJECT_LIST_HEIGHT_PREFERENCE = "objectListHeight";
+    private static final String CABLE_GROUP_STATE_KEY = "__plaanisepp_cables__";
     private static final String FENCE_DRAG_NODE_KEY = "plaanisepp.fenceDragNode";
     private static final long DOUBLE_SHIFT_INTERVAL_NANOS = 500_000_000L;
     private static final int MAX_PLAN_HISTORY_STEPS = 50;
@@ -429,6 +430,8 @@ public class PlaaniseppApp extends Application {
     private VBox cablePieceEditor;
     private TextField cableNotesField;
     private Slider cableOpacitySlider;
+    private CheckBox selectedCablesVisibleCheckBox;
+    private CheckBox selectedCablesLockedCheckBox;
     private CheckBox showSelectedCableLabelCheckBox;
     private Button resetCableLabelButton;
     private Button removePowerConnectionButton;
@@ -490,6 +493,7 @@ public class PlaaniseppApp extends Application {
     private Button addPlacementButton;
     private PlannerObject selectedObject;
     private String selectedCableConnectionId;
+    private final Set<String> selectedCableConnectionIds = new LinkedHashSet<>();
     private PlannerObject pendingPowerSourceConsumer;
     private Dialog<ButtonType> objectEditDialog;
     private boolean objectEditDialogHiddenForPowerSourceSelection;
@@ -679,7 +683,8 @@ public class PlaaniseppApp extends Application {
             } else if (event.getCode() == KeyCode.ESCAPE && measuringActive) {
                 finishMeasurementTool();
                 event.consume();
-            } else if (event.getCode() == KeyCode.ESCAPE && selectedLogicalObjects().size() > 1) {
+            } else if (event.getCode() == KeyCode.ESCAPE
+                    && selectedLogicalObjects().size() + selectedCableConnectionIds.size() > 1) {
                 selectObject(null);
                 event.consume();
             }
@@ -762,7 +767,7 @@ public class PlaaniseppApp extends Application {
             event.consume();
             return;
         }
-        if (selectedObject == null) {
+        if (selectedObject == null && selectedCableConnectionIds.isEmpty()) {
             if (event.getCode() == KeyCode.DELETE && !selectedMeasurementPaths.isEmpty()) {
                 deleteSelectedMeasurementPaths();
                 event.consume();
@@ -779,8 +784,7 @@ public class PlaaniseppApp extends Application {
                 && event.isControlDown()
                 && !event.isAltDown()
                 && !event.isShiftDown()) {
-            lockedCheckBox.setSelected(!allSelectedObjectsLocked());
-            updateSelectedLock();
+            toggleSelectedItemsLocked();
             event.consume();
         } else if (event.getCode() == KeyCode.C
                 && event.isControlDown()
@@ -792,7 +796,7 @@ public class PlaaniseppApp extends Application {
                 && event.isControlDown()
                 && !event.isAltDown()
                 && !event.isShiftDown()) {
-            toggleSelectedObjectsHidden();
+            toggleSelectedItemsHidden();
             event.consume();
         } else if (event.getCode() == KeyCode.R
                 && event.isControlDown()
@@ -1088,18 +1092,9 @@ public class PlaaniseppApp extends Application {
         MenuItem pasteObjectItem = new MenuItem("Kleebi objekt (Ctrl+V)");
         pasteObjectItem.setOnAction(event -> pasteCopiedObjectWithOffset());
         MenuItem lockObjectItem = new MenuItem();
-        lockObjectItem.setOnAction(event -> {
-            if (selectedObject != null) {
-                lockedCheckBox.setSelected(!allSelectedObjectsLocked());
-                updateSelectedLock();
-            }
-        });
+        lockObjectItem.setOnAction(event -> toggleSelectedItemsLocked());
         MenuItem visibilityItem = new MenuItem();
-        visibilityItem.setOnAction(event -> {
-            if (selectedObject != null) {
-                toggleSelectedObjectsHidden();
-            }
-        });
+        visibilityItem.setOnAction(event -> toggleSelectedItemsHidden());
         MenuItem deleteObjectItem = new MenuItem("Kustuta objekt (Delete)");
         deleteObjectItem.setOnAction(event -> deleteSelectedObject());
 
@@ -1118,20 +1113,27 @@ public class PlaaniseppApp extends Application {
         );
         editMenu.setOnShowing(event -> {
             updatePlanHistoryButtons();
-            boolean objectSelected = selectedObject != null;
+            boolean objectSelected = !selectedObjectIds.isEmpty();
+            boolean selectableItemSelected = objectSelected || !selectedCableConnectionIds.isEmpty();
             editObjectItem.setDisable(!objectSelected);
             copyObjectItem.setDisable(!objectSelected);
             pasteObjectItem.setDisable(!hasCopiedObjects() || mapLayoutLocked);
-            lockObjectItem.setDisable(!objectSelected);
-            visibilityItem.setDisable(!objectSelected);
+            lockObjectItem.setDisable(!selectableItemSelected);
+            visibilityItem.setDisable(!selectableItemSelected);
             deleteObjectItem.setDisable(!objectSelected || mapLayoutLocked
                     || selectedObjects().stream().anyMatch(this::isObjectEffectivelyLocked));
-            lockObjectItem.setText(objectSelected && allSelectedObjectsLocked()
-                    ? "Eemalda valitud objektide lukustus (Ctrl+L)"
-                    : "Lukusta valitud objektid (Ctrl+L)");
-            visibilityItem.setText(objectSelected && allSelectedObjectsHidden()
-                    ? "Kuva valitud objektid (Ctrl+H)"
-                    : "Peida valitud objektid (Ctrl+H)");
+            boolean allItemsLocked = (selectedObjects().isEmpty() || allSelectedObjectsLocked())
+                    && (selectedCableConnectionIds.isEmpty()
+                    || selectedCableConnectionIds.stream().allMatch(plan::isCableLocked));
+            boolean allItemsHidden = (selectedObjects().isEmpty() || allSelectedObjectsHidden())
+                    && (selectedCableConnectionIds.isEmpty()
+                    || selectedCableConnectionIds.stream().allMatch(plan::isCableHidden));
+            lockObjectItem.setText(selectableItemSelected && allItemsLocked
+                    ? "Eemalda valitud elementide lukustus (Ctrl+L)"
+                    : "Lukusta valitud elemendid (Ctrl+L)");
+            visibilityItem.setText(selectableItemSelected && allItemsHidden
+                    ? "Kuva valitud elemendid (Ctrl+H)"
+                    : "Peida valitud elemendid (Ctrl+H)");
         });
 
         MenuItem resetZoomItem = new MenuItem("Taasta 100% suum");
@@ -2647,9 +2649,23 @@ public class PlaaniseppApp extends Application {
                             : entry.expanded() ? "Peida grupi objektid" : "Näita grupi objekte"));
                     toggleButton.setOnAction(event -> toggleObjectGroup(entry.groupName()));
                     if (entry.groupName().equals("Kaablid")) {
+                        boolean cablesVisible = !plan.hiddenGroups().contains(CABLE_GROUP_STATE_KEY);
+                        Button visibilityButton = objectStateIconButton(
+                                "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+                                cablesVisible,
+                                cablesVisible ? "Peida kõik kaablid kaardilt" : "Kuva kõik kaablid kaardil",
+                                () -> setGroupVisible(CABLE_GROUP_STATE_KEY, !cablesVisible)
+                        );
+                        boolean cablesLocked = plan.isGroupLocked(CABLE_GROUP_STATE_KEY);
+                        Button lockButton = objectStateIconButton(
+                                "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",
+                                cablesLocked,
+                                cablesLocked ? "Eemalda kõigi kaablite lukustus" : "Lukusta kõik kaablid",
+                                () -> setGroupLocked(CABLE_GROUP_STATE_KEY, !cablesLocked)
+                        );
                         Label groupLabel = new Label("Kaablid (%d)".formatted(entry.objectCount()));
                         groupLabel.setStyle("-fx-font-weight: bold;");
-                        HBox groupRow = new HBox(6, toggleButton, groupLabel);
+                        HBox groupRow = new HBox(6, toggleButton, visibilityButton, lockButton, groupLabel);
                         groupRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                         setText(null);
                         setGraphic(groupRow);
@@ -2772,9 +2788,10 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             if (entry.isGroup()) {
-                selectObjectGroup(entry.groupName());
+                if (entry.groupName().equals("Kaablid")) selectCableGroup();
+                else selectObjectGroup(entry.groupName());
             } else if (entry.isCable()) {
-                selectCable(entry.connectionId());
+                toggleCableSelection(entry.connectionId());
             } else if (event.isShiftDown()) {
                 selectObjectRange(entry.objectItem().object());
             } else {
@@ -2930,7 +2947,8 @@ public class PlaaniseppApp extends Application {
                         if (event.getClickCount() == 2) centerMapOnObject(object);
                     });
                 } else {
-                    selectCable(entry.id());
+                    if (event.isControlDown()) toggleCableSelection(entry.id());
+                    else selectCable(entry.id());
                     if (event.getClickCount() == 2) centerMapOnCable(entry.id());
                 }
             });
@@ -3062,6 +3080,7 @@ public class PlaaniseppApp extends Application {
         PlanLayerEntry entry = PlanLayerEntry.cable(connection.id());
         boolean hidden = plan.isCableHidden(connection.id());
         boolean locked = plan.isCableLocked(connection.id());
+        boolean lockedByGroup = plan.isGroupLocked(CABLE_GROUP_STATE_KEY);
         Label nameLabel = new Label(layerEntryName(entry));
         nameLabel.setStyle("-fx-font-weight: bold;");
         Label detailLabel = new Label(layerEntryDetailText(entry));
@@ -3074,9 +3093,10 @@ public class PlaaniseppApp extends Application {
                 () -> setCableHidden(connection.id(), !hidden));
         Button lockButton = objectStateIconButton(
                 "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",
-                locked,
+                locked || lockedByGroup,
                 locked ? "Eemalda kaabli lukustus" : "Lukusta kaabel",
-                () -> setCableLocked(connection.id(), !locked));
+                () -> setCableLocked(connection.id(), !locked),
+                lockedByGroup ? locked ? "#7c3aed" : "#b45309" : "#2563eb");
         HBox row = new HBox(6, visibilityButton, lockButton,
                 objectListColorSwatch(layerEntryColorHex(entry), !hidden), textBox);
         row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
@@ -3085,7 +3105,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private String cableListSelectionStyle(PowerConnection connection) {
-        return connection.id().equals(selectedCableConnectionId)
+        return selectedCableConnectionIds.contains(connection.id())
                 ? "-fx-background-color: rgba(37,99,235,0.24);"
                         + "-fx-border-color: transparent transparent transparent #2563eb;"
                         + "-fx-border-width: 0 0 0 3;"
@@ -3099,11 +3119,35 @@ public class PlaaniseppApp extends Application {
         markDirty();
     }
 
+    private void setSelectedCablesHidden(boolean hidden) {
+        selectedCableConnectionIds.forEach(id -> plan.setCableHidden(id, hidden));
+        redrawMap();
+        refreshObjectList();
+        refreshDetails();
+        markDirty();
+    }
+
+    private void setSelectedCablesLocked(boolean locked) {
+        selectedCableConnectionIds.forEach(id -> plan.setCableLocked(id, locked));
+        redrawMap();
+        refreshObjectList();
+        refreshDetails();
+        markDirty();
+    }
+
     private void setCableLocked(String connectionId, boolean locked) {
         plan.setCableLocked(connectionId, locked);
         redrawMap();
         refreshObjectList();
         markDirty();
+    }
+
+    private boolean isCableHidden(String connectionId) {
+        return plan.hiddenGroups().contains(CABLE_GROUP_STATE_KEY) || plan.isCableHidden(connectionId);
+    }
+
+    private boolean isCableLocked(String connectionId) {
+        return plan.isGroupLocked(CABLE_GROUP_STATE_KEY) || plan.isCableLocked(connectionId);
     }
 
     private int layerDropTargetIndex(
@@ -3386,8 +3430,8 @@ public class PlaaniseppApp extends Application {
                     CableDisplayHelper.shortTypeName(connection.connectorType()),
                     length,
                     pieces,
-                    (plan.isCableHidden(connection.id()) ? " · peidetud" : "")
-                            + (plan.isCableLocked(connection.id()) ? " · lukus" : "")
+                    (isCableHidden(connection.id()) ? " · peidetud" : "")
+                            + (isCableLocked(connection.id()) ? " · lukus" : "")
             );
         }).orElse("Puuduv kaabel");
     }
@@ -4049,6 +4093,15 @@ public class PlaaniseppApp extends Application {
         } else {
             revealCableInObjectList(selectedCableConnectionId);
         }
+        if (selectedObject == null && selectedCableConnectionId == null) {
+            synchronizingSidebarSelection = true;
+            try {
+                objectList.getSelectionModel().clearSelection();
+                if (layerList != null) layerList.getSelectionModel().clearSelection();
+            } finally {
+                synchronizingSidebarSelection = false;
+            }
+        }
         updateRevealObjectButton();
     }
 
@@ -4085,6 +4138,18 @@ public class PlaaniseppApp extends Application {
             collapsedObjectGroups.remove(groupName);
         }
         refreshObjectList();
+    }
+
+    private void selectCableGroup() {
+        String query = objectSearchField == null ? "" : objectSearchField.getText().trim().toLowerCase();
+        List<String> connectionIds = plan.powerConnections().stream()
+                .filter(connection -> cableListItemMatches(connection, query))
+                .map(PowerConnection::id)
+                .toList();
+        if (connectionIds.isEmpty()) return;
+        boolean preserveObjectSelection = !selectedObjectIds.isEmpty();
+        selectedCableConnectionIds.addAll(connectionIds);
+        selectCableSelectionAnchor(connectionIds.getLast(), preserveObjectSelection);
     }
 
     private void setGroupVisible(String groupName, boolean visible) {
@@ -4521,6 +4586,12 @@ public class PlaaniseppApp extends Application {
         });
         cableOpacitySlider = createOpacitySlider(100);
         configureCableOpacityPreview(cableOpacitySlider);
+        selectedCablesVisibleCheckBox = new CheckBox("Kaardil nähtav");
+        selectedCablesVisibleCheckBox.setAllowIndeterminate(true);
+        selectedCablesVisibleCheckBox.setOnAction(event -> updateSelectedCablesVisibility());
+        selectedCablesLockedCheckBox = new CheckBox("Lukustatud");
+        selectedCablesLockedCheckBox.setAllowIndeterminate(true);
+        selectedCablesLockedCheckBox.setOnAction(event -> updateSelectedCablesLocked());
         resetCableLabelButton = new Button("Lähtesta kaablisilt");
         resetCableLabelButton.setOnAction(event -> resetSelectedCableLabelPosition());
         showSelectedCableLabelCheckBox = new CheckBox("Näita kaablisilti");
@@ -4716,9 +4787,11 @@ public class PlaaniseppApp extends Application {
         GridPane cableDetailsForm = detailGrid();
         cableDetailsForm.addRow(0, new Label("Kaabli tükid"), cablePieceEditor);
         cableDetailsForm.addRow(1, new Label("Kaabli märkmed"), cableNotesField);
-        cableDetailsForm.addRow(2, new Label("Läbipaistvus"), opacityControl(cableOpacitySlider));
-        cableDetailsForm.addRow(3, new Label("Kaablisilt"), showSelectedCableLabelCheckBox);
-        cableDetailsForm.addRow(4, new Label("Sildi asukoht"), resetCableLabelButton);
+        cableDetailsForm.addRow(2, new Label("Nähtavus"), selectedCablesVisibleCheckBox);
+        cableDetailsForm.addRow(3, new Label("Lukustus"), selectedCablesLockedCheckBox);
+        cableDetailsForm.addRow(4, new Label("Läbipaistvus"), opacityControl(cableOpacitySlider));
+        cableDetailsForm.addRow(5, new Label("Kaablisilt"), showSelectedCableLabelCheckBox);
+        cableDetailsForm.addRow(6, new Label("Sildi asukoht"), resetCableLabelButton);
         TitledPane cableDetailsPane = new TitledPane("Kaabli lisainfo", cableDetailsForm);
         cableDetailsPane.setExpanded(false);
         HBox powerConnectionActions = new HBox(
@@ -4850,10 +4923,42 @@ public class PlaaniseppApp extends Application {
             if (updatingOpacityControls || selectedPowerConnection() == null) {
                 return;
             }
-            plan.setCableOpacity(selectedPowerConnection().id(), newValue.doubleValue() / 100.0);
+            Set<String> targetIds = selectedCableConnectionIds.isEmpty()
+                    ? Set.of(selectedPowerConnection().id())
+                    : Set.copyOf(selectedCableConnectionIds);
+            targetIds.forEach(id -> plan.setCableOpacity(id, newValue.doubleValue() / 100.0));
             redrawMap();
             markDirty();
         });
+    }
+
+    private void refreshSelectedCableBulkControls() {
+        if (selectedCablesVisibleCheckBox == null || selectedCablesLockedCheckBox == null) {
+            return;
+        }
+        boolean allVisible = !selectedCableConnectionIds.isEmpty()
+                && selectedCableConnectionIds.stream().noneMatch(plan::isCableHidden);
+        boolean anyVisible = selectedCableConnectionIds.stream().anyMatch(id -> !plan.isCableHidden(id));
+        selectedCablesVisibleCheckBox.setIndeterminate(anyVisible && !allVisible);
+        selectedCablesVisibleCheckBox.setSelected(allVisible);
+
+        boolean allLocked = !selectedCableConnectionIds.isEmpty()
+                && selectedCableConnectionIds.stream().allMatch(plan::isCableLocked);
+        boolean anyLocked = selectedCableConnectionIds.stream().anyMatch(plan::isCableLocked);
+        selectedCablesLockedCheckBox.setIndeterminate(anyLocked && !allLocked);
+        selectedCablesLockedCheckBox.setSelected(allLocked);
+    }
+
+    private void updateSelectedCablesVisibility() {
+        if (updatingDetailControls || selectedCableConnectionIds.isEmpty()) return;
+        boolean allVisible = selectedCableConnectionIds.stream().noneMatch(plan::isCableHidden);
+        setSelectedCablesHidden(allVisible);
+    }
+
+    private void updateSelectedCablesLocked() {
+        if (updatingDetailControls || selectedCableConnectionIds.isEmpty()) return;
+        boolean allLocked = selectedCableConnectionIds.stream().allMatch(plan::isCableLocked);
+        setSelectedCablesLocked(!allLocked);
     }
 
     private boolean previewSelectedObjectOpacity(Slider slider, double percentage) {
@@ -6056,6 +6161,8 @@ public class PlaaniseppApp extends Application {
 
     private void resetPlanViewState(boolean resetHistory) {
         selectedObject = null;
+        selectedCableConnectionId = null;
+        selectedCableConnectionIds.clear();
         pendingPowerSourceConsumer = null;
         clearPendingPlacementDetails();
         pendingTentPlacement = false;
@@ -6337,7 +6444,7 @@ public class PlaaniseppApp extends Application {
 
     private void drawPowerConnection(String connectionId) {
         plan.findPowerConnection(connectionId).ifPresent(connection -> {
-            if (plan.isCableHidden(connectionId) || !showCableType(connection.connectorType())) return;
+            if (isCableHidden(connectionId) || !showCableType(connection.connectorType())) return;
             PlannerObject consumer = plan.findObject(connection.consumerId()).orElse(null);
             PowerSource source = plan.findObject(connection.sourceId())
                     .filter(PowerSource.class::isInstance)
@@ -6356,6 +6463,10 @@ public class PlaaniseppApp extends Application {
             selectionRangeAnchorObjectId = null;
             return;
         }
+        if (!selectedCableConnectionIds.isEmpty() && selectedObjectIds.isEmpty()) {
+            selectionRangeAnchorObjectId = null;
+            return;
+        }
         Set<String> currentObjectIds = plan.objects().stream()
                 .map(PlannerObject::id)
                 .collect(java.util.stream.Collectors.toSet());
@@ -6371,7 +6482,8 @@ public class PlaaniseppApp extends Application {
     }
 
     private void drawSelectedObjectHighlight() {
-        if (selectedObject == null || rotatingObjectId != null || !isObjectVisibleOnMap(selectedObject)) {
+        if (selectedObject == null || !isSelected(selectedObject)
+                || rotatingObjectId != null || !isObjectVisibleOnMap(selectedObject)) {
             return;
         }
         Color highlightColor = Color.web("#7c3aed");
@@ -6611,7 +6723,7 @@ public class PlaaniseppApp extends Application {
     private void drawPowerConnection(PowerCableView cable) {
         List<Position> path = cablePath(cable);
         Color cableColor = CableDisplayHelper.color(cable.connection().connectorType());
-        boolean selectedCable = cable.connection().id().equals(selectedCableConnectionId)
+        boolean selectedCable = selectedCableConnectionIds.contains(cable.connection().id())
                 || addingCablePoint && cable.connection().id().equals(editingCableConnectionId);
         double strokeWidth = adaptiveMapPixels(CableDisplayHelper.width(cable.connection().connectorType())
                 + (selectedCable ? 2.0 : 0.0));
@@ -6664,7 +6776,7 @@ public class PlaaniseppApp extends Application {
         }
         List<Circle> routePointMarkers = new ArrayList<>();
         Circle anchorMarker = null;
-        if (selectedCable && !mapLayoutLocked && !plan.isCableLocked(cable.connection().id())) {
+        if (selectedCable && !mapLayoutLocked && !isCableLocked(cable.connection().id())) {
             for (int index = 0; index < cable.connection().routePoints().size(); index++) {
                 Position routePoint = cable.connection().routePoints().get(index);
                 Circle marker = new Circle(routePoint.x(), routePoint.y(), screenPixels(5));
@@ -6794,7 +6906,8 @@ public class PlaaniseppApp extends Application {
                 return;
             }
             if (cable.connection() != null) {
-                selectCable(cable.connection().id());
+                if (event.isControlDown()) toggleCableSelection(cable.connection().id());
+                else selectCable(cable.connection().id());
             } else {
                 selectObject(consumer);
             }
@@ -6810,12 +6923,16 @@ public class PlaaniseppApp extends Application {
     }
 
     private void showCableContextMenu(PowerCableView cable, double screenX, double screenY) {
+        if (!selectedCableConnectionIds.contains(cable.connection().id())) {
+            selectCable(cable.connection().id());
+        }
+        boolean multipleCables = selectedCableConnectionIds.size() > 1;
         boolean editingThisCable = addingCablePoint
                 && cable.connection().id().equals(editingCableConnectionId);
         MenuItem routeItem = new MenuItem(editingThisCable
                 ? "Lõpeta trajektoori muutmine"
                 : "Muuda trajektoori");
-        routeItem.setDisable(mapLayoutLocked || plan.isCableLocked(cable.connection().id()));
+        routeItem.setDisable(mapLayoutLocked || isCableLocked(cable.connection().id()));
         routeItem.setOnAction(event -> {
             if (editingThisCable) {
                 finishEditingCableRoute();
@@ -6824,23 +6941,25 @@ public class PlaaniseppApp extends Application {
             }
         });
         MenuItem noteItem = new MenuItem("Muuda märkust");
-        noteItem.setDisable(plan.isCableLocked(cable.connection().id()));
+        noteItem.setDisable(isCableLocked(cable.connection().id()));
         noteItem.setOnAction(event -> showCableNoteDialog(
                 cable.connection(), cableInventoryHeader(cable.connection())
         ));
         MenuItem piecesItem = new MenuItem("Muuda kaablitükke");
-        piecesItem.setDisable(plan.isCableLocked(cable.connection().id()));
+        piecesItem.setDisable(isCableLocked(cable.connection().id()));
         piecesItem.setOnAction(event -> showCableLengthNotesDialog(
                 cable.connection(), cableInventoryHeader(cable.connection())
         ));
-        MenuItem visibilityItem = new MenuItem(plan.isCableHidden(cable.connection().id())
-                ? "Kuva kaabel" : "Peida kaabel");
-        visibilityItem.setOnAction(event -> setCableHidden(
-                cable.connection().id(), !plan.isCableHidden(cable.connection().id())));
-        MenuItem lockItem = new MenuItem(plan.isCableLocked(cable.connection().id())
-                ? "Eemalda kaabli lukustus" : "Lukusta kaabel");
-        lockItem.setOnAction(event -> setCableLocked(
-                cable.connection().id(), !plan.isCableLocked(cable.connection().id())));
+        boolean allSelectedHidden = selectedCableConnectionIds.stream().allMatch(plan::isCableHidden);
+        MenuItem visibilityItem = new MenuItem(allSelectedHidden
+                ? multipleCables ? "Kuva valitud kaablid" : "Kuva kaabel"
+                : multipleCables ? "Peida valitud kaablid" : "Peida kaabel");
+        visibilityItem.setOnAction(event -> setSelectedCablesHidden(!allSelectedHidden));
+        boolean allSelectedLocked = selectedCableConnectionIds.stream().allMatch(plan::isCableLocked);
+        MenuItem lockItem = new MenuItem(allSelectedLocked
+                ? multipleCables ? "Eemalda valitud kaablite lukustus" : "Eemalda kaabli lukustus"
+                : multipleCables ? "Lukusta valitud kaablid" : "Lukusta kaabel");
+        lockItem.setOnAction(event -> setSelectedCablesLocked(!allSelectedLocked));
         Menu layerMenu = cableLayerMenu(cable.connection());
         showContextMenu(
                 new ContextMenu(noteItem, piecesItem, new SeparatorMenuItem(), routeItem, layerMenu,
@@ -6858,8 +6977,6 @@ public class PlaaniseppApp extends Application {
                 .map(PowerSource.class::cast)
                 .orElse(null);
         if (consumer == null || source == null) return;
-        selectObject(consumer);
-        selectPowerConnection(connection.id());
         showCableContextMenu(new PowerCableView(consumer, source, connection), screenX, screenY);
     }
 
@@ -6890,7 +7007,7 @@ public class PlaaniseppApp extends Application {
     }
 
     private void startEditingCableRoute(PowerCableView cable) {
-        if (mapLayoutLocked || plan.isCableLocked(cable.connection().id())) {
+        if (mapLayoutLocked || isCableLocked(cable.connection().id())) {
             showMapLayoutLockedMessage();
             return;
         }
@@ -9598,6 +9715,7 @@ public class PlaaniseppApp extends Application {
 
     private void selectObject(PlannerObject object) {
         selectedCableConnectionId = null;
+        selectedCableConnectionIds.clear();
         selectedMeasurementPaths.clear();
         if (temporarilyRevealedObjectId != null
                 && (object == null || !logicalObjectIds(object).contains(temporarilyRevealedObjectId))) {
@@ -9692,11 +9810,13 @@ public class PlaaniseppApp extends Application {
         if (activeSelectionCountLabel == null) {
             return;
         }
-        int count = selectedLogicalObjects().size();
+        int objectCount = selectedLogicalObjects().size();
+        int cableCount = selectedCableConnectionIds.size();
+        int count = objectCount + cableCount;
         activeSelectionCountLabel.setText(switch (count) {
-            case 0 -> "Ühtegi aktiivset objekti pole";
-            case 1 -> "1 aktiivne objekt";
-            default -> "%d aktiivset objekti".formatted(count);
+            case 0 -> "Ühtegi aktiivset elementi pole";
+            case 1 -> cableCount == 1 ? "1 aktiivne kaabel" : "1 aktiivne objekt";
+            default -> "%d aktiivset elementi".formatted(count);
         });
         activeSelectionCountLabel.setStyle(count > 1
                 ? "-fx-text-fill: #1d4ed8; -fx-font-size: 11; -fx-font-weight: bold;"
@@ -9724,6 +9844,38 @@ public class PlaaniseppApp extends Application {
         refreshObjectList();
         refreshInventory();
         updateRevealObjectButton();
+        markDirty();
+    }
+
+    private void toggleSelectedItemsHidden() {
+        List<PlannerObject> objects = selectedObjects();
+        if (objects.isEmpty() && selectedCableConnectionIds.isEmpty()) return;
+        boolean allHidden = (objects.isEmpty() || objects.stream().allMatch(PlannerObject::hidden))
+                && (selectedCableConnectionIds.isEmpty()
+                || selectedCableConnectionIds.stream().allMatch(plan::isCableHidden));
+        boolean hidden = !allHidden;
+        objects.forEach(object -> object.setHidden(hidden));
+        selectedCableConnectionIds.forEach(id -> plan.setCableHidden(id, hidden));
+        redrawMap();
+        refreshObjectList();
+        refreshInventory();
+        refreshDetails();
+        updateRevealObjectButton();
+        markDirty();
+    }
+
+    private void toggleSelectedItemsLocked() {
+        List<PlannerObject> objects = selectedObjects();
+        if (objects.isEmpty() && selectedCableConnectionIds.isEmpty()) return;
+        boolean allLocked = (objects.isEmpty() || objects.stream().allMatch(PlannerObject::locked))
+                && (selectedCableConnectionIds.isEmpty()
+                || selectedCableConnectionIds.stream().allMatch(plan::isCableLocked));
+        boolean locked = !allLocked;
+        objects.forEach(object -> object.setLocked(locked));
+        selectedCableConnectionIds.forEach(id -> plan.setCableLocked(id, locked));
+        redrawMap();
+        refreshObjectList();
+        refreshDetails();
         markDirty();
     }
 
@@ -9975,6 +10127,9 @@ public class PlaaniseppApp extends Application {
         for (PlannerObject object : plan.objects()) {
             currentGroups.add(groupNameForFilter(object));
         }
+        if (!plan.powerConnections().isEmpty()) {
+            currentGroups.add(CABLE_GROUP_STATE_KEY);
+        }
         Set<String> hiddenGroups = new HashSet<>(plan.hiddenGroups());
         hiddenGroups.retainAll(currentGroups);
         plan.clearHiddenGroups();
@@ -10044,37 +10199,48 @@ public class PlaaniseppApp extends Application {
     }
 
     private void refreshDetailControls() {
-        boolean hasSelection = selectedObject != null;
-        boolean cableSelected = selectedCableConnectionId != null
-                && plan.findPowerConnection(selectedCableConnectionId).isPresent();
-        selectedObjectSection.setText(cableSelected ? "Valitud kaabel" : "Valitud objekt");
-        setSectionVisible(selectedCableSummaryLabel, cableSelected);
-        if (cableSelected) {
+        selectedCableConnectionIds.removeIf(id -> plan.findPowerConnection(id).isEmpty());
+        boolean cableSelected = !selectedCableConnectionIds.isEmpty();
+        boolean hasObjectSelection = !selectedObjectIds.isEmpty();
+        boolean cableOnlySelection = cableSelected && !hasObjectSelection;
+        boolean mixedSelection = cableSelected && hasObjectSelection;
+        boolean hasSelection = hasObjectSelection || cableSelected;
+        selectedObjectSection.setText(mixedSelection
+                ? "Valitud objektid ja kaablid"
+                : cableSelected
+                ? selectedCableConnectionIds.size() == 1
+                        ? "Valitud kaabel"
+                        : "Valitud kaablid (%d)".formatted(selectedCableConnectionIds.size())
+                : "Valitud objekt");
+        setSectionVisible(selectedCableSummaryLabel, cableOnlySelection);
+        if (cableOnlySelection) {
             PlanLayerEntry cableEntry = PlanLayerEntry.cable(selectedCableConnectionId);
-            selectedCableSummaryLabel.setText("%s\n%s".formatted(
-                    layerEntryName(cableEntry), layerEntryDetailText(cableEntry)));
+            selectedCableSummaryLabel.setText(selectedCableConnectionIds.size() == 1
+                    ? "%s\n%s".formatted(layerEntryName(cableEntry), layerEntryDetailText(cableEntry))
+                    : "%d kaablit valitud".formatted(selectedCableConnectionIds.size()));
         }
         List<PlannerObject> currentSelection = selectedObjects();
         boolean multipleSelection = selectedLogicalObjects().size() > 1;
-        boolean tentSelected = selectedObject instanceof Tent;
-        boolean powerSourceSelected = selectedObject instanceof PowerSource;
+        boolean multipleCableSelection = selectedCableConnectionIds.size() > 1;
+        boolean tentSelected = hasObjectSelection && selectedObject instanceof Tent;
+        boolean powerSourceSelected = hasObjectSelection && selectedObject instanceof PowerSource;
         boolean onlyPowerSourcesSelected = hasSelection
                 && currentSelection.stream().allMatch(PowerSource.class::isInstance);
         boolean tartuCabinetSelected = selectedObject instanceof PowerSource source
                 && tartuCabinetSourceId(source).isPresent();
-        boolean customObjectSelected = selectedObject instanceof CustomObject;
-        boolean textObjectSelected = selectedObject instanceof TextObject;
-        boolean markerSelected = selectedObject instanceof MarkerObject;
-        boolean areaSelected = selectedObject instanceof AreaObject;
-        boolean lineSelected = selectedObject instanceof LineObject;
-        boolean fenceRowSelected = selectedObject instanceof FenceRow;
+        boolean customObjectSelected = hasObjectSelection && selectedObject instanceof CustomObject;
+        boolean textObjectSelected = hasObjectSelection && selectedObject instanceof TextObject;
+        boolean markerSelected = hasObjectSelection && selectedObject instanceof MarkerObject;
+        boolean areaSelected = hasObjectSelection && selectedObject instanceof AreaObject;
+        boolean lineSelected = hasObjectSelection && selectedObject instanceof LineObject;
+        boolean fenceRowSelected = hasObjectSelection && selectedObject instanceof FenceRow;
         boolean generalRotationVisible = hasSelection && !tentSelected && !customObjectSelected && !fenceRowSelected;
         boolean fenceGeometryEditable = fenceRowSelected
                 && (plan.fenceJointDegree(((FenceRow) selectedObject).startJointId()) == 1
                 || plan.fenceJointDegree(((FenceRow) selectedObject).endJointId()) == 1);
-        boolean powerConsumerSelected = selectedObject instanceof PowerConsumer;
-        boolean equipmentContainerSelected = selectedObject instanceof EquipmentContainer;
-        boolean inventoryContainerSelected = selectedObject instanceof InventoryContainer;
+        boolean powerConsumerSelected = selectedObject instanceof PowerConsumer && !mixedSelection;
+        boolean equipmentContainerSelected = hasObjectSelection && selectedObject instanceof EquipmentContainer;
+        boolean inventoryContainerSelected = hasObjectSelection && selectedObject instanceof InventoryContainer;
         boolean linkedTextObject = selectedObject instanceof TextObject textObject
                 && !textObject.sourceObjectId().isBlank();
         boolean textObjectHasMapSource = linkedTextObject
@@ -10136,17 +10302,20 @@ public class PlaaniseppApp extends Application {
         tentOpacitySlider.setDisable(!tentSelected || multipleSelection);
         powerSourceColorPicker.setDisable(!powerSourceSelected);
         powerSourceSizeSlider.setDisable(!onlyPowerSourcesSelected);
-        powerConnectionComboBox.setDisable(!powerConsumerSelected || multipleSelection);
-        powerSourceComboBox.setDisable(!powerConsumerSelected || multipleSelection);
-        connectionOutletComboBox.setDisable(!powerConsumerSelected || multipleSelection);
-        cableLengthNotesField.setDisable(!powerConsumerSelected || multipleSelection);
-        cableNotesField.setDisable(!powerConsumerSelected || multipleSelection);
+        powerConnectionComboBox.setDisable(!powerConsumerSelected || multipleSelection || multipleCableSelection);
+        powerSourceComboBox.setDisable(!powerConsumerSelected || multipleSelection || multipleCableSelection);
+        connectionOutletComboBox.setDisable(!powerConsumerSelected || multipleSelection || multipleCableSelection);
+        cableLengthNotesField.setDisable(!powerConsumerSelected || multipleSelection || multipleCableSelection);
+        cableNotesField.setDisable(!powerConsumerSelected || multipleSelection || multipleCableSelection);
         PowerConnection editedPowerConnection = powerConsumerSelected && !multipleSelection
                 ? selectedPowerConnection()
                 : null;
-        cablePieceEditor.setDisable(editedPowerConnection == null);
+        cablePieceEditor.setDisable(editedPowerConnection == null || multipleCableSelection);
         cableOpacitySlider.setDisable(editedPowerConnection == null);
-        showSelectedCableLabelCheckBox.setDisable(editedPowerConnection == null);
+        showSelectedCableLabelCheckBox.setDisable(editedPowerConnection == null || multipleCableSelection);
+        selectedCablesVisibleCheckBox.setDisable(!cableSelected);
+        selectedCablesLockedCheckBox.setDisable(!cableSelected);
+        refreshSelectedCableBulkControls();
         boolean consumerHasPowerConnection = powerConsumerSelected
                 && !plan.findPowerConnectionsForConsumer(selectedObject.id()).isEmpty();
         boolean customCableLabelPosition = powerConsumerSelected
@@ -10163,11 +10332,13 @@ public class PlaaniseppApp extends Application {
         objectInventoryList.setDisable(!inventoryContainerSelected || multipleSelection);
         addObjectInventoryButton.setDisable(!inventoryContainerSelected || multipleSelection);
         addAlternativePowerConnectionButton.setDisable(
-                !equipmentContainerSelected || multipleSelection || !consumerHasPowerConnection
+                !equipmentContainerSelected || multipleSelection || multipleCableSelection
+                        || !consumerHasPowerConnection
         );
-        removePowerConnectionButton.setDisable(editedPowerConnection == null);
+        removePowerConnectionButton.setDisable(editedPowerConnection == null || multipleCableSelection);
         makeDefaultPowerConnectionButton.setDisable(
-                editedPowerConnection == null || editedPowerConnection.defaultForConsumer()
+                editedPowerConnection == null || multipleCableSelection
+                        || editedPowerConnection.defaultForConsumer()
         );
         outletList.setDisable(!powerSourceSelected || multipleSelection);
         outletNameField.setDisable(!powerSourceSelected || multipleSelection);
@@ -10178,9 +10349,10 @@ public class PlaaniseppApp extends Application {
                 && outletList.getSelectionModel().getSelectedIndex() >= 0;
         updateOutletButton.setDisable(!outletSelected);
         removeOutletButton.setDisable(!outletSelected);
-        choosePowerSourceButton.setDisable(!powerConsumerSelected);
+        choosePowerSourceButton.setDisable(!powerConsumerSelected || multipleCableSelection);
         if (addCablePointButton != null) {
-            addCablePointButton.setDisable(!consumerHasPowerConnection || mapLayoutLocked);
+            addCablePointButton.setDisable(
+                    !consumerHasPowerConnection || multipleCableSelection || mapLayoutLocked);
             addCablePointButton.setText(editingCableConnectionId != null
                     ? "Lõpeta trajektoor"
                     : addingCablePoint ? "Lõpeta kaabli punktid" : "Kaabli punkt");
@@ -10192,7 +10364,8 @@ public class PlaaniseppApp extends Application {
             }
         }
         if (clearCableRouteButton != null) {
-            clearCableRouteButton.setDisable(!consumerHasPowerConnection || mapLayoutLocked);
+            clearCableRouteButton.setDisable(
+                    !consumerHasPowerConnection || multipleCableSelection || mapLayoutLocked);
         }
         boolean selectingPowerSourceForThisConsumer = powerConsumerSelected
                 && pendingPowerSourceConsumer != null
@@ -10200,23 +10373,23 @@ public class PlaaniseppApp extends Application {
         choosePowerSourceButton.setText(selectingPowerSourceForThisConsumer
                 ? "Tühista kapi valik"
                 : "Vali kapp kaardilt");
-        setSectionVisible(selectedObjectBaseForm, hasSelection && !cableSelected);
-        setSectionVisible(customObjectPanel, customObjectSelected && !cableSelected);
-        setSectionVisible(textObjectPanel, textObjectSelected && !cableSelected);
-        setSectionVisible(markerPanel, markerSelected && !cableSelected);
-        setSectionVisible(areaPanel, areaSelected && !cableSelected);
-        setSectionVisible(linePanel, lineSelected && !cableSelected);
-        setSectionVisible(fenceRowPanel, fenceRowSelected && !cableSelected);
-        setSectionVisible(tentPanel, tentSelected && !cableSelected);
-        setSectionVisible(powerSourcePanel, powerSourceSelected && !cableSelected);
+        setSectionVisible(selectedObjectBaseForm, hasObjectSelection);
+        setSectionVisible(customObjectPanel, customObjectSelected);
+        setSectionVisible(textObjectPanel, textObjectSelected);
+        setSectionVisible(markerPanel, markerSelected);
+        setSectionVisible(areaPanel, areaSelected);
+        setSectionVisible(linePanel, lineSelected);
+        setSectionVisible(fenceRowPanel, fenceRowSelected);
+        setSectionVisible(tentPanel, tentSelected);
+        setSectionVisible(powerSourcePanel, powerSourceSelected);
         setSectionVisible(powerSourceAttachmentsButton, tartuCabinetSelected && !organizerView);
         setSectionVisible(powerConnectionPanel, powerConsumerSelected && !organizerView);
-        setSectionVisible(equipmentSection, equipmentContainerSelected && !cableSelected);
-        setSectionVisible(objectInventorySection, inventoryContainerSelected && !cableSelected);
+        setSectionVisible(equipmentSection, equipmentContainerSelected);
+        setSectionVisible(objectInventorySection, inventoryContainerSelected);
         setSectionVisible(outletSection, powerSourceSelected && !organizerView);
         setSectionVisible(choosePowerSourceButton, powerConsumerSelected && !organizerView);
-        setSectionVisible(selectedObjectNotesPanel, hasSelection && !cableSelected);
-        setSectionVisible(deleteObjectButton, hasSelection && !cableSelected);
+        setSectionVisible(selectedObjectNotesPanel, hasObjectSelection);
+        setSectionVisible(deleteObjectButton, hasObjectSelection);
 
         if (!hasSelection) {
             selectedTypeLabel.setText("Vali kaardilt objekt");
@@ -12616,6 +12789,34 @@ public class PlaaniseppApp extends Application {
     }
 
     private void selectCable(String connectionId) {
+        selectedCableConnectionIds.clear();
+        selectedCableConnectionIds.add(connectionId);
+        selectedObjectIds.clear();
+        selectCableSelectionAnchor(connectionId, false);
+    }
+
+    private void toggleCableSelection(String connectionId) {
+        boolean preserveObjectSelection = !selectedObjectIds.isEmpty();
+        if (!selectedCableConnectionIds.add(connectionId)) {
+            selectedCableConnectionIds.remove(connectionId);
+        }
+        if (selectedCableConnectionIds.isEmpty()) {
+            selectedCableConnectionId = null;
+            if (selectedObjectIds.isEmpty()) selectObject(null);
+            else {
+                refreshDetails();
+                refreshObjectList();
+                redrawMap();
+            }
+            return;
+        }
+        String anchorId = selectedCableConnectionIds.contains(connectionId)
+                ? connectionId
+                : selectedCableConnectionIds.iterator().next();
+        selectCableSelectionAnchor(anchorId, preserveObjectSelection);
+    }
+
+    private void selectCableSelectionAnchor(String connectionId, boolean preserveObjectSelection) {
         PowerConnection connection = plan.findPowerConnection(connectionId).orElse(null);
         PlannerObject consumer = connection == null
                 ? null
@@ -12629,9 +12830,10 @@ public class PlaaniseppApp extends Application {
             commitPendingDetailFieldsBeforeSelectionChange();
         }
         selectedMeasurementPaths.clear();
-        selectedObject = consumer;
-        selectedObjectIds.clear();
-        selectedObjectIds.addAll(logicalObjectIds(consumer));
+        if (!preserveObjectSelection) {
+            selectedObject = consumer;
+            selectedObjectIds.clear();
+        }
         selectionRangeAnchorObjectId = null;
         selectedCableConnectionId = connectionId;
         clearObjectSearchIfItHides(consumer);
