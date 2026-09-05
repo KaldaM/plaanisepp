@@ -2515,6 +2515,26 @@ public class PlaaniseppApp extends Application {
         return button;
     }
 
+    private HBox createObjectGroupRow(Button toggleButton, String groupStateKey, Label groupLabel) {
+        boolean groupVisible = !plan.hiddenGroups().contains(groupStateKey);
+        Button visibilityButton = objectStateIconButton(
+                "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+                groupVisible,
+                groupVisible ? "Peida grupp kaardilt" : "Kuva grupp kaardil",
+                () -> setGroupVisible(groupStateKey, !groupVisible)
+        );
+        boolean groupLocked = plan.isGroupLocked(groupStateKey);
+        Button lockButton = objectStateIconButton(
+                "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",
+                groupLocked,
+                groupLocked ? "Eemalda grupi lukustus" : "Lukusta grupp",
+                () -> setGroupLocked(groupStateKey, !groupLocked)
+        );
+        HBox groupRow = new HBox(6, toggleButton, visibilityButton, lockButton, groupLabel);
+        groupRow.setAlignment(Pos.CENTER_LEFT);
+        return groupRow;
+    }
+
     private boolean canStartSelectionBox(MouseEvent event) {
         return event.getButton() == MouseButton.PRIMARY
                 && event.isControlDown()
@@ -2648,51 +2668,13 @@ public class PlaaniseppApp extends Application {
                             ? "Otsingu ajal kuvatakse kõik sobivad objektid"
                             : entry.expanded() ? "Peida grupi objektid" : "Näita grupi objekte"));
                     toggleButton.setOnAction(event -> toggleObjectGroup(entry.groupName()));
-                    if (entry.groupName().equals("Kaablid")) {
-                        boolean cablesVisible = !plan.hiddenGroups().contains(CABLE_GROUP_STATE_KEY);
-                        Button visibilityButton = objectStateIconButton(
-                                "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
-                                cablesVisible,
-                                cablesVisible ? "Peida kõik kaablid kaardilt" : "Kuva kõik kaablid kaardil",
-                                () -> setGroupVisible(CABLE_GROUP_STATE_KEY, !cablesVisible)
-                        );
-                        boolean cablesLocked = plan.isGroupLocked(CABLE_GROUP_STATE_KEY);
-                        Button lockButton = objectStateIconButton(
-                                "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",
-                                cablesLocked,
-                                cablesLocked ? "Eemalda kõigi kaablite lukustus" : "Lukusta kõik kaablid",
-                                () -> setGroupLocked(CABLE_GROUP_STATE_KEY, !cablesLocked)
-                        );
-                        Label groupLabel = new Label("Kaablid (%d)".formatted(entry.objectCount()));
-                        groupLabel.setStyle("-fx-font-weight: bold;");
-                        HBox groupRow = new HBox(6, toggleButton, visibilityButton, lockButton, groupLabel);
-                        groupRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-                        setText(null);
-                        setGraphic(groupRow);
-                        setStyle("-fx-background-color: rgba(148,163,184,0.12);");
-                        setOnContextMenuRequested(null);
-                        return;
-                    }
-                    boolean groupVisible = visibleGroups.contains(entry.groupName());
-                    Button visibilityButton = objectStateIconButton(
-                            "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
-                            groupVisible,
-                            groupVisible ? "Peida grupp kaardilt" : "Kuva grupp kaardil",
-                            () -> setGroupVisible(entry.groupName(), !groupVisible)
-                    );
-                    boolean groupLocked = allGroupObjectsLocked(entry.groupName());
-                    Button lockButton = objectStateIconButton(
-                            "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",
-                            groupLocked,
-                            groupLocked ? "Eemalda grupi lukustus" : "Lukusta grupp",
-                            () -> setGroupLocked(entry.groupName(), !groupLocked)
-                    );
+                    String groupStateKey = entry.groupName().equals("Kaablid")
+                            ? CABLE_GROUP_STATE_KEY
+                            : entry.groupName();
                     Label groupLabel = new Label("%s (%d)".formatted(entry.groupName(), entry.objectCount()));
                     groupLabel.setStyle("-fx-font-weight: bold;");
-                    HBox groupRow = new HBox(6, toggleButton, visibilityButton, lockButton, groupLabel);
-                    groupRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                     setText(null);
-                    setGraphic(groupRow);
+                    setGraphic(createObjectGroupRow(toggleButton, groupStateKey, groupLabel));
                     setStyle("-fx-background-color: rgba(148,163,184,0.12);");
                     setOnContextMenuRequested(null);
                     return;
@@ -4164,10 +4146,6 @@ public class PlaaniseppApp extends Application {
         refreshObjectList();
         refreshSummary();
         markDirty();
-    }
-
-    private boolean allGroupObjectsLocked(String groupName) {
-        return plan.isGroupLocked(groupName);
     }
 
     private void setGroupLocked(String groupName, boolean locked) {
