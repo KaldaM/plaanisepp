@@ -1,6 +1,8 @@
 package ee.matteus.plaanisepp.gui;
 
 import javafx.css.PseudoClass;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
@@ -9,6 +11,8 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.PopupControl;
+import javafx.scene.control.SplitPane;
+import javafx.scene.layout.Region;
 import javafx.stage.PopupWindow;
 import javafx.stage.Stage;
 import javafx.stage.Window;
@@ -23,6 +27,22 @@ final class UiTheme {
     private UiTheme() {}
 
     enum LockTone { INDIVIDUAL, GROUP, BOTH }
+
+    static void configureSidebarWidth(SplitPane splitPane, Region sidebar) {
+        sidebar.setMinWidth(280);
+        sidebar.setPrefWidth(360);
+        SplitPane.setResizableWithParent(sidebar, false);
+        // Set the initial width once layout knows the actual window width. Later
+        // window resizes preserve the width, including a user's divider adjustment.
+        splitPane.widthProperty().addListener(new ChangeListener<Number>() {
+            @Override
+            public void changed(ObservableValue<? extends Number> value, Number oldWidth, Number width) {
+                if (width.doubleValue() <= 0) return;
+                splitPane.setDividerPositions(sidebar.getPrefWidth() / width.doubleValue());
+                splitPane.widthProperty().removeListener(this);
+            }
+        });
+    }
 
     static LockTone lockTone(boolean individual, boolean group) {
         return group ? individual ? LockTone.BOTH : LockTone.GROUP : LockTone.INDIVIDUAL;

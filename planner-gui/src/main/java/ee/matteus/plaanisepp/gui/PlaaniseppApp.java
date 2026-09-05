@@ -2151,7 +2151,7 @@ public class PlaaniseppApp extends Application {
         sidebarScrollPane.setFitToWidth(true);
 
         SplitPane splitPane = new SplitPane(sidebarScrollPane, mapView);
-        splitPane.setDividerPositions(0.32);
+        UiTheme.configureSidebarWidth(splitPane, sidebarScrollPane);
         return splitPane;
     }
 
@@ -4752,9 +4752,6 @@ public class PlaaniseppApp extends Application {
                 powerConnectionActions
         );
 
-        GridPane notesForm = detailGrid();
-        notesForm.addRow(0, new Label("Märkmed"), notesArea);
-
         deleteObjectButton = new Button("Kustuta objekt");
         deleteObjectButton.setTooltip(new Tooltip("Kustuta valitud objekt (Delete)"));
         deleteObjectButton.setOnAction(event -> deleteSelectedObject());
@@ -4782,7 +4779,7 @@ public class PlaaniseppApp extends Application {
                 removeOutletButton
         );
         outletSection = collapsibleSection(OUTLET_SECTION, "Kapi väljundid", outletPanel, false);
-        selectedObjectNotesPanel = new VBox(8, sectionLabel("Märkmed"), notesForm);
+        selectedObjectNotesPanel = new VBox(6, sectionLabel("Märkmed"), notesArea);
         VBox detailPanel = new VBox(
                 10,
                 selectedObjectBaseForm,

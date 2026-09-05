@@ -101,7 +101,9 @@
     -fx-opacity: 0.58;
 }
 .ui-surface.tool-bar { -fx-padding: 6 8; -fx-spacing: 6; -fx-border-color: transparent transparent -ui-border transparent; }
-.ui-surface.sidebar { -fx-spacing: 8; -fx-padding: 10; }
+.ui-surface.sidebar { -fx-spacing: 6; -fx-padding: 8; }
+.ui-surface.sidebar .detail-grid > .label { -fx-min-width: 88; -fx-pref-width: 88; }
+.ui-surface.sidebar .titled-pane > .content { -fx-padding: 6; }
 .ui-surface .titled-pane { -fx-text-fill: -ui-text; }
 .ui-surface .titled-pane > .title {
     -fx-background-color: -ui-hover;
